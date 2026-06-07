@@ -1,5 +1,5 @@
 """
-紡織所 來自民間業務收支管理系統 - Flask Web App
+紡織所業務部門來自民間業務收入明細 - Flask Web App
 支援多年度（民國年）
 執行: python app.py  |  網址: http://[本機IP]:5001
 """
@@ -592,7 +592,7 @@ if __name__ == '__main__':
         local_ip = '127.0.0.1'
     current_year = CURRENT_ROC_YEAR
     print('=' * 55)
-    print(f'  紡織所 來自民間業務收支管理系統（多年度版）')
+    print(f'  紡織所業務部門來自民間業務收入明細（多年度版）')
     print('=' * 55)
     print(f'  本機網址 : http://127.0.0.1:5001')
     print(f'  區域網路 : http://{local_ip}:5001')
