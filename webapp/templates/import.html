@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% block title %}匯入 Excel{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#1f4e79,#2e75b6);">
+    📥 Excel 資料匯入 — {{ year }}年
+  </div>
+  <div class="card-body">
+
+    <div style="background:#e8f4fd; border:1px solid #b8d9f0; border-radius:8px; padding:14px; margin-bottom:18px;">
+      <h4 style="margin:0 0 8px; color:#1f4e79;">📋 匯入說明</h4>
+      <ol style="margin:0; padding-left:20px; line-height:1.9; font-size:14px;">
+        <li>先下載「<a href="/download_import_template" style="color:#1f4e79; font-weight:bold;">📄 匯入範本 Excel</a>」，依格式填寫。</li>
+        <li>範本包含三個工作表：<strong>收支資料</strong>、<strong>未核銷費用</strong>、<strong>合約追蹤</strong>。</li>
+        <li>請勿修改欄位標題及「項目」欄的文字（必須與系統完全相同）。</li>
+        <li>部門名稱須為：原料部、產品部、檢驗部、製程部、雲分部、產服部 之一。</li>
+        <li>月份填 1～12 的整數。</li>
+        <li>匯入時若該筆資料已存在，會<strong>覆蓋</strong>原有金額。</li>
+        <li>目前匯入的年度為：<strong>民國 {{ year }} 年</strong>（依畫面右上角年度選擇）。</li>
+      </ol>
+    </div>
+
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
+      <a href="/download_import_template" class="btn btn-primary" style="font-size:15px;">
+        📄 下載匯入範本 Excel
+      </a>
+    </div>
+
+    <hr style="border-color:#ddd; margin:16px 0;">
+    <h4 style="color:#1f4e79; margin-bottom:12px;">⬆ 上傳 Excel 檔</h4>
+
+    <div id="drop-zone"
+         style="border:2px dashed #2e75b6; border-radius:10px; padding:32px;
+                text-align:center; background:#f0f7ff; cursor:pointer; margin-bottom:16px;"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="event.preventDefault(); this.style.background='#d8eeff';"
+         ondragleave="this.style.background='#f0f7ff';"
+         ondrop="handleDrop(event)">
+      <div style="font-size:40px; margin-bottom:8px;">📂</div>
+      <div style="font-size:15px; color:#444;">點此選擇 .xlsx 檔案，或拖放至此處</div>
+      <div id="file-name" style="margin-top:8px; font-weight:bold; color:#1f4e79;"></div>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx" style="display:none;" onchange="fileSelected(this)">
+
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <button class="btn btn-success" style="font-size:15px;" onclick="doImport()" id="import-btn" disabled>
+        ⬆ 開始匯入
+      </button>
+      <span id="import-status" style="font-size:14px;"></span>
+    </div>
+
+    <!-- 結果 -->
+    <div id="result-box" style="display:none; margin-top:20px; padding:16px;
+         border-radius:8px; border:1px solid #b8d9f0; background:#e8f4fd;">
+      <h4 id="result-title" style="margin:0 0 8px; color:#1f4e79;"></h4>
+      <p id="result-msg" style="margin:0 0 8px; font-size:14px;"></p>
+      <div id="error-list" style="font-size:13px; color:#721c24;"></div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:8px;">
+  <a href="/" class="btn btn-primary">← 返回首頁</a>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let selectedFile = null;
+
+function fileSelected(input) {
+  if (input.files[0]) {
+    selectedFile = input.files[0];
+    document.getElementById('file-name').textContent = '已選擇：' + selectedFile.name;
+    document.getElementById('import-btn').disabled = false;
+  }
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').style.background = '#f0f7ff';
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.xlsx')) {
+    selectedFile = file;
+    document.getElementById('file-name').textContent = '已選擇：' + file.name;
+    document.getElementById('import-btn').disabled = false;
+  } else {
+    alert('請選擇 .xlsx 格式的 Excel 檔案');
+  }
+}
+function doImport() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('import-btn');
+  const status = document.getElementById('import-status');
+  btn.disabled = true;
+  status.textContent = '⏳ 匯入中，請稍候...';
+  status.style.color = '#555';
+
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+  fetch('/api/import_excel', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      const box = document.getElementById('result-box');
+      const title = document.getElementById('result-title');
+      const msg = document.getElementById('result-msg');
+      const errList = document.getElementById('error-list');
+      box.style.display = 'block';
+      if (data.error) {
+        box.style.background = '#fff3cd'; box.style.borderColor = '#ffc107';
+        title.textContent = '❌ 匯入失敗'; title.style.color = '#856404';
+        msg.textContent = data.error;
+        status.textContent = ''; errList.innerHTML = '';
+      } else {
+        box.style.background = '#d4edda'; box.style.borderColor = '#c3e6cb';
+        title.textContent = '✅ 匯入成功'; title.style.color = '#155724';
+        msg.textContent = data.message;
+        status.textContent = '';
+        if (data.errors && data.errors.length) {
+          errList.innerHTML = '<strong>略過的資料：</strong><br>' +
+            data.errors.map(e => `• ${e}`).join('<br>');
+        } else {
+          errList.innerHTML = '';
+        }
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      status.textContent = '❌ 上傳失敗，請再試一次';
+      status.style.color = 'red';
+    });
+}
+</script>
+{% endblock %}

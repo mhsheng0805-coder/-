@@ -1,29 +1,34 @@
 {% extends 'base.html' %}
-{% block title %}{{ dept }} - {{ year }}年業務收支{% endblock %}
+{% block title %}{{ dept }} {{ year }}年 來自民間業務收支表{% endblock %}
 {% block content %}
+
+<!-- 頁首 -->
 <div class="card">
   <div class="card-header">
-    📝 {{ dept }} — {{ year }}年 來自民間業務收支表
-    <span style="margin-left:auto; font-size:13px; font-weight:normal;">
-      <a href="/dept/{{ dept }}?month={{ month }}" style="color:rgba(255,255,255,0.8);">月份切換：</a>
-    </span>
+    📝 {{ year }}年 {{ dept }} 來自民間業務收支表
   </div>
-  <div class="card-body" style="padding-bottom:10px;">
-    <div class="month-tabs">
-      {% for m in months %}
-      <a href="/dept/{{ dept }}?month={{ m }}"
-         class="month-tab {% if m == month %}active{% endif %}">{{ m }}月</a>
-      {% endfor %}
-    </div>
-    <div class="dept-tabs">
-      {% for d in ['原料部','產品部','檢驗部','製程部','雲分部','產服部'] %}
+  <div class="card-body" style="padding:10px 14px;">
+    <!-- 部門切換 -->
+    <div class="dept-tabs" style="margin-bottom:8px;">
+      {% for d in departments %}
       <a href="/dept/{{ d }}?month={{ month }}"
          class="dept-tab {% if d == dept %}active{% endif %}">{{ d }}</a>
+      {% endfor %}
+    </div>
+    <!-- 月份選擇 -->
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span style="font-size:13px; color:#555; font-weight:bold;">月份：</span>
+      {% for m in months %}
+      <a href="/dept/{{ dept }}?month={{ m }}"
+         style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:13px; text-decoration:none;
+         {% if m == month %}background:#1f4e79; color:white; font-weight:bold;
+         {% else %}background:#e8f0fb; color:#1f4e79;{% endif %}">{{ m }}月</a>
       {% endfor %}
     </div>
   </div>
 </div>
 
+<!-- 收入 / 支出 並排 -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
 
 <!-- 收入表 -->
@@ -33,20 +38,21 @@
   </div>
   <div class="card-body" style="overflow-x:auto; padding:12px;">
     <table>
-      <thead><tr><th style="text-align:left;">項目</th><th>金額 (元)</th><th>年度目標</th><th>達成率</th></tr></thead>
+      <thead><tr>
+        <th style="text-align:left;">項目</th>
+        <th>金額 (元)</th><th>年度目標</th><th>達成率</th>
+      </tr></thead>
       <tbody>
         {% set income_totals = ['來自民間收入合計'] %}
-        {% set income_subs = [] %}
         {% for item in income_items %}
         <tr {% if item in income_totals %}style="background:#c6efce; font-weight:bold;"
-            {% elif item in income_subs %}style="background:#f2f2f2; color:#666;"
             {% else %}style="background:#ebf8ee;"{% endif %}>
           <td>{{ item }}</td>
           <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
-               {% if item in income_totals or item == '其他小計(自民間)' %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
+               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
                value="0"></td>
           <td><input type="text" class="input-num income-goal" data-item="{{ item }}"
-               {% if item in income_totals or item in income_subs %}readonly style="background:#f5f5f5;"{% endif %}
+               {% if item in income_totals %}readonly style="background:#f5f5f5;"{% endif %}
                value="0"></td>
           <td class="text-center income-rate" data-item="{{ item }}">-</td>
         </tr>
@@ -56,29 +62,52 @@
   </div>
 </div>
 
-<!-- 支出表 -->
+<!-- 支出表（含已申請未核銷） -->
 <div class="card">
   <div class="card-header" style="background:linear-gradient(135deg,#8b1a1a,#c0392b);">
     💸 支出 — {{ month }}月
+    <span style="font-size:11px; opacity:.8; margin-left:8px;">（已核銷 + 已申請未核銷）</span>
   </div>
   <div class="card-body" style="overflow-x:auto; padding:12px;">
     <table>
-      <thead><tr><th style="text-align:left;">項目</th><th>金額 (元)</th><th>年度目標</th><th>達成率</th></tr></thead>
+      <thead><tr>
+        <th style="text-align:left;">項目</th>
+        <th>已核銷</th><th>已申請<br>未核銷</th><th>小計</th>
+        <th>年度目標</th><th>達成率</th>
+      </tr></thead>
       <tbody>
         {% set exp_totals = ['其他民間收入支出'] %}
-        {% set exp_subs = [] %}
+        {% set unclaim_map = {
+          '業務費用':'業務費(未核銷)',
+          '維護費用':'維護費(未核銷)',
+          '旅運費用':'旅運費(未核銷)',
+          '材料費用':'材料費(未核銷)'
+        } %}
         {% for item in expense_items %}
+        {% set uc_item = unclaim_map.get(item, '') %}
         <tr {% if item in exp_totals %}style="background:#ffc7c7; font-weight:bold;"
-            {% elif item in exp_subs %}style="background:#f2f2f2; color:#666;"
             {% else %}style="background:#fff0f0;"{% endif %}>
           <td>{{ item }}</td>
-          <td><input type="text" class="input-num expense-amt" data-item="{{ item }}"
-               {% if item in exp_totals or item == '其他小計(自民間)支出' %}readonly style="background:#ffe0e0; font-weight:bold;"{% endif %}
-               value="0"></td>
-          <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
-               {% if item in exp_totals or item in exp_subs %}readonly style="background:#f5f5f5;"{% endif %}
-               value="0"></td>
-          <td class="text-center expense-rate" data-item="{{ item }}">-</td>
+          {% if item in exp_totals %}
+            <td class="text-right" id="total-claimed">0</td>
+            <td class="text-right" id="total-unclaim">0</td>
+            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}"
+                 readonly style="background:#ffe0e0; font-weight:bold;" value="0"></td>
+            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
+                 readonly style="background:#f5f5f5;" value="0"></td>
+            <td class="text-center expense-rate" data-item="{{ item }}">-</td>
+          {% else %}
+            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}" value="0"></td>
+            {% if uc_item %}
+            <td><input type="text" class="input-num unclaim-amt" data-item="{{ uc_item }}" value="0"
+                 style="background:#fffde7;"></td>
+            {% else %}
+            <td style="text-align:center; color:#ccc;">—</td>
+            {% endif %}
+            <td class="text-right exp-sub" data-item="{{ item }}">0</td>
+            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}" value="0"></td>
+            <td class="text-center expense-rate" data-item="{{ item }}">-</td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>
@@ -88,117 +117,34 @@
 
 </div>
 
-<!-- 收支差額 -->
+<!-- 收支摘要 + 按鈕 -->
 <div class="card">
   <div class="card-header" style="background:linear-gradient(135deg,#7b5c00,#b8860b);">
-    ⚖️ 收支差額 — {{ month }}月
+    ⚖️ {{ month }}月 收支摘要
   </div>
   <div class="card-body">
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
-      <div class="stat-card"><div class="value" id="net-income">-</div><div class="label">來自民間收入合計</div></div>
-      <div class="stat-card" style="border-color:#dc3545"><div class="value" id="net-expense" style="color:#dc3545">-</div><div class="label">其他民間收入支出</div></div>
-      <div class="stat-card" style="border-color:#ffc107"><div class="value" id="net-diff" style="color:#856404">-</div><div class="label">收支差額</div></div>
-    </div>
-    <div style="text-align:right; margin-top:10px;">
-      <button class="btn btn-success" onclick="saveRevenue()">💾 儲存收支資料</button>
-    </div>
-  </div>
-</div>
-
-<!-- 已申請未核銷費用 -->
-<div class="card">
-  <div class="card-header" style="background:linear-gradient(135deg,#7b6000,#c9990a);">
-    ⚠️ 已申請未核銷費用 — {{ month }}月（截至當月底）
-  </div>
-  <div class="card-body" style="overflow-x:auto; padding:12px;">
-    <table style="max-width:600px;">
-      <thead><tr><th style="text-align:left;">費用類別</th><th>金額 (元)</th></tr></thead>
-      <tbody>
-        {% for item in unclaimed_items %}
-        <tr style="background:#fffde7;">
-          <td>{{ item }}</td>
-          <td><input type="text" class="input-num unclaim-amt" data-item="{{ item }}" value="0"></td>
-        </tr>
-        {% endfor %}
-        <tr style="background:#fff3cd; font-weight:bold;">
-          <td>未核銷合計</td>
-          <td class="text-right" id="unclaim-total">0</td>
-        </tr>
-      </tbody>
-    </table>
-    <div style="margin-top:10px;">
-      <button class="btn btn-warning" onclick="saveUnclaimed()">💾 儲存未核銷費用</button>
-    </div>
-  </div>
-</div>
-
-<!-- 合約追蹤 -->
-<div class="card">
-  <div class="card-header" style="background:linear-gradient(135deg,#4a1a7b,#7b3fa0);">
-    📋 合約進度追蹤 — {{ month }}月
-    <button class="btn btn-sm" style="margin-left:auto; background:rgba(255,255,255,0.2); color:white;" onclick="showContractForm()">＋ 新增合約</button>
-  </div>
-  <div class="card-body">
-
-    {% if month > 1 %}
-    <div id="carry-section" style="margin-bottom:16px;">
-      <h4 style="color:#4a1a7b; margin-bottom:8px;">🔄 上月延續（洽談中/執行中）</h4>
-      <div id="carry-list"><em style="color:#999;">載入中...</em></div>
-    </div>
-    {% endif %}
-
-    <h4 style="color:#4a1a7b; margin-bottom:8px;">本月合約</h4>
-    <div id="contract-list"><em style="color:#999;">載入中...</em></div>
-
-    <!-- 新增/編輯合約表單 -->
-    <div id="contract-form" style="display:none; background:#f8f0ff; border:1px solid #d0b0ef; border-radius:8px; padding:16px; margin-top:16px;">
-      <h4 style="margin-bottom:12px; color:#4a1a7b;">合約資料</h4>
-      <input type="hidden" id="cf-id">
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-        <div class="form-group">
-          <label>客戶/計畫名稱 *</label>
-          <input type="text" id="cf-client">
-        </div>
-        <div class="form-group">
-          <label>合約金額 (元)</label>
-          <input type="text" id="cf-amount" class="input-num" style="width:100%;" value="0">
-        </div>
-        <div class="form-group">
-          <label>簽約日期</label>
-          <input type="date" id="cf-sign-date">
-        </div>
-        <div class="form-group">
-          <label>預計完成日</label>
-          <input type="date" id="cf-due-date">
-        </div>
-        <div class="form-group">
-          <label>狀態</label>
-          <select id="cf-status">
-            <option>洽談中</option>
-            <option>新增簽約</option>
-            <option>已簽約執行中</option>
-            <option>完成</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>本月實收金額 (元)</label>
-          <input type="text" id="cf-actual" class="input-num" style="width:100%;" value="0">
-        </div>
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>備註</label>
-          <textarea id="cf-note" rows="2"></textarea>
-        </div>
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>
-            <input type="checkbox" id="cf-carry" style="width:auto; margin-right:6px;">
-            延續至下月繼續追蹤
-          </label>
-        </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+      <div class="stat-card">
+        <div class="value" id="net-income">-</div>
+        <div class="label">來自民間收入合計</div>
       </div>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-primary" onclick="saveContract()">💾 儲存</button>
-        <button class="btn btn-sm" style="background:#ccc; color:#333;" onclick="hideContractForm()">取消</button>
+      <div class="stat-card" style="border-color:#c0392b;">
+        <div class="value" id="net-claimed" style="color:#c0392b;">-</div>
+        <div class="label">支出（已核銷）</div>
       </div>
+      <div class="stat-card" style="border-color:#e67e22;">
+        <div class="value" id="net-unclaim" style="color:#e67e22;">-</div>
+        <div class="label">已申請未核銷</div>
+      </div>
+      <div class="stat-card" style="border-color:#ffc107;">
+        <div class="value" id="net-diff" style="color:#856404;">-</div>
+        <div class="label">收支差額（收入－支出小計）</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+      <button class="btn btn-success" onclick="saveAll()">💾 儲存收支資料</button>
+      <a href="/dept/{{ dept }}/contracts?month={{ month }}" class="btn btn-warning">📋 合約追蹤</a>
+      <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
     </div>
   </div>
 </div>
@@ -208,36 +154,48 @@
 <script>
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
-const INCOME_TOTALS = ['來自民間收入合計'];
-const INCOME_SUBS = [];
-const EXPENSE_TOTALS = ['其他民間收入支出'];
-const EXPENSE_SUBS = [];
+const INCOME_TOTAL_ITEM = '來自民間收入合計';
+const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
+const UNCLAIM_MAP = {
+  '業務費用':'業務費(未核銷)',
+  '維護費用':'維護費(未核銷)',
+  '旅運費用':'旅運費(未核銷)',
+  '材料費用':'材料費(未核銷)',
+};
 
-function calcIncomeTotals() {
-  let subTotal = 0, grandTotal = 0;
+function calcAll() {
+  // 收入合計
+  let incTotal = 0;
   document.querySelectorAll('.income-amt').forEach(inp => {
-    const item = inp.dataset.item;
-    if (INCOME_SUBS.slice(0,3).includes(item)) subTotal += parseFmt(inp.value);
-    if (!INCOME_SUBS.includes(item) && !INCOME_TOTALS.includes(item)) grandTotal += parseFmt(inp.value);
+    if (inp.dataset.item !== INCOME_TOTAL_ITEM) incTotal += parseFmt(inp.value);
   });
-  // 其他小計
-    // 總計
-  const totalInp = document.querySelector('.income-amt[data-item="來自民間收入合計"]');
-  if (totalInp) totalInp.value = fmt(grandTotal);
-  calcRates(); calcNet();
-}
-function calcExpenseTotals() {
-  let subTotal = 0, grandTotal = 0;
+  const incInp = document.querySelector(`.income-amt[data-item="${INCOME_TOTAL_ITEM}"]`);
+  if (incInp) incInp.value = fmt(incTotal);
+
+  // 支出：每行小計
+  let totalClaimed = 0, totalUnclaim = 0;
   document.querySelectorAll('.expense-amt').forEach(inp => {
-    const item = inp.dataset.item;
-    if (EXPENSE_SUBS.slice(0,3).includes(item)) subTotal += parseFmt(inp.value);
-    if (!EXPENSE_SUBS.includes(item) && !EXPENSE_TOTALS.includes(item)) grandTotal += parseFmt(inp.value);
+    if (inp.dataset.item === EXPENSE_TOTAL_ITEM) return;
+    const claimed = parseFmt(inp.value);
+    totalClaimed += claimed;
+    const ucItem = UNCLAIM_MAP[inp.dataset.item];
+    const ucInp = ucItem ? document.querySelector(`.unclaim-amt[data-item="${ucItem}"]`) : null;
+    const ucAmt = ucInp ? parseFmt(ucInp.value) : 0;
+    const sub = document.querySelector(`.exp-sub[data-item="${inp.dataset.item}"]`);
+    if (sub) sub.textContent = fmt(claimed + ucAmt);
   });
-  const totalInp = document.querySelector('.expense-amt[data-item="其他民間收入支出"]');
-  if (totalInp) totalInp.value = fmt(grandTotal);
-  calcRates(); calcNet();
-}
-function calcRates() {
+  document.querySelectorAll('.unclaim-amt').forEach(inp => {
+    totalUnclaim += parseFmt(inp.value);
+  });
+  const expTotal = totalClaimed + totalUnclaim;
+  const expInp = document.querySelector(`.expense-amt[data-item="${EXPENSE_TOTAL_ITEM}"]`);
+  if (expInp) expInp.value = fmt(expTotal);
+  const clEl = document.getElementById('total-claimed');
+  const ucEl = document.getElementById('total-unclaim');
+  if (clEl) clEl.textContent = fmt(totalClaimed);
+  if (ucEl) ucEl.textContent = fmt(totalUnclaim);
+
+  // 達成率
   document.querySelectorAll('.income-rate').forEach(td => {
     const item = td.dataset.item;
     const amt = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value || 0);
@@ -246,170 +204,72 @@ function calcRates() {
   });
   document.querySelectorAll('.expense-rate').forEach(td => {
     const item = td.dataset.item;
-    const amt = parseFmt(document.querySelector(`.expense-amt[data-item="${item}"]`)?.value || 0);
+    const sub = item === EXPENSE_TOTAL_ITEM ? expTotal :
+      parseFmt(document.querySelector(`.exp-sub[data-item="${item}"]`)?.textContent || 0);
     const goal = parseFmt(document.querySelector(`.expense-goal[data-item="${item}"]`)?.value || 0);
-    td.textContent = goal > 0 ? (amt/goal*100).toFixed(1)+'%' : '-';
+    td.textContent = goal > 0 ? (sub/goal*100).toFixed(1)+'%' : '-';
   });
-}
-function calcNet() {
-  const inc = parseFmt(document.querySelector('.income-amt[data-item="來自民間收入合計"]')?.value || 0);
-  const exp = parseFmt(document.querySelector('.expense-amt[data-item="其他民間收入支出"]')?.value || 0);
-  document.getElementById('net-income').textContent = fmt(inc);
-  document.getElementById('net-expense').textContent = fmt(exp);
-  const net = inc - exp;
-  const el = document.getElementById('net-diff');
-  el.textContent = fmt(net);
-  el.style.color = net >= 0 ? '#155724' : '#721c24';
-}
-function calcUnclaimTotal() {
-  let total = 0;
-  document.querySelectorAll('.unclaim-amt').forEach(inp => total += parseFmt(inp.value));
-  document.getElementById('unclaim-total').textContent = fmt(total);
+
+  // 摘要
+  document.getElementById('net-income').textContent = fmt(incTotal);
+  document.getElementById('net-claimed').textContent = fmt(totalClaimed);
+  document.getElementById('net-unclaim').textContent = fmt(totalUnclaim);
+  const net = incTotal - expTotal;
+  const netEl = document.getElementById('net-diff');
+  netEl.textContent = fmt(net);
+  netEl.style.color = net >= 0 ? '#155724' : '#721c24';
 }
 
-// 自動計算觸發
-document.querySelectorAll('.income-amt:not([readonly])').forEach(inp => {
-  inp.addEventListener('input', calcIncomeTotals);
-});
-document.querySelectorAll('.expense-amt:not([readonly])').forEach(inp => {
-  inp.addEventListener('input', calcExpenseTotals);
-});
-document.querySelectorAll('.income-goal:not([readonly]), .expense-goal:not([readonly])').forEach(inp => {
-  inp.addEventListener('input', calcRates);
-});
-document.querySelectorAll('.unclaim-amt').forEach(inp => {
-  inp.addEventListener('input', calcUnclaimTotal);
+document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp => {
+  inp.addEventListener('input', calcAll);
 });
 
-// 載入資料
 function loadData() {
-  fetch(`/api/data/${DEPT}/${MONTH}`).then(r => r.json()).then(data => {
+  fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
     const rev = data.revenue || {};
-    document.querySelectorAll('.income-amt, .income-goal').forEach(inp => {
-      const item = inp.dataset.item;
-      const isGoal = inp.classList.contains('income-goal');
-      const val = rev[item] ? (isGoal ? rev[item].goal : rev[item].amount) : 0;
-      inp.value = fmt(val);
+    document.querySelectorAll('.income-amt,.income-goal').forEach(inp => {
+      const d = rev[inp.dataset.item];
+      inp.value = fmt(d ? (inp.classList.contains('income-goal') ? d.goal : d.amount) : 0);
     });
-    document.querySelectorAll('.expense-amt, .expense-goal').forEach(inp => {
-      const item = inp.dataset.item;
-      const isGoal = inp.classList.contains('expense-goal');
-      const val = rev[item] ? (isGoal ? rev[item].goal : rev[item].amount) : 0;
-      inp.value = fmt(val);
+    document.querySelectorAll('.expense-amt,.expense-goal').forEach(inp => {
+      const d = rev[inp.dataset.item];
+      inp.value = fmt(d ? (inp.classList.contains('expense-goal') ? d.goal : d.amount) : 0);
     });
-    const unclaim = data.unclaimed || {};
+    const uc = data.unclaimed || {};
     document.querySelectorAll('.unclaim-amt').forEach(inp => {
-      inp.value = fmt(unclaim[inp.dataset.item] || 0);
+      inp.value = fmt(uc[inp.dataset.item] || 0);
     });
-    calcIncomeTotals(); calcExpenseTotals(); calcUnclaimTotal();
-    renderContracts(data.contracts || []);
-    renderCarryForward(data.carry_forward || []);
+    calcAll();
   });
 }
 
-function saveRevenue() {
+function saveAll() {
+  // 收支資料
   const items = {};
   document.querySelectorAll('.income-amt').forEach(inp => {
-    items[inp.dataset.item] = { amount: parseFmt(inp.value),
-      goal: parseFmt(document.querySelector(`.income-goal[data-item="${inp.dataset.item}"]`)?.value || 0) };
+    items[inp.dataset.item] = {
+      amount: parseFmt(inp.value),
+      goal: parseFmt(document.querySelector(`.income-goal[data-item="${inp.dataset.item}"]`)?.value||0)
+    };
   });
   document.querySelectorAll('.expense-amt').forEach(inp => {
-    items[inp.dataset.item] = { amount: parseFmt(inp.value),
-      goal: parseFmt(document.querySelector(`.expense-goal[data-item="${inp.dataset.item}"]`)?.value || 0) };
+    items[inp.dataset.item] = {
+      amount: parseFmt(inp.value),
+      goal: parseFmt(document.querySelector(`.expense-goal[data-item="${inp.dataset.item}"]`)?.value||0)
+    };
   });
-  fetch('/api/save_revenue', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ dept: DEPT, month: MONTH, items }) })
-    .then(r => r.json()).then(() => showToast('✅ 收支資料已儲存'));
-}
-function saveUnclaimed() {
-  const items = {};
+  // 未核銷
+  const ucItems = {};
   document.querySelectorAll('.unclaim-amt').forEach(inp => {
-    items[inp.dataset.item] = parseFmt(inp.value);
+    ucItems[inp.dataset.item] = parseFmt(inp.value);
   });
-  fetch('/api/save_unclaimed', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ dept: DEPT, month: MONTH, items }) })
-    .then(r => r.json()).then(() => showToast('✅ 未核銷費用已儲存'));
-}
 
-// 合約
-function renderContracts(list) {
-  const el = document.getElementById('contract-list');
-  if (!list.length) { el.innerHTML = '<em style="color:#999;">尚無合約資料，請點右上角「新增合約」。</em>'; return; }
-  const statusColors = {'洽談中':'badge-yellow','新增簽約':'badge-blue','已簽約執行中':'badge-green','完成':'badge-gray'};
-  el.innerHTML = `<table>
-    <thead><tr><th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th><th>預計完成</th><th>狀態</th><th>實收金額</th><th>延續</th><th>備註</th><th>操作</th></tr></thead>
-    <tbody>${list.map(c => `<tr>
-      <td>${c.client||''}</td>
-      <td class="text-right">${fmt(c.amount)}</td>
-      <td class="text-center">${c.sign_date||''}</td>
-      <td class="text-center">${c.due_date||''}</td>
-      <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
-      <td class="text-right">${fmt(c.actual_amount)}</td>
-      <td class="text-center">${c.carry_next?'✅':''}</td>
-      <td>${c.note||''}</td>
-      <td class="text-center">
-        <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
-      </td>
-    </tr>`).join('')}</tbody>
-  </table>`;
-}
-function renderCarryForward(list) {
-  const el = document.getElementById('carry-list');
-  if (!el) return;
-  if (!list.length) { el.innerHTML = '<em style="color:#999;">無延續合約。</em>'; return; }
-  const statusColors = {'洽談中':'badge-yellow','新增簽約':'badge-blue','已簽約執行中':'badge-green','完成':'badge-gray'};
-  el.innerHTML = `<table>
-    <thead><tr><th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th><th>預計完成</th><th>狀態</th><th>備註</th></tr></thead>
-    <tbody>${list.map(c => `<tr style="background:#f5eeff;">
-      <td>${c.client||''}</td>
-      <td class="text-right">${fmt(c.amount)}</td>
-      <td class="text-center">${c.sign_date||''}</td>
-      <td class="text-center">${c.due_date||''}</td>
-      <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
-      <td>${c.note||''}</td>
-    </tr>`).join('')}</tbody>
-  </table>`;
-}
-function showContractForm(contract) {
-  document.getElementById('contract-form').style.display = 'block';
-  document.getElementById('cf-id').value = contract?.id || '';
-  document.getElementById('cf-client').value = contract?.client || '';
-  document.getElementById('cf-amount').value = fmt(contract?.amount || 0);
-  document.getElementById('cf-sign-date').value = contract?.sign_date || '';
-  document.getElementById('cf-due-date').value = contract?.due_date || '';
-  document.getElementById('cf-status').value = contract?.status || '洽談中';
-  document.getElementById('cf-actual').value = fmt(contract?.actual_amount || 0);
-  document.getElementById('cf-note').value = contract?.note || '';
-  document.getElementById('cf-carry').checked = !!contract?.carry_next;
-  document.getElementById('cf-client').focus();
-}
-function hideContractForm() { document.getElementById('contract-form').style.display = 'none'; }
-function editContract(c) { showContractForm(c); }
-function saveContract() {
-  const payload = {
-    id: document.getElementById('cf-id').value || null,
-    dept: DEPT, month: MONTH,
-    client: document.getElementById('cf-client').value,
-    amount: parseFmt(document.getElementById('cf-amount').value),
-    sign_date: document.getElementById('cf-sign-date').value,
-    due_date: document.getElementById('cf-due-date').value,
-    status: document.getElementById('cf-status').value,
-    actual_amount: parseFmt(document.getElementById('cf-actual').value),
-    note: document.getElementById('cf-note').value,
-    carry_next: document.getElementById('cf-carry').checked ? 1 : 0,
-  };
-  if (!payload.client) { alert('請填寫客戶/計畫名稱'); return; }
-  fetch('/api/save_contract', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(payload) })
-    .then(r => r.json()).then(() => {
-      showToast('✅ 合約已儲存'); hideContractForm(); loadData();
-    });
-}
-function deleteContract(id) {
-  if (!confirm('確定刪除此合約？')) return;
-  fetch(`/api/delete_contract/${id}`, {method:'DELETE'})
-    .then(r => r.json()).then(() => { showToast('已刪除', 'error'); loadData(); });
+  Promise.all([
+    fetch('/api/save_revenue',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({dept:DEPT,month:MONTH,items})}),
+    fetch('/api/save_unclaimed',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({dept:DEPT,month:MONTH,items:ucItems})})
+  ]).then(()=>showToast('✅ 收支資料已儲存'));
 }
 
 loadData();

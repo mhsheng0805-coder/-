@@ -608,6 +608,188 @@ def contracts_view():
                            selected_dept=dept, selected_month=month,
                            statuses=CONTRACT_STATUSES)
 
+@app.route('/dept/<dept>/contracts')
+@login_required
+def dept_contracts(dept):
+    if dept not in DEPARTMENTS:
+        return redirect(url_for('index'))
+    month = request.args.get('month', 1, type=int)
+    year = get_current_year()
+    all_years = get_all_years()
+    return render_template('dept_contracts.html', dept=dept, month=month,
+                           months=MONTHS, year=year, all_years=all_years,
+                           departments=DEPARTMENTS)
+
+@app.route('/import')
+@login_required
+def import_view():
+    year = get_current_year()
+    all_years = get_all_years()
+    return render_template('import.html', departments=DEPARTMENTS, months=MONTHS,
+                           year=year, all_years=all_years)
+
+@app.route('/download_import_template')
+@login_required
+def download_import_template():
+    year = get_current_year()
+    wb = openpyxl.Workbook()
+    thin   = Side(style='thin')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hfill  = PatternFill('solid', start_color='BDD7EE', fgColor='BDD7EE')
+    hfont  = Font(name='微軟正黑體', size=10, bold=True)
+    ctr    = Alignment(horizontal='center', vertical='center')
+    note_fill = PatternFill('solid', start_color='FFFF99', fgColor='FFFF99')
+
+    def make_hdr(ws, headers, widths):
+        for col, (h, w) in enumerate(zip(headers, widths), 1):
+            c = ws.cell(row=1, column=col, value=h)
+            c.font = hfont; c.fill = hfill; c.alignment = ctr; c.border = border
+            ws.column_dimensions[get_column_letter(col)].width = w
+
+    # Sheet1: 收支資料
+    ws1 = wb.active; ws1.title = '收支資料'
+    make_hdr(ws1, ['部門','月份','項目','金額','年度目標'],
+             [12, 8, 28, 14, 14])
+    for ri, (dept, item) in enumerate(
+        [(d, i) for d in DEPARTMENTS for i in (INCOME_ITEMS + EXPENSE_ITEMS)], 2):
+        ws1.cell(row=ri, column=1, value=dept).border = border
+        ws1.cell(row=ri, column=2, value=1).border = border
+        ws1.cell(row=ri, column=3, value=item).border = border
+        ws1.cell(row=ri, column=4, value=0).border = border
+        ws1.cell(row=ri, column=5, value=0).border = border
+    note = ws1.cell(row=1, column=7, value='※ 請勿修改「項目」欄位文字；月份填 1-12；部門名稱需完全符合')
+    note.fill = note_fill; note.font = Font(name='微軟正黑體', size=9, color='FF0000')
+
+    # Sheet2: 未核銷費用
+    ws2 = wb.create_sheet('未核銷費用')
+    make_hdr(ws2, ['部門','月份','未核銷項目','金額'],
+             [12, 8, 22, 14])
+    for ri, (dept, item) in enumerate(
+        [(d, i) for d in DEPARTMENTS for i in UNCLAIMED_ITEMS], 2):
+        ws2.cell(row=ri, column=1, value=dept).border = border
+        ws2.cell(row=ri, column=2, value=1).border = border
+        ws2.cell(row=ri, column=3, value=item).border = border
+        ws2.cell(row=ri, column=4, value=0).border = border
+
+    # Sheet3: 合約
+    ws3 = wb.create_sheet('合約追蹤')
+    make_hdr(ws3, ['部門','月份','客戶/計畫名稱','合約金額','簽約日期','預計完成日','狀態','本月實收金額','備註','延續下月(是/否)'],
+             [12, 8, 28, 14, 14, 14, 14, 14, 20, 12])
+    for ri, dept in enumerate(DEPARTMENTS, 2):
+        ws3.cell(row=ri, column=1, value=dept).border = border
+        ws3.cell(row=ri, column=2, value=1).border = border
+        for c in range(3, 11):
+            ws3.cell(row=ri, column=c, value='').border = border
+    note3 = ws3.cell(row=1, column=12, value='※ 狀態可填：洽談中、新增簽約、已簽約執行中、完成')
+    note3.fill = note_fill; note3.font = Font(name='微軟正黑體', size=9, color='FF0000')
+
+    output = io.BytesIO()
+    wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年收支資料匯入範本.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/api/import_excel', methods=['POST'])
+@login_required
+def import_excel():
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': '未收到檔案'}), 400
+    year = get_current_year()
+    try:
+        wb = openpyxl.load_workbook(f, data_only=True)
+    except Exception as e:
+        return jsonify({'error': f'檔案格式錯誤：{e}'}), 400
+
+    con = get_db()
+    stats = {'revenue': 0, 'unclaimed': 0, 'contracts': 0, 'errors': []}
+
+    # Sheet: 收支資料
+    if '收支資料' in wb.sheetnames:
+        ws = wb['收支資料']
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 6)]
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not any(row): continue
+            dept, month, item, amount, goal = (row + (None,)*5)[:5]
+            if dept not in DEPARTMENTS:
+                stats['errors'].append(f'收支資料：部門 {dept!r} 不存在，略過')
+                continue
+            if item not in (INCOME_ITEMS + EXPENSE_ITEMS):
+                stats['errors'].append(f'收支資料：項目 {item!r} 不存在，略過')
+                continue
+            try:
+                month = int(month or 1)
+                amount = float(amount or 0)
+                goal = float(goal or 0)
+            except:
+                stats['errors'].append(f'收支資料：{dept}/{item} 數值格式錯誤，略過')
+                continue
+            con.execute('''INSERT INTO revenue (year, dept, month, item, amount, goal)
+                VALUES (?,?,?,?,?,?)
+                ON CONFLICT(year, dept, month, item) DO UPDATE
+                SET amount=excluded.amount, goal=excluded.goal, updated_at=CURRENT_TIMESTAMP''',
+                (year, dept, month, item, amount, goal))
+            stats['revenue'] += 1
+
+    # Sheet: 未核銷費用
+    if '未核銷費用' in wb.sheetnames:
+        ws = wb['未核銷費用']
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not any(row): continue
+            dept, month, item, amount = (row + (None,)*4)[:4]
+            if dept not in DEPARTMENTS:
+                stats['errors'].append(f'未核銷：部門 {dept!r} 不存在，略過')
+                continue
+            if item not in UNCLAIMED_ITEMS:
+                stats['errors'].append(f'未核銷：項目 {item!r} 不存在，略過')
+                continue
+            try:
+                month = int(month or 1); amount = float(amount or 0)
+            except:
+                continue
+            con.execute('''INSERT INTO unclaimed (year, dept, month, item, amount)
+                VALUES (?,?,?,?,?)
+                ON CONFLICT(year, dept, month, item) DO UPDATE
+                SET amount=excluded.amount, updated_at=CURRENT_TIMESTAMP''',
+                (year, dept, month, item, amount))
+            stats['unclaimed'] += 1
+
+    # Sheet: 合約追蹤
+    if '合約追蹤' in wb.sheetnames:
+        ws = wb['合約追蹤']
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not any(row): continue
+            dept, month, client, amount, sign_date, due_date, status, actual, note, carry = (row + (None,)*10)[:10]
+            if dept not in DEPARTMENTS:
+                stats['errors'].append(f'合約：部門 {dept!r} 不存在，略過')
+                continue
+            if not client:
+                continue
+            try:
+                month = int(month or 1)
+                amount = float(amount or 0)
+                actual = float(actual or 0)
+            except:
+                continue
+            carry_val = 1 if str(carry or '').strip() in ('是', '1', 'True', 'true', 'Y', 'y') else 0
+            status = str(status or '洽談中').strip()
+            if status not in CONTRACT_STATUSES:
+                status = '洽談中'
+            con.execute('''INSERT INTO contracts
+                (year, dept, month, client, amount, sign_date, due_date,
+                 status, actual_amount, note, carry_next)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                (year, dept, month, str(client), amount,
+                 str(sign_date or ''), str(due_date or ''),
+                 status, actual, str(note or ''), carry_val))
+            stats['contracts'] += 1
+
+    con.commit(); con.close()
+    msg = f"匯入完成：收支資料 {stats['revenue']} 筆，未核銷 {stats['unclaimed']} 筆，合約 {stats['contracts']} 筆"
+    if stats['errors']:
+        msg += f"；{len(stats['errors'])} 筆略過（見詳情）"
+    return jsonify({'status': 'ok', 'message': msg, 'errors': stats['errors'][:20]})
+
 @app.route('/export_pptx')
 @login_required
 def export_pptx():

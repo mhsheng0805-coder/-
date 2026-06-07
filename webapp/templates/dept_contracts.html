@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% block title %}{{ dept }} {{ year }}年 合約追蹤{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#4a1a7b,#7b3fa0);">
+    📋 {{ year }}年 {{ dept }} 合約追蹤
+  </div>
+  <div class="card-body" style="padding:10px 14px;">
+    <div class="dept-tabs" style="margin-bottom:8px;">
+      {% for d in departments %}
+      <a href="/dept/{{ d }}/contracts?month={{ month }}"
+         class="dept-tab {% if d == dept %}active{% endif %}">{{ d }}</a>
+      {% endfor %}
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span style="font-size:13px; color:#555; font-weight:bold;">月份：</span>
+      {% for m in months %}
+      <a href="/dept/{{ dept }}/contracts?month={{ m }}"
+         style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:13px; text-decoration:none;
+         {% if m == month %}background:#4a1a7b; color:white; font-weight:bold;
+         {% else %}background:#f0e8ff; color:#4a1a7b;{% endif %}">{{ m }}月</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- 上月延續 -->
+{% if month > 1 %}
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#5a4a7b,#8a6faa); font-size:14px;">
+    🔄 上月延續（洽談中／執行中）
+  </div>
+  <div class="card-body">
+    <div id="carry-list"><em style="color:#999;">載入中...</em></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 本月合約 -->
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#4a1a7b,#7b3fa0);">
+    📄 {{ month }}月 合約
+    <button class="btn btn-sm" style="margin-left:auto; background:rgba(255,255,255,0.2); color:white;"
+            onclick="showContractForm()">＋ 新增合約</button>
+  </div>
+  <div class="card-body">
+    <div id="contract-list"><em style="color:#999;">載入中...</em></div>
+
+    <!-- 新增/編輯表單 -->
+    <div id="contract-form" style="display:none; background:#f8f0ff; border:1px solid #d0b0ef;
+         border-radius:8px; padding:16px; margin-top:16px;">
+      <h4 style="margin-bottom:12px; color:#4a1a7b;">合約資料</h4>
+      <input type="hidden" id="cf-id">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label>客戶/計畫名稱 *</label>
+          <input type="text" id="cf-client">
+        </div>
+        <div class="form-group">
+          <label>合約金額 (元)</label>
+          <input type="text" id="cf-amount" class="input-num" style="width:100%;" value="0">
+        </div>
+        <div class="form-group">
+          <label>簽約日期</label>
+          <input type="date" id="cf-sign-date">
+        </div>
+        <div class="form-group">
+          <label>預計完成日</label>
+          <input type="date" id="cf-due-date">
+        </div>
+        <div class="form-group">
+          <label>狀態</label>
+          <select id="cf-status">
+            <option>洽談中</option>
+            <option>新增簽約</option>
+            <option>已簽約執行中</option>
+            <option>完成</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>本月實收金額 (元)</label>
+          <input type="text" id="cf-actual" class="input-num" style="width:100%;" value="0">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>備註</label>
+          <textarea id="cf-note" rows="2"></textarea>
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>
+            <input type="checkbox" id="cf-carry" style="width:auto; margin-right:6px;">
+            延續至下月繼續追蹤
+          </label>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" onclick="saveContract()">💾 儲存</button>
+        <button class="btn btn-sm" style="background:#ccc; color:#333;" onclick="hideContractForm()">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 返回收支 -->
+<div style="margin-top:8px;">
+  <a href="/dept/{{ dept }}?month={{ month }}" class="btn btn-primary">← 返回收支填寫</a>
+  <a href="/import" class="btn" style="background:#6c757d; color:white; margin-left:8px;">📥 匯入 Excel</a>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const DEPT = '{{ dept }}';
+const MONTH = {{ month }};
+
+function loadData() {
+  fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
+    renderContracts(data.contracts || []);
+    renderCarryForward(data.carry_forward || []);
+  });
+}
+
+const statusColors = {
+  '洽談中':'badge-yellow','新增簽約':'badge-blue',
+  '已簽約執行中':'badge-green','完成':'badge-gray'
+};
+
+function renderContracts(list) {
+  const el = document.getElementById('contract-list');
+  if (!list.length) {
+    el.innerHTML = '<em style="color:#999;">尚無合約，請點右上角「＋ 新增合約」。</em>'; return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th>
+      <th>預計完成</th><th>狀態</th><th>實收金額</th><th>延續</th><th>備註</th><th>操作</th>
+    </tr></thead>
+    <tbody>${list.map(c=>`<tr>
+      <td>${c.client||''}</td>
+      <td class="text-right">${fmt(c.amount)}</td>
+      <td class="text-center">${c.sign_date||''}</td>
+      <td class="text-center">${c.due_date||''}</td>
+      <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
+      <td class="text-right">${fmt(c.actual_amount)}</td>
+      <td class="text-center">${c.carry_next?'✅':''}</td>
+      <td>${c.note||''}</td>
+      <td class="text-center">
+        <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function renderCarryForward(list) {
+  const el = document.getElementById('carry-list');
+  if (!el) return;
+  if (!list.length) { el.innerHTML = '<em style="color:#999;">無延續合約。</em>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th><th>預計完成</th><th>狀態</th><th>備註</th></tr></thead>
+    <tbody>${list.map(c=>`<tr style="background:#f5eeff;">
+      <td>${c.client||''}</td>
+      <td class="text-right">${fmt(c.amount)}</td>
+      <td class="text-center">${c.sign_date||''}</td>
+      <td class="text-center">${c.due_date||''}</td>
+      <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
+      <td>${c.note||''}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function showContractForm(contract) {
+  document.getElementById('contract-form').style.display = 'block';
+  document.getElementById('cf-id').value = contract?.id || '';
+  document.getElementById('cf-client').value = contract?.client || '';
+  document.getElementById('cf-amount').value = fmt(contract?.amount || 0);
+  document.getElementById('cf-sign-date').value = contract?.sign_date || '';
+  document.getElementById('cf-due-date').value = contract?.due_date || '';
+  document.getElementById('cf-status').value = contract?.status || '洽談中';
+  document.getElementById('cf-actual').value = fmt(contract?.actual_amount || 0);
+  document.getElementById('cf-note').value = contract?.note || '';
+  document.getElementById('cf-carry').checked = !!contract?.carry_next;
+  document.getElementById('cf-client').focus();
+}
+function hideContractForm() { document.getElementById('contract-form').style.display = 'none'; }
+function editContract(c) { showContractForm(c); }
+
+function saveContract() {
+  const payload = {
+    id: document.getElementById('cf-id').value || null,
+    dept: DEPT, month: MONTH,
+    client: document.getElementById('cf-client').value,
+    amount: parseFmt(document.getElementById('cf-amount').value),
+    sign_date: document.getElementById('cf-sign-date').value,
+    due_date: document.getElementById('cf-due-date').value,
+    status: document.getElementById('cf-status').value,
+    actual_amount: parseFmt(document.getElementById('cf-actual').value),
+    note: document.getElementById('cf-note').value,
+    carry_next: document.getElementById('cf-carry').checked ? 1 : 0,
+  };
+  if (!payload.client) { alert('請填寫客戶/計畫名稱'); return; }
+  fetch('/api/save_contract',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(()=>{ showToast('✅ 合約已儲存'); hideContractForm(); loadData(); });
+}
+function deleteContract(id) {
+  if (!confirm('確定刪除此合約？')) return;
+  fetch(`/api/delete_contract/${id}`,{method:'DELETE'})
+    .then(r=>r.json()).then(()=>{ showToast('已刪除','error'); loadData(); });
+}
+
+loadData();
+</script>
+{% endblock %}
