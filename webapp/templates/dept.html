@@ -35,8 +35,8 @@
     <table>
       <thead><tr><th style="text-align:left;">項目</th><th>金額 (元)</th><th>年度目標</th><th>達成率</th></tr></thead>
       <tbody>
-        {% set income_totals = ['來自民間業務收入合計'] %}
-        {% set income_subs = ['附屬業務-委外加工收入','附屬業務-其他非民間收入','附屬業務-其他民間收入','其他小計(自民間)'] %}
+        {% set income_totals = ['來自民間收入合計'] %}
+        {% set income_subs = [] %}
         {% for item in income_items %}
         <tr {% if item in income_totals %}style="background:#c6efce; font-weight:bold;"
             {% elif item in income_subs %}style="background:#f2f2f2; color:#666;"
@@ -65,8 +65,8 @@
     <table>
       <thead><tr><th style="text-align:left;">項目</th><th>金額 (元)</th><th>年度目標</th><th>達成率</th></tr></thead>
       <tbody>
-        {% set exp_totals = ['支出合計'] %}
-        {% set exp_subs = ['附屬業務-委外加工支出','附屬業務-其他非民間支出','附屬業務-其他民間支出','其他小計(自民間)支出'] %}
+        {% set exp_totals = ['其他民間收入支出'] %}
+        {% set exp_subs = [] %}
         {% for item in expense_items %}
         <tr {% if item in exp_totals %}style="background:#ffc7c7; font-weight:bold;"
             {% elif item in exp_subs %}style="background:#f2f2f2; color:#666;"
@@ -96,7 +96,7 @@
   <div class="card-body">
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
       <div class="stat-card"><div class="value" id="net-income">-</div><div class="label">來自民間收入合計</div></div>
-      <div class="stat-card" style="border-color:#dc3545"><div class="value" id="net-expense" style="color:#dc3545">-</div><div class="label">支出合計</div></div>
+      <div class="stat-card" style="border-color:#dc3545"><div class="value" id="net-expense" style="color:#dc3545">-</div><div class="label">其他民間收入支出</div></div>
       <div class="stat-card" style="border-color:#ffc107"><div class="value" id="net-diff" style="color:#856404">-</div><div class="label">收支差額</div></div>
     </div>
     <div style="text-align:right; margin-top:10px;">
@@ -208,10 +208,10 @@
 <script>
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
-const INCOME_TOTALS = ['來自民間業務收入合計'];
-const INCOME_SUBS = ['附屬業務-委外加工收入','附屬業務-其他非民間收入','附屬業務-其他民間收入','其他小計(自民間)'];
-const EXPENSE_TOTALS = ['支出合計'];
-const EXPENSE_SUBS = ['附屬業務-委外加工支出','附屬業務-其他非民間支出','附屬業務-其他民間支出','其他小計(自民間)支出'];
+const INCOME_TOTALS = ['來自民間收入合計'];
+const INCOME_SUBS = [];
+const EXPENSE_TOTALS = ['其他民間收入支出'];
+const EXPENSE_SUBS = [];
 
 function calcIncomeTotals() {
   let subTotal = 0, grandTotal = 0;
@@ -221,10 +221,8 @@ function calcIncomeTotals() {
     if (!INCOME_SUBS.includes(item) && !INCOME_TOTALS.includes(item)) grandTotal += parseFmt(inp.value);
   });
   // 其他小計
-  const subInp = document.querySelector('.income-amt[data-item="其他小計(自民間)"]');
-  if (subInp) { subInp.value = fmt(subTotal); grandTotal += subTotal; }
-  // 總計
-  const totalInp = document.querySelector('.income-amt[data-item="來自民間業務收入合計"]');
+    // 總計
+  const totalInp = document.querySelector('.income-amt[data-item="來自民間收入合計"]');
   if (totalInp) totalInp.value = fmt(grandTotal);
   calcRates(); calcNet();
 }
@@ -235,9 +233,7 @@ function calcExpenseTotals() {
     if (EXPENSE_SUBS.slice(0,3).includes(item)) subTotal += parseFmt(inp.value);
     if (!EXPENSE_SUBS.includes(item) && !EXPENSE_TOTALS.includes(item)) grandTotal += parseFmt(inp.value);
   });
-  const subInp = document.querySelector('.expense-amt[data-item="其他小計(自民間)支出"]');
-  if (subInp) { subInp.value = fmt(subTotal); grandTotal += subTotal; }
-  const totalInp = document.querySelector('.expense-amt[data-item="支出合計"]');
+  const totalInp = document.querySelector('.expense-amt[data-item="其他民間收入支出"]');
   if (totalInp) totalInp.value = fmt(grandTotal);
   calcRates(); calcNet();
 }
@@ -256,8 +252,8 @@ function calcRates() {
   });
 }
 function calcNet() {
-  const inc = parseFmt(document.querySelector('.income-amt[data-item="來自民間業務收入合計"]')?.value || 0);
-  const exp = parseFmt(document.querySelector('.expense-amt[data-item="支出合計"]')?.value || 0);
+  const inc = parseFmt(document.querySelector('.income-amt[data-item="來自民間收入合計"]')?.value || 0);
+  const exp = parseFmt(document.querySelector('.expense-amt[data-item="其他民間收入支出"]')?.value || 0);
   document.getElementById('net-income').textContent = fmt(inc);
   document.getElementById('net-expense').textContent = fmt(exp);
   const net = inc - exp;

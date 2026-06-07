@@ -47,19 +47,42 @@ DEPARTMENTS = ['原料部', '產品部', '檢驗部', '製程部', '雲分部', 
 MONTHS = list(range(1, 13))
 
 INCOME_ITEMS = [
-    '檢測服務收入費', '技術服務收入費', '認証服務收入費',
-    '其他業務收入費', '附屬業務-委外加工收入',
-    '附屬業務-其他非民間收入', '附屬業務-其他民間收入',
-    '其他小計(自民間)', '小型企業收入', '來自民間業務收入合計',
+    '其他民間收入(試驗/技術/訓練/其他)',
+    '配合款-產發署案收入',
+    '配合款-其他民間收入',
+    '其他專案-來自民間',
+    '科專衍生收入',
+    '計畫衍生收入',
+    '能源署衍生收入',
+    '來自民間收入合計',
 ]
 EXPENSE_ITEMS = [
-    '人事費用', '業務費用', '維護費', '旅運費', '材料費',
-    '租借設備使用費', '差旅費',
-    '附屬業務-委外加工支出', '附屬業務-其他非民間支出',
-    '附屬業務-其他民間支出', '其他小計(自民間)支出', '支出合計',
+    '人事費用',
+    '業務費用',
+    '維護費用',
+    '旅運費用',
+    '材料費用',
+    '配合款-產發署案支出',
+    '其他計畫(來自民間)支出',
+    '設備折舊使用費',
+    '其他民間收入支出',
 ]
 UNCLAIMED_ITEMS = ['業務費(未核銷)', '旅運費(未核銷)', '材料費(未核銷)', '維護費(未核銷)']
 CONTRACT_STATUSES = ['洽談中', '新增簽約', '已簽約執行中', '完成']
+
+# PPT 匯出用：各部門的收入/支出項目（對應企劃處簡報格式）
+DEPT_INCOME_PPT = {
+    '原料部': ['其他民間收入(試驗/技術/訓練/其他)', '配合款-產發署案收入', '其他專案-來自民間', '科專衍生收入'],
+    '產品部': ['其他民間收入(試驗/技術/訓練/其他)', '配合款-產發署案收入', '配合款-其他民間收入', '其他專案-來自民間', '計畫衍生收入'],
+    '檢驗部': ['其他民間收入(試驗/技術/訓練/其他)', '配合款-產發署案收入', '其他專案-來自民間', '科專衍生收入'],
+    '製程部': ['其他民間收入(試驗/技術/訓練/其他)', '配合款-產發署案收入', '其他專案-來自民間', '科專衍生收入', '能源署衍生收入'],
+    '雲分部': ['其他民間收入(試驗/技術/訓練/其他)', '配合款-產發署案收入', '配合款-其他民間收入', '其他專案-來自民間', '科專衍生收入'],
+    '產服部': ['其他民間收入(試驗/技術/訓練/其他)', '配合款-產發署案收入', '其他專案-來自民間', '科專衍生收入'],
+}
+DEPT_EXPENSE_PPT = {dept: [
+    '人事費用', '業務費用', '維護費用', '旅運費用', '材料費用',
+    '配合款-產發署案支出', '其他計畫(來自民間)支出', '設備折舊使用費',
+] for dept in DEPARTMENTS}
 
 # ── 資料庫 ─────────────────────────────────────────────
 def init_db():
@@ -459,8 +482,8 @@ def api_overview():
     con = get_db()
     result = []
     for dept in DEPARTMENTS:
-        income   = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='來自民間業務收入合計'", (year, dept)).fetchone()[0]
-        expense  = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='支出合計'", (year, dept)).fetchone()[0]
+        income   = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='來自民間收入合計'", (year, dept)).fetchone()[0]
+        expense  = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='其他民間收入支出'", (year, dept)).fetchone()[0]
         unclaim  = con.execute("SELECT COALESCE(SUM(amount),0) FROM unclaimed WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
         contracts= con.execute("SELECT COUNT(*) FROM contracts WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
         result.append({'dept': dept, 'income': income, 'expense': expense,
@@ -474,7 +497,7 @@ def api_summary_data():
     year = get_current_year()
     con = get_db()
     rows = con.execute(
-        "SELECT dept, month, item, amount FROM revenue WHERE year=? AND item IN ('來自民間業務收入合計','支出合計')",
+        "SELECT dept, month, item, amount FROM revenue WHERE year=? AND item IN ('來自民間收入合計','其他民間收入支出')",
         (year,)
     ).fetchall()
     ucl = con.execute(
@@ -485,7 +508,7 @@ def api_summary_data():
     data = {}
     for r in rows:
         d = data.setdefault(r['dept'], {}).setdefault(r['month'], {})
-        if r['item'] == '來自民間業務收入合計':
+        if r['item'] == '來自民間收入合計':
             d['income'] = r['amount']
         else:
             d['expense'] = r['amount']
@@ -534,6 +557,355 @@ def contracts_view():
                            year=year, all_years=all_years,
                            selected_dept=dept, selected_month=month,
                            statuses=CONTRACT_STATUSES)
+
+@app.route('/export_pptx')
+@login_required
+def export_pptx():
+    from pptx import Presentation
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    from pptx.oxml.ns import qn
+    import copy
+
+    year = get_current_year()
+    con = get_db()
+    rev_rows = con.execute('SELECT dept, month, item, amount, goal FROM revenue WHERE year=?', (year,)).fetchall()
+    uncl_rows = con.execute('SELECT dept, month, item, amount FROM unclaimed WHERE year=?', (year,)).fetchall()
+    con.close()
+
+    # 建立累計資料結構 {dept: {item: {amount, goal}}}
+    cum_rev = {}
+    for r in rev_rows:
+        d = cum_rev.setdefault(r['dept'], {})
+        if r['item'] not in d:
+            d[r['item']] = {'amount': 0, 'goal': 0}
+        d[r['item']]['amount'] += r['amount']
+        if r['goal'] > d[r['item']]['goal']:
+            d[r['item']]['goal'] = r['goal']
+
+    cum_uncl = {}
+    for r in uncl_rows:
+        d = cum_uncl.setdefault(r['dept'], {})
+        d[r['item']] = d.get(r['item'], 0) + r['amount']
+
+    def fmtv(v):
+        if v is None or v == 0: return '-'
+        return f'{v:,.0f}'
+
+    def diff_str(actual, goal):
+        if goal == 0: return '-'
+        d = actual - goal
+        return f'{d:+,.0f}'
+
+    def rate_str(actual, goal):
+        if goal == 0: return '-'
+        return f'{actual/goal*100:.1f}%'
+
+    # unclaimed item → expense item mapping
+    UNCL_MAP = {
+        '業務費(未核銷)': '業務費用',
+        '旅運費(未核銷)': '旅運費用',
+        '材料費(未核銷)': '材料費用',
+        '維護費(未核銷)': '維護費用',
+    }
+
+    DEPT_NAMES = {
+        '原料部': '一', '產品部': '二', '檢驗部': '三',
+        '製程部': '四', '雲分部': '五', '產服部': '六',
+    }
+
+    prs = Presentation()
+    prs.slide_width  = Inches(13.33)
+    prs.slide_height = Inches(7.5)
+
+    blank_layout = prs.slide_layouts[6]  # 全空白
+
+    # ── 顏色常數 ──────────────────────────
+    C_DARK_BLUE  = RGBColor(0x1F, 0x4E, 0x79)
+    C_MID_BLUE   = RGBColor(0x2E, 0x75, 0xB6)
+    C_INC_LIGHT  = RGBColor(0xE2, 0xEF, 0xDA)  # 收入淺綠
+    C_INC_TOTAL  = RGBColor(0xA9, 0xD1, 0x8E)  # 收入合計
+    C_EXP_LIGHT  = RGBColor(0xFF, 0xE0, 0xE0)  # 支出淺紅
+    C_EXP_TOTAL  = RGBColor(0xFF, 0xB0, 0xB0)  # 支出合計
+    C_RATE_BG    = RGBColor(0xFF, 0xFF, 0xCC)  # 達成率
+    C_NET_BG     = RGBColor(0xFF, 0xD9, 0x66)  # 業務餘絀
+    C_HDR_INC    = RGBColor(0x37, 0x86, 0x10)  # 收入表頭文字
+    C_HDR_EXP    = RGBColor(0xC0, 0x00, 0x00)  # 支出表頭文字
+    C_WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
+
+    def set_cell(cell, text, bold=False, size=9, bg=None, color=None, align='center', wrap=True):
+        tf = cell.text_frame
+        tf.word_wrap = wrap
+        p = tf.paragraphs[0]
+        p.alignment = {'center': PP_ALIGN.CENTER, 'left': PP_ALIGN.LEFT, 'right': PP_ALIGN.RIGHT}[align]
+        run = p.add_run()
+        run.text = str(text)
+        run.font.size = Pt(size)
+        run.font.bold = bold
+        run.font.name = '微軟正黑體'
+        if color:
+            run.font.color.rgb = color
+        if bg:
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            solidFill = tc.makeelement(qn('a:solidFill'))
+            srgbClr = tc.makeelement(qn('a:srgbClr'))
+            srgbClr.set('val', f'{bg.red:02X}{bg.green:02X}{bg.blue:02X}')
+            solidFill.append(srgbClr)
+            tcPr.append(solidFill)
+
+    # ── 封面投影片 ──────────────────────────────────────
+    slide = prs.slides.add_slide(blank_layout)
+    # 背景色
+    bg = slide.background
+    fill = bg.fill
+    fill.solid()
+    fill.fore_color.rgb = C_DARK_BLUE
+
+    tx = slide.shapes.add_textbox(Inches(1.5), Inches(2.0), Inches(10.0), Inches(1.5))
+    tf = tx.text_frame
+    p = tf.paragraphs[0]
+    p.alignment = PP_ALIGN.CENTER
+    run = p.add_run()
+    run.text = f'業務部門來自民間業務收入明細'
+    run.font.size = Pt(32); run.font.bold = True; run.font.color.rgb = C_WHITE; run.font.name = '微軟正黑體'
+
+    tx2 = slide.shapes.add_textbox(Inches(1.5), Inches(3.5), Inches(10.0), Inches(0.8))
+    tf2 = tx2.text_frame
+    p2 = tf2.paragraphs[0]
+    p2.alignment = PP_ALIGN.CENTER
+    run2 = p2.add_run()
+    run2.text = f'中華民國{year}年度'
+    run2.font.size = Pt(20); run2.font.color.rgb = RGBColor(0xBD, 0xD7, 0xEE); run2.font.name = '微軟正黑體'
+
+    tx3 = slide.shapes.add_textbox(Inches(1.5), Inches(4.2), Inches(10.0), Inches(0.6))
+    tf3 = tx3.text_frame
+    p3 = tf3.paragraphs[0]
+    p3.alignment = PP_ALIGN.CENTER
+    run3 = p3.add_run()
+    run3.text = f'紡織所 企劃處'
+    run3.font.size = Pt(14); run3.font.color.rgb = RGBColor(0xBD, 0xD7, 0xEE); run3.font.name = '微軟正黑體'
+
+    # ── 各部門投影片 ────────────────────────────────────
+    for dept_idx, dept in enumerate(DEPARTMENTS):
+        dept_num = DEPT_NAMES[dept]
+        dept_rev  = cum_rev.get(dept, {})
+        dept_uncl = cum_uncl.get(dept, {})
+
+        income_items = DEPT_INCOME_PPT[dept]
+        expense_items = DEPT_EXPENSE_PPT[dept]
+
+        slide = prs.slides.add_slide(blank_layout)
+
+        # 部門標題框
+        title_box = slide.shapes.add_textbox(Inches(0.2), Inches(0.1), Inches(5.0), Inches(0.45))
+        tf = title_box.text_frame
+        p = tf.paragraphs[0]
+        run = p.add_run()
+        run.text = f'{dept_num}、{dept}'
+        run.font.size = Pt(16); run.font.bold = True; run.font.color.rgb = C_DARK_BLUE; run.font.name = '微軟正黑體'
+
+        # 單位標籤
+        unit_box = slide.shapes.add_textbox(Inches(11.8), Inches(0.1), Inches(1.3), Inches(0.35))
+        tf = unit_box.text_frame
+        p = tf.paragraphs[0]
+        p.alignment = PP_ALIGN.RIGHT
+        run = p.add_run()
+        run.text = '單位：元'
+        run.font.size = Pt(9); run.font.color.rgb = RGBColor(0x60, 0x60, 0x60); run.font.name = '微軟正黑體'
+
+        # 頁碼
+        pg_box = slide.shapes.add_textbox(Inches(12.8), Inches(7.1), Inches(0.4), Inches(0.35))
+        tf = pg_box.text_frame
+        p = tf.paragraphs[0]
+        p.alignment = PP_ALIGN.RIGHT
+        run = p.add_run()
+        run.text = str(dept_idx + 1)
+        run.font.size = Pt(9); run.font.color.rgb = RGBColor(0x60, 0x60, 0x60); run.font.name = '微軟正黑體'
+
+        # 計算總收入/支出
+        total_income_amt  = dept_rev.get('來自民間收入合計', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in income_items)
+        total_income_goal = dept_rev.get('來自民間收入合計', {}).get('goal', 0) or sum(dept_rev.get(i,{}).get('goal',0) for i in income_items)
+        total_expense_amt = dept_rev.get('其他民間收入支出', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in expense_items)
+        total_expense_goal= dept_rev.get('其他民間收入支出', {}).get('goal', 0) or sum(dept_rev.get(i,{}).get('goal',0) for i in expense_items)
+        net = total_income_amt - total_expense_amt
+
+        # ── 建立表格 ─────────────────────────────────────
+        # 欄位: 項目 | 年度預算 | 累計已核銷 | 累計已申請 | 小計 | 差異 | 年度預估
+        COLS = 7
+        COL_W = [Inches(2.8), Inches(1.5), Inches(1.5), Inches(1.5), Inches(1.5), Inches(1.5), Inches(1.5)]
+        total_w = sum(COL_W)
+
+        # 收入行數 = 2(標頭) + len(income_items) + 1(合計) + 1(達成率)
+        # 支出行數 = 1(標頭) + len(expense_items) + 1(合計) + 1(業務餘絀) + 1(達成率)
+        INC_ROWS = 2 + len(income_items) + 2
+        EXP_ROWS = 1 + len(expense_items) + 3
+        TOTAL_ROWS = INC_ROWS + EXP_ROWS
+
+        tbl_h = Inches(6.8)
+        tbl_y = Inches(0.58)
+        tbl_x = Inches(0.18)
+
+        table = slide.shapes.add_table(TOTAL_ROWS, COLS, tbl_x, tbl_y, total_w, tbl_h).table
+
+        # 設定欄寬
+        for ci, w in enumerate(COL_W):
+            table.columns[ci].width = w
+
+        # 行高
+        row_h = int(tbl_h / TOTAL_ROWS)
+        for ri in range(TOTAL_ROWS):
+            table.rows[ri].height = row_h
+
+        def hdr(ri, ci, txt, bg=None, color=None, bold=True):
+            if bg is None: bg = C_DARK_BLUE
+            if color is None: color = C_WHITE
+            set_cell(table.cell(ri, ci), txt, bold=bold, size=8, bg=bg, color=color)
+
+        def data_row(ri, items_map, item_key, bg, uncl_key=None):
+            d = items_map.get(item_key, {'amount':0,'goal':0})
+            amt  = d.get('amount', 0)
+            goal = d.get('goal', 0)
+            uncl_amt = dept_uncl.get(uncl_key, 0) if uncl_key else 0
+            subtotal = amt + uncl_amt
+            set_cell(table.cell(ri, 0), item_key, bold=False, size=8, bg=bg, align='left')
+            set_cell(table.cell(ri, 1), fmtv(goal), bold=False, size=8, bg=bg, align='right')
+            set_cell(table.cell(ri, 2), fmtv(amt),  bold=False, size=8, bg=bg, align='right')
+            set_cell(table.cell(ri, 3), fmtv(uncl_amt) if uncl_key else '-', bold=False, size=8, bg=bg, align='right')
+            set_cell(table.cell(ri, 4), fmtv(subtotal), bold=False, size=8, bg=bg, align='right')
+            set_cell(table.cell(ri, 5), diff_str(subtotal, goal), bold=False, size=8, bg=bg, align='right')
+            set_cell(table.cell(ri, 6), fmtv(goal) if goal > 0 else '-', bold=False, size=8, bg=bg, align='right')
+
+        # ─ 收入段標頭 ─
+        hdr(0, 0, '收入項目')
+        hdr(0, 1, '年度預算(A)')
+        hdr(0, 2, f'1-12月 已簽約')
+        hdr(0, 3, '預計簽約')
+        hdr(0, 4, '小計(B)')
+        hdr(0, 5, '差異=(B)-(A)')
+        hdr(0, 6, '年度預估')
+        hdr(1, 0, '', bg=C_MID_BLUE)
+        hdr(1, 1, '', bg=C_MID_BLUE)
+        hdr(1, 2, '已核銷', bg=C_MID_BLUE)
+        hdr(1, 3, '已申請', bg=C_MID_BLUE)
+        hdr(1, 4, '', bg=C_MID_BLUE)
+        hdr(1, 5, '', bg=C_MID_BLUE)
+        hdr(1, 6, '', bg=C_MID_BLUE)
+
+        # ─ 收入資料行 ─
+        for i, item in enumerate(income_items):
+            data_row(2 + i, dept_rev, item, C_INC_LIGHT)
+
+        # ─ 收入合計 ─
+        ri_total = 2 + len(income_items)
+        subtotal_inc = total_income_amt
+        set_cell(table.cell(ri_total, 0), '來自民間收入合計(X值)', bold=True, size=8, bg=C_INC_TOTAL, align='left')
+        set_cell(table.cell(ri_total, 1), fmtv(total_income_goal), bold=True, size=8, bg=C_INC_TOTAL, align='right')
+        set_cell(table.cell(ri_total, 2), fmtv(total_income_amt), bold=True, size=8, bg=C_INC_TOTAL, align='right')
+        for ci in range(3, 7):
+            set_cell(table.cell(ri_total, ci), '-', bold=True, size=8, bg=C_INC_TOTAL, align='right')
+
+        # ─ X達成率 ─
+        ri_xrate = ri_total + 1
+        set_cell(table.cell(ri_xrate, 0), 'X值達成率', bold=True, size=8, bg=C_RATE_BG, align='left')
+        set_cell(table.cell(ri_xrate, 1), '', bold=False, size=8, bg=C_RATE_BG)
+        set_cell(table.cell(ri_xrate, 2), rate_str(total_income_amt, total_income_goal), bold=True, size=8, bg=C_RATE_BG, align='center')
+        for ci in range(3, 7):
+            set_cell(table.cell(ri_xrate, ci), '', bold=False, size=8, bg=C_RATE_BG)
+
+        # ─ 支出段標頭 ─
+        ri_exp_hdr = INC_ROWS
+        hdr(ri_exp_hdr, 0, '支出項目', bg=RGBColor(0xC0,0x00,0x00))
+        hdr(ri_exp_hdr, 1, '年度預算(1)', bg=RGBColor(0xC0,0x00,0x00))
+        hdr(ri_exp_hdr, 2, '已核銷費用', bg=RGBColor(0xC0,0x00,0x00))
+        hdr(ri_exp_hdr, 3, '已申請未核銷', bg=RGBColor(0xC0,0x00,0x00))
+        hdr(ri_exp_hdr, 4, '小計(2)', bg=RGBColor(0xC0,0x00,0x00))
+        hdr(ri_exp_hdr, 5, '差異=(2)-(1)', bg=RGBColor(0xC0,0x00,0x00))
+        hdr(ri_exp_hdr, 6, '年度預算', bg=RGBColor(0xC0,0x00,0x00))
+
+        # ─ 支出資料行 ─
+        UNCL_MAP_EXP = {'業務費用': '業務費(未核銷)', '旅運費用': '旅運費(未核銷)',
+                        '材料費用': '材料費(未核銷)', '維護費用': '維護費(未核銷)'}
+        for i, item in enumerate(expense_items):
+            data_row(ri_exp_hdr + 1 + i, dept_rev, item, C_EXP_LIGHT, UNCL_MAP_EXP.get(item))
+
+        # ─ 支出合計 ─
+        ri_exp_total = ri_exp_hdr + 1 + len(expense_items)
+        total_uncl = sum(dept_uncl.get(k, 0) for k in ['業務費(未核銷)', '旅運費(未核銷)', '材料費(未核銷)', '維護費(未核銷)'])
+        subtotal_exp = total_expense_amt + total_uncl
+        set_cell(table.cell(ri_exp_total, 0), '其他民間收入支出', bold=True, size=8, bg=C_EXP_TOTAL, align='left')
+        set_cell(table.cell(ri_exp_total, 1), fmtv(total_expense_goal), bold=True, size=8, bg=C_EXP_TOTAL, align='right')
+        set_cell(table.cell(ri_exp_total, 2), fmtv(total_expense_amt), bold=True, size=8, bg=C_EXP_TOTAL, align='right')
+        set_cell(table.cell(ri_exp_total, 3), fmtv(total_uncl), bold=True, size=8, bg=C_EXP_TOTAL, align='right')
+        set_cell(table.cell(ri_exp_total, 4), fmtv(subtotal_exp), bold=True, size=8, bg=C_EXP_TOTAL, align='right')
+        set_cell(table.cell(ri_exp_total, 5), diff_str(subtotal_exp, total_expense_goal), bold=True, size=8, bg=C_EXP_TOTAL, align='right')
+        set_cell(table.cell(ri_exp_total, 6), fmtv(total_expense_goal) if total_expense_goal else '-', bold=True, size=8, bg=C_EXP_TOTAL, align='right')
+
+        # ─ 業務餘絀 ─
+        ri_net = ri_exp_total + 1
+        set_cell(table.cell(ri_net, 0), '業務餘絀', bold=True, size=8, bg=C_NET_BG, align='left')
+        set_cell(table.cell(ri_net, 1), '-', bold=False, size=8, bg=C_NET_BG)
+        set_cell(table.cell(ri_net, 2), fmtv(net), bold=True, size=8, bg=C_NET_BG, align='right', color=C_DARK_BLUE if net >= 0 else RGBColor(0xC0,0x00,0x00))
+        for ci in range(3, 7):
+            set_cell(table.cell(ri_net, ci), '-', bold=False, size=8, bg=C_NET_BG)
+
+        # ─ Y達成率 ─
+        ri_yrate = ri_net + 1
+        set_cell(table.cell(ri_yrate, 0), 'Y達成率', bold=True, size=8, bg=C_RATE_BG, align='left')
+        for ci in range(1, 7):
+            set_cell(table.cell(ri_yrate, ci), '', bold=False, size=8, bg=C_RATE_BG)
+
+    # ── 彙整投影片 ────────────────────────────────────────
+    slide = prs.slides.add_slide(blank_layout)
+    bg = slide.background; fill = bg.fill; fill.solid(); fill.fore_color.rgb = C_DARK_BLUE
+
+    tx = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(12.0), Inches(0.5))
+    tf = tx.text_frame; p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+    run = p.add_run(); run.text = f'{year}年 業務部門來自民間業務收入 彙整'
+    run.font.size = Pt(20); run.font.bold = True; run.font.color.rgb = C_WHITE; run.font.name = '微軟正黑體'
+
+    SCOLS = 5
+    SROWS = 1 + len(DEPARTMENTS) + 1
+    stbl = slide.shapes.add_table(SROWS, SCOLS, Inches(1.5), Inches(1.0), Inches(10.0), Inches(5.5)).table
+    sw = [Inches(2.5), Inches(2.0), Inches(2.0), Inches(2.0), Inches(1.5)]
+    for ci, w in enumerate(sw): stbl.columns[ci].width = w
+
+    for ci, h in enumerate(['部門', '來自民間收入合計', '其他民間收入支出', '業務餘絀', 'X達成率']):
+        set_cell(stbl.cell(0, ci), h, bold=True, size=11, bg=C_DARK_BLUE, color=C_WHITE)
+
+    grand_income = 0; grand_expense = 0
+    for ri, dept in enumerate(DEPARTMENTS, 1):
+        dept_rev = cum_rev.get(dept, {})
+        inc  = dept_rev.get('來自民間收入合計', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in DEPT_INCOME_PPT[dept])
+        exp  = dept_rev.get('其他民間收入支出', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in DEPT_EXPENSE_PPT[dept])
+        goal = dept_rev.get('來自民間收入合計', {}).get('goal', 0)
+        net  = inc - exp
+        grand_income += inc; grand_expense += exp
+        row_bg = C_INC_LIGHT if ri % 2 == 0 else C_WHITE
+        set_cell(stbl.cell(ri, 0), dept, bold=True, size=11, bg=row_bg, align='left')
+        set_cell(stbl.cell(ri, 1), fmtv(inc),  bold=False, size=11, bg=row_bg, align='right')
+        set_cell(stbl.cell(ri, 2), fmtv(exp),  bold=False, size=11, bg=row_bg, align='right')
+        set_cell(stbl.cell(ri, 3), fmtv(net),  bold=False, size=11, bg=row_bg, align='right',
+                 color=C_DARK_BLUE if net >= 0 else RGBColor(0xC0,0x00,0x00))
+        set_cell(stbl.cell(ri, 4), rate_str(inc, goal), bold=False, size=11, bg=row_bg, align='center')
+
+    # 合計行
+    grand_net = grand_income - grand_expense
+    rr = SROWS - 1
+    set_cell(stbl.cell(rr, 0), '合計', bold=True, size=11, bg=C_INC_TOTAL, align='left')
+    set_cell(stbl.cell(rr, 1), fmtv(grand_income),  bold=True, size=11, bg=C_INC_TOTAL, align='right')
+    set_cell(stbl.cell(rr, 2), fmtv(grand_expense), bold=True, size=11, bg=C_EXP_TOTAL, align='right')
+    set_cell(stbl.cell(rr, 3), fmtv(grand_net), bold=True, size=11, bg=C_NET_BG, align='right',
+             color=C_DARK_BLUE if grand_net >= 0 else RGBColor(0xC0,0x00,0x00))
+    set_cell(stbl.cell(rr, 4), '-', bold=False, size=11, bg=C_RATE_BG)
+
+    output = io.BytesIO()
+    prs.save(output); output.seek(0)
+    fname = f'{year}年業務部門來自民間業務收入明細_{datetime.now().strftime("%Y%m%d")}.pptx'
+    return send_file(output, as_attachment=True, download_name=fname,
+                     mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation')
+
 
 @app.route('/export_excel')
 @login_required
