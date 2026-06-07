@@ -141,10 +141,12 @@
         <div class="label">收支差額（收入－支出小計）</div>
       </div>
     </div>
-    <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
-      <button class="btn btn-success" onclick="saveAll()">💾 儲存收支資料</button>
-      <a href="/dept/{{ dept }}/contracts?month={{ month }}" class="btn btn-warning">📋 合約追蹤</a>
+    <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+      <button class="btn btn-success" onclick="saveAll(true)">💾 儲存收支資料</button>
+      <a href="/dept/{{ dept }}/contracts?month={{ month }}" class="btn btn-warning">📋 合約</a>
+      <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
       <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
+      <span id="autosave-status" style="font-size:12px; color:#888; margin-left:4px;"></span>
     </div>
   </div>
 </div>
@@ -220,8 +222,17 @@ function calcAll() {
   netEl.style.color = net >= 0 ? '#155724' : '#721c24';
 }
 
+let _autoSaveTimer = null;
+function scheduleAutoSave() {
+  calcAll();
+  const statusEl = document.getElementById('autosave-status');
+  if (statusEl) statusEl.textContent = '⏳ 等待儲存...';
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(() => saveAll(false), 1200);
+}
+
 document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp => {
-  inp.addEventListener('input', calcAll);
+  inp.addEventListener('input', scheduleAutoSave);
 });
 
 function loadData() {
@@ -243,7 +254,7 @@ function loadData() {
   });
 }
 
-function saveAll() {
+function saveAll(showMsg = true) {
   // 收支資料
   const items = {};
   document.querySelectorAll('.income-amt').forEach(inp => {
@@ -269,7 +280,11 @@ function saveAll() {
       body:JSON.stringify({dept:DEPT,month:MONTH,items})}),
     fetch('/api/save_unclaimed',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({dept:DEPT,month:MONTH,items:ucItems})})
-  ]).then(()=>showToast('✅ 收支資料已儲存'));
+  ]).then(()=>{
+    const statusEl = document.getElementById('autosave-status');
+    if (statusEl) { statusEl.textContent = '✅ 已自動儲存'; setTimeout(()=>{ statusEl.textContent=''; }, 3000); }
+    if (showMsg) showToast('✅ 收支資料已儲存');
+  });
 }
 
 loadData();

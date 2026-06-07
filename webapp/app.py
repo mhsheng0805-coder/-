@@ -688,8 +688,109 @@ def save_contract():
              1 if d.get('cross_dept') else 0, cross_dept_data,
              d.get('payment_type','當年'), d.get('installments',1), installment_data))
     con.commit()
+    if not d.get('id'):
+        new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0] if not IS_PG else \
+                 con.execute('SELECT lastval()').fetchone()[0]
+        con.close()
+        return jsonify({'status': 'ok', 'id': new_id})
     con.close()
     return jsonify({'status': 'ok'})
+
+@app.route('/api/export_dept_excel/<dept>/<int:month>')
+@login_required
+def export_dept_excel(dept, month):
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    year = get_current_year()
+    con = get_db()
+    rev_rows     = con.execute('SELECT item,amount,goal FROM revenue WHERE year=? AND dept=? AND month=? ORDER BY item', (year,dept,month)).fetchall()
+    unclaim_rows = con.execute('SELECT item,amount FROM unclaimed WHERE year=? AND dept=? AND month=?', (year,dept,month)).fetchall()
+    con.close()
+
+    wb = openpyxl.Workbook()
+    thin = Side(style='thin'); border = Border(left=thin,right=thin,top=thin,bottom=thin)
+    hfill = PatternFill('solid',start_color='BDD7EE',fgColor='BDD7EE')
+    hfont = Font(name='微軟正黑體',size=10,bold=True)
+    ctr   = Alignment(horizontal='center',vertical='center')
+
+    def hdr(ws, cols, widths):
+        for c,(h,w) in enumerate(zip(cols,widths),1):
+            cell = ws.cell(1,c,h); cell.font=hfont; cell.fill=hfill
+            cell.alignment=ctr; cell.border=border
+            ws.column_dimensions[get_column_letter(c)].width=w
+
+    ws1 = wb.active; ws1.title = f'{month}月收支'
+    ws1['A1'] = f'{year}年 {dept} {month}月 來自民間業務收支表'
+    ws1['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
+    ws1.merge_cells('A1:D1'); ws1.row_dimensions[1].height = 22
+    hdr_row = ['項目','金額(元)','年度目標','達成率']
+    for c,(h,w) in enumerate(zip(hdr_row,[28,14,14,10]),1):
+        cell = ws1.cell(2,c,h); cell.font=hfont; cell.fill=hfill
+        cell.alignment=ctr; cell.border=border
+        ws1.column_dimensions[get_column_letter(c)].width=w
+    uc_map = {r['item']:r['amount'] for r in unclaim_rows}
+    for ri,r in enumerate(rev_rows,3):
+        g = r['goal'] or 0; a = r['amount'] or 0
+        ws1.cell(ri,1,r['item']).border=border
+        ws1.cell(ri,2,a).border=border
+        ws1.cell(ri,3,g).border=border
+        ws1.cell(ri,4, f'{a/g*100:.1f}%' if g else '-').border=border
+    if uc_map:
+        ri = len(rev_rows)+3
+        ws1.cell(ri,1,'── 已申請未核銷 ──').font=Font(name='微軟正黑體',bold=True,color='C00000')
+        for item,amt in uc_map.items():
+            ri+=1
+            ws1.cell(ri,1,item).border=border
+            ws1.cell(ri,2,amt).border=border
+
+    output = io.BytesIO(); wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年{dept}{month}月收支.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/api/export_contracts_excel/<dept>/<int:month>')
+@login_required
+def export_contracts_excel(dept, month):
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    import json as _json
+    year = get_current_year()
+    con = get_db()
+    rows = [dict(r) for r in con.execute(
+        'SELECT * FROM contracts WHERE year=? AND dept=? AND month=? ORDER BY id',
+        (year,dept,month)).fetchall()]
+    con.close()
+
+    wb = openpyxl.Workbook()
+    thin = Side(style='thin'); border = Border(left=thin,right=thin,top=thin,bottom=thin)
+    hfill = PatternFill('solid',start_color='BDD7EE',fgColor='BDD7EE')
+    hfont = Font(name='微軟正黑體',size=10,bold=True)
+    ctr   = Alignment(horizontal='center',vertical='center')
+
+    ws = wb.active; ws.title = f'{month}月合約'
+    ws['A1'] = f'{year}年 {dept} {month}月 合約追蹤'
+    ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
+    ws.merge_cells('A1:J1'); ws.row_dimensions[1].height = 22
+    headers = ['客戶/計畫','組別','合約金額','簽約日期','狀態','金額方式','期數','跨部門','延續下月','備註']
+    widths  = [28,12,14,12,14,10,8,20,8,20]
+    for c,(h,w) in enumerate(zip(headers,widths),1):
+        cell = ws.cell(2,c,h); cell.font=hfont; cell.fill=hfill
+        cell.alignment=ctr; cell.border=border
+        ws.column_dimensions[get_column_letter(c)].width=w
+    for ri,r in enumerate(rows,3):
+        cd = _json.loads(r.get('cross_dept_data') or '{}')
+        cd_str = '；'.join(f"{k}:{v:,.0f}" for k,v in cd.items() if v) if r.get('cross_dept') else ''
+        vals = [r.get('client',''), r.get('group_name',''), r.get('amount',0),
+                r.get('sign_date',''), r.get('status',''),
+                r.get('payment_type','當年'), r.get('installments',1) if r.get('payment_type')=='分期' else '',
+                cd_str, '是' if r.get('carry_next') else '', r.get('note','')]
+        for c,v in enumerate(vals,1):
+            ws.cell(ri,c,v).border=border
+
+    output = io.BytesIO(); wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年{dept}{month}月合約.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/api/delete_contract/<int:cid>', methods=['DELETE'])
 @login_required

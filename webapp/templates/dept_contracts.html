@@ -136,18 +136,20 @@
         </div>
       </div>
 
-      <div style="display:flex; gap:8px; margin-top:14px;">
+      <div style="display:flex; gap:8px; margin-top:14px; align-items:center;">
         <button class="btn btn-primary" onclick="saveContract()">💾 儲存</button>
         <button class="btn btn-sm" style="background:#ccc; color:#333;" onclick="hideContractForm()">取消</button>
+        <span id="contract-autosave-status" style="font-size:12px; color:#888; margin-left:4px;"></span>
       </div>
     </div>
   </div>
 </div>
 
 <!-- 返回收支 -->
-<div style="margin-top:8px;">
+<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
   <a href="/dept/{{ dept }}?month={{ month }}" class="btn btn-primary">← 返回收支填寫</a>
-  <a href="/import" class="btn" style="background:#6c757d; color:white; margin-left:8px;">📥 匯入 Excel</a>
+  <a href="/api/export_contracts_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月合約 Excel</a>
+  <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
 </div>
 
 {% endblock %}
@@ -258,6 +260,11 @@ function showContractForm(contract) {
 
   document.getElementById('cf-client').focus();
   document.getElementById('contract-form').scrollIntoView({behavior:'smooth'});
+  // 綁定自動儲存（重複呼叫安全，oninput 直接覆蓋）
+  document.querySelectorAll('#contract-form input:not([type=hidden]):not([type=checkbox]):not([type=radio]), #contract-form select, #contract-form textarea').forEach(el => {
+    el.oninput = scheduleContractAutoSave;
+    el.onchange = scheduleContractAutoSave;
+  });
 }
 function hideContractForm() { document.getElementById('contract-form').style.display = 'none'; }
 function editContract(c) { showContractForm(c); }
@@ -371,6 +378,65 @@ function saveContract() {
   fetch('/api/save_contract',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(payload)})
     .then(r=>r.json()).then(()=>{ showToast('✅ 合約已儲存'); hideContractForm(); loadData(); });
+}
+
+// ── 合約表單自動儲存 ────────────────────────────────────
+let _contractAutoTimer = null;
+function scheduleContractAutoSave() {
+  clearTimeout(_contractAutoTimer);
+  const statusEl = document.getElementById('contract-autosave-status');
+  if (statusEl) statusEl.textContent = '⏳ 等待儲存...';
+  _contractAutoTimer = setTimeout(() => {
+    const client = document.getElementById('cf-client')?.value?.trim();
+    if (!client) return; // 沒填客戶名不自動儲存
+    const statusEl2 = document.getElementById('contract-autosave-status');
+    saveContractSilent(() => {
+      if (statusEl2) { statusEl2.textContent = '✅ 已自動儲存'; setTimeout(()=>{ statusEl2.textContent=''; }, 3000); }
+    });
+  }, 1500);
+}
+
+function saveContractSilent(onDone) {
+  const client = document.getElementById('cf-client').value.trim();
+  if (!client) return;
+  const ptype = document.getElementById('cf-pay-install').checked ? '分期' : '當年';
+  const installments = parseInt(document.getElementById('cf-installments').value) || 1;
+  const installment_data = ptype === '分期'
+    ? Array.from(document.querySelectorAll('#installment-rows .install-row')).map(r => ({
+        year: parseInt(r.querySelector('.install-year').value) || null,
+        amount: parseFmt(r.querySelector('.install-amount').value),
+      })) : [];
+  const hasCross = document.getElementById('cf-cross-dept').checked;
+  const cross_dept_data = {};
+  if (hasCross) {
+    document.querySelectorAll('#cross-dept-rows .cd-check').forEach(cb => {
+      if (cb.checked) {
+        const amt = document.querySelector(`.cd-amount[data-dept="${cb.dataset.dept}"]`);
+        cross_dept_data[cb.dataset.dept] = parseFmt(amt?.value || '0');
+      }
+    });
+  }
+  const payload = {
+    id: document.getElementById('cf-id').value || null,
+    dept: DEPT, month: MONTH, client,
+    group_name: document.getElementById('cf-group').value.trim(),
+    amount: parseFmt(document.getElementById('cf-amount').value),
+    sign_date: document.getElementById('cf-sign-date').value,
+    status: document.getElementById('cf-status').value,
+    note: document.getElementById('cf-note').value,
+    carry_next: document.getElementById('cf-carry').checked ? 1 : 0,
+    payment_type: ptype,
+    installments: ptype === '分期' ? installments : 1,
+    installment_data, cross_dept: hasCross ? 1 : 0, cross_dept_data,
+  };
+  fetch('/api/save_contract',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(d => {
+      if (d.id && !document.getElementById('cf-id').value)
+        document.getElementById('cf-id').value = d.id; // 回填新增的 id
+      if (onDone) onDone();
+      loadData();
+    });
 }
 
 function deleteContract(id) {
