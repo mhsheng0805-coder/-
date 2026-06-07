@@ -450,6 +450,20 @@ def add_user():
     con.close()
     return jsonify({'status': 'ok'})
 
+@app.route('/admin/reset_user_password/<int:uid>', methods=['POST'])
+@login_required
+def reset_user_password(uid):
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    pw = request.json.get('password', '')
+    if len(pw) < 6:
+        return jsonify({'error': '密碼至少需要 6 個字元'}), 400
+    con = get_db()
+    con.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_pw(pw), uid))
+    con.commit()
+    con.close()
+    return jsonify({'status': 'ok'})
+
 @app.route('/admin/delete_user/<int:uid>', methods=['DELETE'])
 @login_required
 def delete_user(uid):

@@ -78,17 +78,51 @@
             {% endif %}
           </td>
           <td class="text-center" style="font-size:12px; color:#888;">{{ u.created_at[:10] if u.created_at else '-' }}</td>
-          <td class="text-center">
+          <td class="text-center" style="white-space:nowrap;">
+            <button class="btn btn-warning btn-sm" onclick="showResetPw({{ u.id }}, '{{ u.username }}')">修改密碼</button>
             {% if u.username != 'admin' %}
             <button class="btn btn-danger btn-sm" onclick="deleteUser({{ u.id }}, '{{ u.username }}')">刪除</button>
-            {% else %}
-            <span style="font-size:12px; color:#aaa;">（預設帳號）</span>
             {% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+
+    <!-- 修改密碼 inline 表單 -->
+    <div id="reset-pw-form" style="display:none; background:#fff8e1; border:1px solid #ffe082;
+         border-radius:8px; padding:16px; margin-top:16px;">
+      <h4 style="margin-bottom:12px; color:#7a6000;">🔑 修改密碼：<span id="reset-pw-username"></span></h4>
+      <input type="hidden" id="reset-pw-uid">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:end;">
+        <div class="form-group" style="margin:0;">
+          <label>新密碼 * <span style="font-size:11px; color:#888;">（至少6碼）</span></label>
+          <div style="position:relative;">
+            <input type="password" id="reset-pw1" placeholder="輸入新密碼" autocomplete="new-password"
+                   style="padding-right:36px;">
+            <span onclick="togglePwEl('reset-pw1',this)"
+                  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                         cursor:pointer;font-size:17px;color:#888;user-select:none;opacity:.5;">👁</span>
+          </div>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>確認新密碼 *</label>
+          <div style="position:relative;">
+            <input type="password" id="reset-pw2" placeholder="再次輸入" autocomplete="new-password"
+                   style="padding-right:36px;">
+            <span onclick="togglePwEl('reset-pw2',this)"
+                  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                         cursor:pointer;font-size:17px;color:#888;user-select:none;opacity:.5;">👁</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <button class="btn btn-warning" onclick="doResetPw()">💾 確認修改</button>
+        <button class="btn btn-sm" style="background:#ccc;color:#333;"
+                onclick="document.getElementById('reset-pw-form').style.display='none'">取消</button>
+        <span id="reset-pw-msg" style="font-size:13px; color:#c0392b;"></span>
+      </div>
+    </div>
 
     <div style="margin-top:16px; padding:12px; background:#fff9c4; border-radius:6px; font-size:13px; color:#7a6000;">
       💡 <strong>提示：</strong>新帳號建立後，請通知使用者登入並立即修改密碼（右上角「修改密碼」）。
@@ -127,6 +161,40 @@ function addUser() {
     showToast('✅ 帳號已新增');
     hideAddForm();
     setTimeout(() => location.reload(), 1000);
+  });
+}
+function togglePwEl(id, el) {
+  const inp = document.getElementById(id);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  el.style.opacity = inp.type === 'text' ? '1' : '0.5';
+}
+function showResetPw(uid, username) {
+  document.getElementById('reset-pw-uid').value = uid;
+  document.getElementById('reset-pw-username').textContent = username;
+  document.getElementById('reset-pw1').value = '';
+  document.getElementById('reset-pw2').value = '';
+  document.getElementById('reset-pw-msg').textContent = '';
+  const form = document.getElementById('reset-pw-form');
+  form.style.display = 'block';
+  form.scrollIntoView({behavior:'smooth'});
+  document.getElementById('reset-pw1').focus();
+}
+function doResetPw() {
+  const uid = document.getElementById('reset-pw-uid').value;
+  const pw1 = document.getElementById('reset-pw1').value;
+  const pw2 = document.getElementById('reset-pw2').value;
+  const msg = document.getElementById('reset-pw-msg');
+  msg.textContent = '';
+  if (pw1.length < 6) { msg.textContent = '密碼至少需要 6 個字元'; return; }
+  if (pw1 !== pw2) { msg.textContent = '兩次密碼不一致'; return; }
+  fetch(`/admin/reset_user_password/${uid}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({password: pw1})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { msg.textContent = '錯誤：' + d.error; return; }
+    showToast('✅ 密碼已修改');
+    document.getElementById('reset-pw-form').style.display = 'none';
   });
 }
 function deleteUser(id, username) {
