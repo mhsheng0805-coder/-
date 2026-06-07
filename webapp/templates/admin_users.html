@@ -4,7 +4,10 @@
 <div class="card">
   <div class="card-header">
     👥 使用者管理
-    <button class="btn btn-success btn-sm" style="margin-left:auto;" onclick="showAddForm()">＋ 新增帳號</button>
+    <div style="margin-left:auto; display:flex; gap:8px;">
+      <a href="/admin/export_users" class="btn btn-success btn-sm">⬇ 匯出 Excel</a>
+      <button class="btn btn-success btn-sm" onclick="showAddForm()">＋ 新增帳號</button>
+    </div>
   </div>
   <div class="card-body" style="overflow-x:auto; padding:12px;">
 
@@ -32,7 +35,6 @@
               <option value="雲分部">雲分部</option>
               <option value="產服部">產服部</option>
               <option value="企劃處">企劃處</option>
-              <option id="custom-dept-opt" value="__custom__" style="display:none;"></option>
             </select>
             <button type="button" class="btn btn-sm" style="background:#e8f0ff;color:#1f4e79;white-space:nowrap;"
                     onclick="addNewDept()" title="新增自訂部門">＋ 新增</button>
@@ -41,11 +43,21 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label>密碼 * <span style="font-size:11px; color:#888;">（至少6碼）</span></label>
-          <input type="password" id="new-password" autocomplete="new-password" placeholder="初始密碼">
+          <div style="position:relative;">
+            <input type="password" id="new-password" autocomplete="new-password" placeholder="初始密碼"
+                   style="padding-right:36px;">
+            <span onclick="togglePwEl('new-password',this)"
+                  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:17px;color:#888;user-select:none;opacity:.5;">👁</span>
+          </div>
         </div>
         <div class="form-group" style="margin:0;">
           <label>確認密碼 *</label>
-          <input type="password" id="new-password2" autocomplete="new-password" placeholder="再次輸入密碼">
+          <div style="position:relative;">
+            <input type="password" id="new-password2" autocomplete="new-password" placeholder="再次輸入密碼"
+                   style="padding-right:36px;">
+            <span onclick="togglePwEl('new-password2',this)"
+                  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:17px;color:#888;user-select:none;opacity:.5;">👁</span>
+          </div>
         </div>
         <div class="form-group" style="margin:0;">
           <label>權限</label>
@@ -65,12 +77,12 @@
     <table>
       <thead>
         <tr>
-          <th>帳號</th><th>姓名</th><th>部門</th><th>權限</th><th>建立時間</th><th>操作</th>
+          <th>帳號</th><th>姓名</th><th>部門</th><th>權限</th><th>狀態</th><th>建立時間</th><th>操作</th>
         </tr>
       </thead>
       <tbody>
         {% for u in users %}
-        <tr id="user-row-{{ u.id }}">
+        <tr id="user-row-{{ u.id }}" {% if u.disabled %}style="opacity:.5;"{% endif %}>
           <td><strong>{{ u.username }}</strong></td>
           <td>{{ u.display_name or '-' }}</td>
           <td class="text-center">
@@ -87,10 +99,22 @@
               <span class="badge badge-gray">一般使用者</span>
             {% endif %}
           </td>
+          <td class="text-center" id="status-{{ u.id }}">
+            {% if u.disabled %}
+              <span class="badge" style="background:#dc3545;color:white;">停用</span>
+            {% else %}
+              <span class="badge badge-green">啟用</span>
+            {% endif %}
+          </td>
           <td class="text-center" style="font-size:12px; color:#888;">{{ u.created_at[:10] if u.created_at else '-' }}</td>
           <td class="text-center" style="white-space:nowrap;">
             <button class="btn btn-warning btn-sm" onclick="showResetPw({{ u.id }}, '{{ u.username }}')">修改密碼</button>
             {% if u.username != 'admin' %}
+            <button class="btn btn-sm" id="toggle-btn-{{ u.id }}"
+                    style="background:{% if u.disabled %}#28a745{% else %}#6c757d{% endif %};color:white;"
+                    onclick="toggleUser({{ u.id }}, '{{ u.username }}')">
+              {% if u.disabled %}啟用{% else %}停用{% endif %}
+            </button>
             <button class="btn btn-danger btn-sm" onclick="deleteUser({{ u.id }}, '{{ u.username }}')">刪除</button>
             {% endif %}
           </td>
@@ -135,30 +159,33 @@
     </div>
 
     <div style="margin-top:16px; padding:12px; background:#fff9c4; border-radius:6px; font-size:13px; color:#7a6000;">
-      💡 <strong>提示：</strong>新帳號建立後，請通知使用者登入並立即修改密碼（右上角「修改密碼」）。
+      💡 <strong>提示：</strong>新帳號建立後，請通知使用者登入並立即修改密碼（右上角「修改密碼」）。停用的帳號將無法登入，但資料保留。
     </div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
+function togglePwEl(id, el) {
+  const inp = document.getElementById(id);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  el.style.opacity = inp.type === 'text' ? '1' : '0.5';
+}
 function deptSelChange() {
   const sel = document.getElementById('new-dept-sel');
-  document.getElementById('new-dept').value = sel.value === '__custom__' ? '' : sel.value;
+  document.getElementById('new-dept').value = sel.value;
 }
 function addNewDept() {
   const name = prompt('請輸入新部門名稱：');
   if (!name || !name.trim()) return;
   const trimmed = name.trim();
   const sel = document.getElementById('new-dept-sel');
-  // 若已存在就直接選取
   for (const opt of sel.options) {
     if (opt.value === trimmed) { sel.value = trimmed; deptSelChange(); return; }
   }
-  // 插入新選項到「企劃處」之後
   const opt = document.createElement('option');
   opt.value = trimmed; opt.textContent = trimmed;
-  sel.insertBefore(opt, sel.querySelector('#custom-dept-opt'));
+  sel.appendChild(opt);
   sel.value = trimmed;
   document.getElementById('new-dept').value = trimmed;
 }
@@ -193,10 +220,27 @@ function addUser() {
     setTimeout(() => location.reload(), 1000);
   });
 }
-function togglePwEl(id, el) {
-  const inp = document.getElementById(id);
-  inp.type = inp.type === 'password' ? 'text' : 'password';
-  el.style.opacity = inp.type === 'text' ? '1' : '0.5';
+function toggleUser(id, username) {
+  const btn = document.getElementById('toggle-btn-' + id);
+  const isDisabling = btn.textContent.trim() === '停用';
+  const action = isDisabling ? `停用帳號「${username}」？停用後該帳號無法登入。` : `啟用帳號「${username}」？`;
+  if (!confirm(action)) return;
+  fetch(`/admin/toggle_user/${id}`, {method:'POST'})
+    .then(r => r.json()).then(d => {
+      if (d.error) { alert('錯誤：' + d.error); return; }
+      const row = document.getElementById('user-row-' + id);
+      const statusEl = document.getElementById('status-' + id);
+      if (d.disabled) {
+        row.style.opacity = '0.5';
+        statusEl.innerHTML = '<span class="badge" style="background:#dc3545;color:white;">停用</span>';
+        btn.textContent = '啟用'; btn.style.background = '#28a745';
+      } else {
+        row.style.opacity = '1';
+        statusEl.innerHTML = '<span class="badge badge-green">啟用</span>';
+        btn.textContent = '停用'; btn.style.background = '#6c757d';
+      }
+      showToast(d.disabled ? '帳號已停用' : '✅ 帳號已啟用', d.disabled ? 'error' : 'success');
+    });
 }
 function showResetPw(uid, username) {
   document.getElementById('reset-pw-uid').value = uid;

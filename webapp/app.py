@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
     display_name TEXT, role TEXT DEFAULT 'user', dept TEXT DEFAULT '',
+    disabled INTEGER DEFAULT 0,
     reset_token TEXT, reset_expires DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -153,6 +154,7 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
     display_name TEXT, role TEXT DEFAULT 'user', dept TEXT DEFAULT '',
+    disabled INTEGER DEFAULT 0,
     reset_token TEXT, reset_expires TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -186,6 +188,7 @@ CREATE TABLE IF NOT EXISTS unclaimed (
 
 _MIGRATE_USERS = [
     "ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN disabled INTEGER DEFAULT 0",
 ]
 
 _MIGRATE_CONTRACTS = [
@@ -309,6 +312,9 @@ def login():
         ).fetchone()
         con.close()
         if user:
+            if user['disabled']:
+                error = '此帳號已被停用，請聯繫管理員。'
+                return render_template('login.html', error=error)
             session.permanent = False
             session['user'] = user['username']
             session['display_name'] = user['display_name'] or user['username']
@@ -423,7 +429,7 @@ def admin_users():
         return redirect(url_for('index'))
     con = get_db()
     users = [dict(r) for r in con.execute(
-        "SELECT id, username, display_name, dept, role, created_at FROM users ORDER BY id"
+        "SELECT id, username, display_name, dept, role, disabled, created_at FROM users ORDER BY id"
     ).fetchall()]
     con.close()
     year = get_current_year()
@@ -449,6 +455,74 @@ def add_user():
         return jsonify({'error': '帳號已存在'}), 400
     con.close()
     return jsonify({'status': 'ok'})
+
+@app.route('/admin/toggle_user/<int:uid>', methods=['POST'])
+@login_required
+def toggle_user(uid):
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    con = get_db()
+    user = con.execute("SELECT username, disabled FROM users WHERE id=?", (uid,)).fetchone()
+    if not user:
+        con.close()
+        return jsonify({'error': '帳號不存在'}), 404
+    if user['username'] == 'admin':
+        con.close()
+        return jsonify({'error': '不可停用 admin 帳號'}), 400
+    new_state = 0 if user['disabled'] else 1
+    con.execute("UPDATE users SET disabled=? WHERE id=?", (new_state, uid))
+    con.commit()
+    con.close()
+    return jsonify({'status': 'ok', 'disabled': new_state})
+
+@app.route('/admin/export_users')
+@login_required
+def export_users():
+    if session.get('role') != 'admin':
+        return redirect(url_for('index'))
+    con = get_db()
+    users = [dict(r) for r in con.execute(
+        "SELECT username, display_name, dept, role, disabled, created_at FROM users ORDER BY id"
+    ).fetchall()]
+    con.close()
+
+    wb = openpyxl.Workbook()
+    thin   = Side(style='thin')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hfill  = PatternFill('solid', start_color='BDD7EE', fgColor='BDD7EE')
+    hfont  = Font(name='微軟正黑體', size=11, bold=True)
+    ctr    = Alignment(horizontal='center', vertical='center')
+
+    ws = wb.active
+    ws.title = '帳號清單'
+    headers = ['帳號', '姓名', '部門', '權限', '狀態', '建立時間']
+    widths  = [18, 16, 14, 14, 10, 22]
+    for col, (h, w) in enumerate(zip(headers, widths), 1):
+        c = ws.cell(row=1, column=col, value=h)
+        c.font = hfont; c.fill = hfill; c.alignment = ctr; c.border = border
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    role_map = {'admin': '管理員', 'user': '一般使用者'}
+    for ri, u in enumerate(users, 2):
+        vals = [
+            u['username'],
+            u['display_name'] or '',
+            u['dept'] or '',
+            role_map.get(u['role'], u['role']),
+            '停用' if u['disabled'] else '啟用',
+            str(u['created_at'] or '')[:10],
+        ]
+        for ci, v in enumerate(vals, 1):
+            cell = ws.cell(row=ri, column=ci, value=v)
+            cell.border = border
+            if u['disabled']:
+                cell.font = Font(name='微軟正黑體', size=10, color='999999')
+
+    output = io.BytesIO()
+    wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'帳號清單_{datetime.now().strftime("%Y%m%d")}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/admin/reset_user_password/<int:uid>', methods=['POST'])
 @login_required
