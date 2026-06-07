@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-    display_name TEXT, role TEXT DEFAULT 'user',
+    display_name TEXT, role TEXT DEFAULT 'user', dept TEXT DEFAULT '',
     reset_token TEXT, reset_expires DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-    display_name TEXT, role TEXT DEFAULT 'user',
+    display_name TEXT, role TEXT DEFAULT 'user', dept TEXT DEFAULT '',
     reset_token TEXT, reset_expires TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -184,6 +184,10 @@ CREATE TABLE IF NOT EXISTS unclaimed (
 );
 '''
 
+_MIGRATE_USERS = [
+    "ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''",
+]
+
 _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN cross_dept INTEGER DEFAULT 0",
     "ALTER TABLE contracts ADD COLUMN cross_dept_data TEXT DEFAULT '{}'",
@@ -194,8 +198,8 @@ _MIGRATE_CONTRACTS = [
 ]
 
 def _migrate(cur, is_pg):
-    """升級舊版 contracts 資料表（新增欄位）"""
-    for stmt in _MIGRATE_CONTRACTS:
+    """升級舊版資料表（新增欄位）"""
+    for stmt in _MIGRATE_USERS + _MIGRATE_CONTRACTS:
         try:
             cur.execute(stmt)
         except Exception:
@@ -393,7 +397,7 @@ def admin_users():
         return redirect(url_for('index'))
     con = get_db()
     users = [dict(r) for r in con.execute(
-        "SELECT id, username, display_name, role, created_at FROM users ORDER BY id"
+        "SELECT id, username, display_name, dept, role, created_at FROM users ORDER BY id"
     ).fetchall()]
     con.close()
     year = get_current_year()
@@ -411,8 +415,8 @@ def add_user():
         return jsonify({'error': '帳號或密碼格式不正確'}), 400
     con = get_db()
     try:
-        con.execute("INSERT INTO users (username, password_hash, display_name, role) VALUES (?,?,?,?)",
-                    (username, hash_pw(password), d.get('display_name',''), d.get('role','user')))
+        con.execute("INSERT INTO users (username, password_hash, display_name, role, dept) VALUES (?,?,?,?,?)",
+                    (username, hash_pw(password), d.get('display_name',''), d.get('role','user'), d.get('dept','')))
         con.commit()
     except sqlite3.IntegrityError:
         con.close()

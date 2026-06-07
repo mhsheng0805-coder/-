@@ -11,18 +11,31 @@
     <!-- 新增帳號表單 -->
     <div id="add-form" style="display:none; background:#f0f8ff; border:1px solid #bdd7ee; border-radius:8px; padding:16px; margin-bottom:16px;">
       <h4 style="margin-bottom:12px; color:#1f4e79;">新增帳號</h4>
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; align-items:end;">
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; align-items:end;">
         <div class="form-group" style="margin:0;">
-          <label>帳號 *</label>
+          <label>帳號 * <span style="font-size:11px; color:#888;">（登入用）</span></label>
           <input type="text" id="new-username" autocomplete="off" placeholder="登入帳號">
         </div>
         <div class="form-group" style="margin:0;">
-          <label>顯示名稱</label>
-          <input type="text" id="new-display" autocomplete="off" placeholder="姓名">
+          <label>姓名</label>
+          <input type="text" id="new-display" autocomplete="off" placeholder="真實姓名">
         </div>
         <div class="form-group" style="margin:0;">
-          <label>密碼 * (至少6碼)</label>
+          <label>部門</label>
+          <select id="new-dept">
+            <option value="">— 請選擇 —</option>
+            {% for d in ['原料部','產品部','檢驗部','製程部','雲分部','產服部','企劃處','其他'] %}
+            <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>密碼 * <span style="font-size:11px; color:#888;">（至少6碼）</span></label>
           <input type="password" id="new-password" autocomplete="new-password" placeholder="初始密碼">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>確認密碼 *</label>
+          <input type="password" id="new-password2" autocomplete="new-password" placeholder="再次輸入密碼">
         </div>
         <div class="form-group" style="margin:0;">
           <label>權限</label>
@@ -32,16 +45,17 @@
           </select>
         </div>
       </div>
-      <div style="margin-top:12px; display:flex; gap:8px;">
-        <button class="btn btn-primary" onclick="addUser()">💾 新增</button>
-        <button class="btn btn-sm" style="background:#ccc;color:#333;" onclick="document.getElementById('add-form').style.display='none'">取消</button>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <button class="btn btn-primary" onclick="addUser()">💾 新增帳號</button>
+        <button class="btn btn-sm" style="background:#ccc;color:#333;" onclick="hideAddForm()">取消</button>
+        <span id="add-msg" style="font-size:13px; color:#c0392b;"></span>
       </div>
     </div>
 
     <table>
       <thead>
         <tr>
-          <th>帳號</th><th>顯示名稱</th><th>權限</th><th>建立時間</th><th>操作</th>
+          <th>帳號</th><th>姓名</th><th>部門</th><th>權限</th><th>建立時間</th><th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -50,8 +64,15 @@
           <td><strong>{{ u.username }}</strong></td>
           <td>{{ u.display_name or '-' }}</td>
           <td class="text-center">
+            {% if u.dept %}
+              <span class="badge badge-blue">{{ u.dept }}</span>
+            {% else %}
+              <span style="color:#aaa; font-size:12px;">—</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
             {% if u.role == 'admin' %}
-              <span class="badge badge-blue">管理員</span>
+              <span class="badge badge-green">管理員</span>
             {% else %}
               <span class="badge badge-gray">一般使用者</span>
             {% endif %}
@@ -81,22 +102,31 @@ function showAddForm() {
   document.getElementById('add-form').style.display = 'block';
   document.getElementById('new-username').focus();
 }
+function hideAddForm() {
+  document.getElementById('add-form').style.display = 'none';
+  document.getElementById('add-msg').textContent = '';
+}
 function addUser() {
   const username = document.getElementById('new-username').value.trim();
   const display  = document.getElementById('new-display').value.trim();
+  const dept     = document.getElementById('new-dept').value;
   const password = document.getElementById('new-password').value;
+  const password2= document.getElementById('new-password2').value;
   const role     = document.getElementById('new-role').value;
-  if (!username) { alert('請輸入帳號'); return; }
-  if (password.length < 6) { alert('密碼至少需要 6 個字元'); return; }
+  const msg      = document.getElementById('add-msg');
+  msg.textContent = '';
+  if (!username) { msg.textContent = '請輸入帳號'; return; }
+  if (password.length < 6) { msg.textContent = '密碼至少需要 6 個字元'; return; }
+  if (password !== password2) { msg.textContent = '兩次密碼不一致'; return; }
   fetch('/admin/add_user', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({username, display_name: display, password, role})
+    body: JSON.stringify({username, display_name: display, dept, password, role})
   }).then(r => r.json()).then(d => {
-    if (d.error) { alert('錯誤：' + d.error); return; }
-    showToast('✅ 帳號已新增，請重新整理頁面');
-    document.getElementById('add-form').style.display = 'none';
-    setTimeout(() => location.reload(), 1200);
+    if (d.error) { msg.textContent = '錯誤：' + d.error; return; }
+    showToast('✅ 帳號已新增');
+    hideAddForm();
+    setTimeout(() => location.reload(), 1000);
   });
 }
 function deleteUser(id, username) {
