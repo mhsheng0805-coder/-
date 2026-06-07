@@ -22,12 +22,22 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label>部門</label>
-          <select id="new-dept">
-            <option value="">— 請選擇 —</option>
-            {% for d in ['原料部','產品部','檢驗部','製程部','雲分部','產服部','企劃處','其他'] %}
-            <option value="{{ d }}">{{ d }}</option>
-            {% endfor %}
-          </select>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select id="new-dept-sel" onchange="deptSelChange()" style="flex:1;">
+              <option value="">— 請選擇 —</option>
+              <option value="原料部">原料部</option>
+              <option value="產品部">產品部</option>
+              <option value="檢驗部">檢驗部</option>
+              <option value="製程部">製程部</option>
+              <option value="雲分部">雲分部</option>
+              <option value="產服部">產服部</option>
+              <option value="企劃處">企劃處</option>
+              <option id="custom-dept-opt" value="__custom__" style="display:none;"></option>
+            </select>
+            <button type="button" class="btn btn-sm" style="background:#e8f0ff;color:#1f4e79;white-space:nowrap;"
+                    onclick="addNewDept()" title="新增自訂部門">＋ 新增</button>
+          </div>
+          <input type="hidden" id="new-dept" value="">
         </div>
         <div class="form-group" style="margin:0;">
           <label>密碼 * <span style="font-size:11px; color:#888;">（至少6碼）</span></label>
@@ -132,6 +142,26 @@
 {% endblock %}
 {% block scripts %}
 <script>
+function deptSelChange() {
+  const sel = document.getElementById('new-dept-sel');
+  document.getElementById('new-dept').value = sel.value === '__custom__' ? '' : sel.value;
+}
+function addNewDept() {
+  const name = prompt('請輸入新部門名稱：');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  const sel = document.getElementById('new-dept-sel');
+  // 若已存在就直接選取
+  for (const opt of sel.options) {
+    if (opt.value === trimmed) { sel.value = trimmed; deptSelChange(); return; }
+  }
+  // 插入新選項到「企劃處」之後
+  const opt = document.createElement('option');
+  opt.value = trimmed; opt.textContent = trimmed;
+  sel.insertBefore(opt, sel.querySelector('#custom-dept-opt'));
+  sel.value = trimmed;
+  document.getElementById('new-dept').value = trimmed;
+}
 function showAddForm() {
   document.getElementById('add-form').style.display = 'block';
   document.getElementById('new-username').focus();
@@ -143,7 +173,7 @@ function hideAddForm() {
 function addUser() {
   const username = document.getElementById('new-username').value.trim();
   const display  = document.getElementById('new-display').value.trim();
-  const dept     = document.getElementById('new-dept').value;
+  const dept     = document.getElementById('new-dept').value || document.getElementById('new-dept-sel').value;
   const password = document.getElementById('new-password').value;
   const password2= document.getElementById('new-password2').value;
   const role     = document.getElementById('new-role').value;
