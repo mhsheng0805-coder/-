@@ -253,6 +253,31 @@ def get_current_year():
     con.close()
     return int(row['value']) if row else CURRENT_ROC_YEAR
 
+def get_allowed_depts():
+    """依使用者角色/部門傳回可存取的部門清單。admin 或無部門設定 → 全部。"""
+    if session.get('role') == 'admin':
+        return DEPARTMENTS
+    dept = session.get('dept', '')
+    if dept and dept in DEPARTMENTS:
+        return [dept]
+    return DEPARTMENTS  # 部門不在清單內（如企劃處）→ 唯讀全部
+
+def can_access_dept(dept):
+    """檢查目前使用者是否可存取指定部門。"""
+    if session.get('role') == 'admin':
+        return True
+    user_dept = session.get('dept', '')
+    if not user_dept or user_dept not in DEPARTMENTS:
+        return True  # 無部門限制 → 可看全部（但寫入路由另外擋）
+    return user_dept == dept
+
+def is_admin_or_no_dept():
+    """admin 或未設部門（如企劃處）才能跨部門寫入。"""
+    if session.get('role') == 'admin':
+        return True
+    dept = session.get('dept', '')
+    return not dept or dept not in DEPARTMENTS
+
 def get_all_years():
     """取得資料庫中有資料的所有年度（+ 當前年度）"""
     con = get_db()
@@ -288,6 +313,7 @@ def login():
             session['user'] = user['username']
             session['display_name'] = user['display_name'] or user['username']
             session['role'] = user['role']
+            session['dept'] = user['dept'] or ''
             # 預設使用 DB 設定年度
             con2 = get_db()
             row = con2.execute("SELECT value FROM settings WHERE key='current_year'").fetchone()
@@ -445,7 +471,12 @@ def delete_user(uid):
 def index():
     year = get_current_year()
     all_years = get_all_years()
-    return render_template('index.html', departments=DEPARTMENTS, months=MONTHS,
+    allowed = get_allowed_depts()
+    # 有部門限制的使用者直接跳到自己部門
+    if len(allowed) == 1:
+        return redirect(url_for('dept_view', dept=allowed[0],
+                                month=datetime.now().month))
+    return render_template('index.html', departments=allowed, months=MONTHS,
                            year=year, all_years=all_years)
 
 @app.route('/dept/<dept>')
@@ -453,11 +484,15 @@ def index():
 def dept_view(dept):
     if dept not in DEPARTMENTS:
         return redirect(url_for('index'))
+    if not can_access_dept(dept):
+        return redirect(url_for('dept_view', dept=session.get('dept')))
     month = request.args.get('month', 1, type=int)
     year = get_current_year()
     all_years = get_all_years()
+    allowed = get_allowed_depts()
     return render_template('dept.html', dept=dept, month=month,
                            months=MONTHS, year=year, all_years=all_years,
+                           departments=allowed,
                            income_items=INCOME_ITEMS,
                            expense_items=EXPENSE_ITEMS,
                            unclaimed_items=UNCLAIMED_ITEMS)
@@ -465,6 +500,8 @@ def dept_view(dept):
 @app.route('/api/data/<dept>/<int:month>')
 @login_required
 def get_data(dept, month):
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
     year = get_current_year()
     con = get_db()
     rows = con.execute(
@@ -495,6 +532,8 @@ def save_revenue():
     d = request.json
     year = get_current_year()
     dept, month = d['dept'], d['month']
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
     con = get_db()
     for item, vals in d['items'].items():
         con.execute('''INSERT INTO revenue (year, dept, month, item, amount, goal)
@@ -512,6 +551,8 @@ def save_unclaimed():
     d = request.json
     year = get_current_year()
     dept, month = d['dept'], d['month']
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
     con = get_db()
     for item, amount in d['items'].items():
         con.execute('''INSERT INTO unclaimed (year, dept, month, item, amount)
@@ -529,6 +570,8 @@ def save_contract():
     import json as _json
     d = request.json
     year = get_current_year()
+    if not can_access_dept(d.get('dept', '')):
+        return jsonify({'error': 'forbidden'}), 403
     con = get_db()
     cross_dept_data = _json.dumps(d.get('cross_dept_data', {}), ensure_ascii=False)
     installment_data = _json.dumps(d.get('installment_data', []), ensure_ascii=False)
@@ -629,7 +672,8 @@ def summary():
     data = {}
     for r in rows:
         data.setdefault(r['dept'], {}).setdefault(r['month'], {})[r['item']] = r['total']
-    return render_template('summary.html', departments=DEPARTMENTS, months=MONTHS,
+    allowed = get_allowed_depts()
+    return render_template('summary.html', departments=allowed, months=MONTHS,
                            year=year, all_years=all_years, data=data)
 
 @app.route('/contracts')
@@ -646,8 +690,9 @@ def contracts_view():
     q += ' ORDER BY month, dept, id'
     contracts = [dict(r) for r in con.execute(q, params).fetchall()]
     con.close()
+    allowed = get_allowed_depts()
     return render_template('contracts.html', contracts=contracts,
-                           departments=DEPARTMENTS, months=MONTHS,
+                           departments=allowed, months=MONTHS,
                            year=year, all_years=all_years,
                            selected_dept=dept, selected_month=month,
                            statuses=CONTRACT_STATUSES)
@@ -657,12 +702,16 @@ def contracts_view():
 def dept_contracts(dept):
     if dept not in DEPARTMENTS:
         return redirect(url_for('index'))
+    if not can_access_dept(dept):
+        return redirect(url_for('dept_contracts', dept=session.get('dept'),
+                                month=request.args.get('month', 1)))
     month = request.args.get('month', 1, type=int)
     year = get_current_year()
     all_years = get_all_years()
+    allowed = get_allowed_depts()
     return render_template('dept_contracts.html', dept=dept, month=month,
                            months=MONTHS, year=year, all_years=all_years,
-                           departments=DEPARTMENTS)
+                           departments=allowed)
 
 @app.route('/import')
 @login_required

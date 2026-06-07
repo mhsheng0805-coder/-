@@ -124,7 +124,7 @@ tr:hover { background: #eef4fb; }
   <span class="spacer"></span>
 
   {% if session.get('user') %}
-  <span class="user-info">👤 {{ session.get('display_name', session.get('user')) }}</span>
+  <span class="user-info">👤 {{ session.get('display_name', session.get('user')) }}{% if session.get('dept') and session.get('dept') in ['原料部','產品部','檢驗部','製程部','雲分部','產服部'] %} ／ {{ session.get('dept') }}{% endif %}</span>
   {% if session.get('role') == 'admin' %}
   <a href="/admin/users" {% if '/admin' in request.path %}class="active"{% endif %} title="使用者管理">👥</a>
   {% endif %}
