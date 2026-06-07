@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}合約追蹤 - {{ year }}年業務收支{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">📋 {{ year }}年 合約簽約及洽談進度追蹤</div>
+  <div class="card-body">
+    <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+      <div class="form-group" style="margin:0; min-width:120px;">
+        <label>部門篩選</label>
+        <select name="dept">
+          <option value="">全部</option>
+          {% for d in departments %}<option value="{{ d }}" {% if d==selected_dept %}selected{% endif %}>{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0; min-width:100px;">
+        <label>月份篩選</label>
+        <select name="month">
+          <option value="0">全部</option>
+          {% for m in months %}<option value="{{ m }}" {% if m==selected_month %}selected{% endif %}>{{ m }}月</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">🔍 篩選</button>
+      <a href="/contracts" class="btn btn-sm" style="background:#ccc; color:#333;">清除</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    合約列表
+    <span style="margin-left:auto; font-size:13px; font-weight:normal;">共 {{ contracts|length }} 筆</span>
+  </div>
+  <div class="card-body" style="overflow-x:auto; padding:12px;">
+    {% if contracts %}
+    <table>
+      <thead>
+        <tr>
+          <th>月份</th><th>部門</th><th style="min-width:160px;">客戶/計畫名稱</th>
+          <th>合約金額</th><th>簽約日期</th><th>預計完成</th>
+          <th>狀態</th><th>實收金額</th><th>延續</th><th>備註</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set status_colors = {'洽談中':'badge-yellow','新增簽約':'badge-blue','已簽約執行中':'badge-green','完成':'badge-gray'} %}
+        {% for c in contracts %}
+        <tr>
+          <td class="text-center">{{ c.month }}月</td>
+          <td class="text-center">{{ c.dept }}</td>
+          <td>{{ c.client or '' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(c.amount or 0) }}</td>
+          <td class="text-center">{{ c.sign_date or '' }}</td>
+          <td class="text-center">{{ c.due_date or '' }}</td>
+          <td class="text-center">
+            <span class="badge {{ status_colors.get(c.status, 'badge-gray') }}">{{ c.status or '' }}</span>
+          </td>
+          <td class="text-right">{{ "{:,.0f}".format(c.actual_amount or 0) }}</td>
+          <td class="text-center">{{ '✅' if c.carry_next else '' }}</td>
+          <td>{{ c.note or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="background:#dce6f1; font-weight:bold;">
+          <td colspan="3" class="text-right">合計</td>
+          <td class="text-right">{{ "{:,.0f}".format(contracts|sum(attribute='amount')) }}</td>
+          <td colspan="3"></td>
+          <td class="text-right">{{ "{:,.0f}".format(contracts|sum(attribute='actual_amount')) }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+    {% else %}
+    <p style="color:#999; text-align:center; padding:30px;">尚無合約資料</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 依部門統計 -->
+{% if contracts %}
+<div class="card">
+  <div class="card-header">📊 合約狀態統計</div>
+  <div class="card-body">
+    <div class="stats-grid">
+      {% set ns_total = namespace(cnt=0, amt=0, carry=0) %}
+      {% for c in contracts %}
+        {% set ns_total.cnt = ns_total.cnt + 1 %}
+        {% set ns_total.amt = ns_total.amt + (c.amount or 0) %}
+        {% if c.carry_next %}{% set ns_total.carry = ns_total.carry + 1 %}{% endif %}
+      {% endfor %}
+      <div class="stat-card"><div class="value">{{ ns_total.cnt }}</div><div class="label">合約總筆數</div></div>
+      <div class="stat-card" style="border-color:#28a745"><div class="value" style="color:#155724;">{{ "{:,.0f}".format(ns_total.amt) }}</div><div class="label">合約總金額 (元)</div></div>
+      <div class="stat-card" style="border-color:#6f42c1"><div class="value" style="color:#6f42c1;">{{ ns_total.carry }}</div><div class="label">延續至下月筆數</div></div>
+      <div class="stat-card" style="border-color:#ffc107">
+        <div class="value" style="color:#856404;">
+          {{ contracts|selectattr('status','eq','洽談中')|list|length }}
+        </div>
+        <div class="label">洽談中筆數</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

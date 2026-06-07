@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}紡織所業務收支系統{% endblock %}</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: '微軟正黑體', Arial, sans-serif; background: #f0f4f8; color: #333; font-size: 14px; }
+
+/* ── 導覽列 ── */
+nav { background: linear-gradient(135deg, #1f4e79, #2e75b6); color: white; padding: 0 16px; display: flex; align-items: center; flex-wrap: wrap; min-height: 54px; gap: 2px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+nav .logo { font-size: 15px; font-weight: bold; margin-right: 14px; white-space: nowrap; padding: 10px 0; }
+nav a { color: rgba(255,255,255,0.85); text-decoration: none; padding: 7px 12px; border-radius: 4px; transition: background 0.2s; white-space: nowrap; font-size: 13px; }
+nav a:hover, nav a.active { background: rgba(255,255,255,0.2); color: white; }
+nav .spacer { flex: 1; }
+nav .user-info { color: rgba(255,255,255,0.75); font-size: 12px; padding: 0 6px; white-space: nowrap; }
+
+/* 年度切換下拉 */
+.year-switcher { position: relative; }
+.year-switcher select {
+  background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 4px; padding: 5px 24px 5px 10px; font-size: 12px; font-family: inherit;
+  cursor: pointer; appearance: none; -webkit-appearance: none;
+}
+.year-switcher select option { background: #1f4e79; color: white; }
+.year-switcher::after { content: '▾'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: white; pointer-events: none; font-size: 11px; }
+
+/* ── 版面 ── */
+.container { max-width: 1440px; margin: 20px auto; padding: 0 16px; }
+.card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; overflow: hidden; }
+.card-header { background: linear-gradient(135deg, #1f4e79, #2e75b6); color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.card-body { padding: 20px; }
+
+/* ── 按鈕 ── */
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-family: inherit; transition: all 0.2s; text-decoration: none; white-space: nowrap; }
+.btn-primary { background: #2e75b6; color: white; }
+.btn-primary:hover { background: #1f5490; }
+.btn-success { background: #28a745; color: white; }
+.btn-success:hover { background: #1e7e34; }
+.btn-warning { background: #ffc107; color: #333; }
+.btn-warning:hover { background: #e0a800; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-danger:hover { background: #bd2130; }
+.btn-sm { padding: 4px 9px; font-size: 12px; }
+
+/* ── 表單 ── */
+.form-group { margin-bottom: 14px; }
+label { display: block; font-weight: bold; margin-bottom: 4px; color: #555; font-size: 13px; }
+input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit; transition: border 0.2s; }
+input:focus, select:focus, textarea:focus { border-color: #2e75b6; outline: none; box-shadow: 0 0 0 2px rgba(46,117,182,0.15); }
+
+/* ── 表格 ── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #dce6f1; color: #1f4e79; font-weight: bold; padding: 8px 7px; text-align: center; border: 1px solid #bdd7ee; white-space: nowrap; }
+td { padding: 6px 7px; border: 1px solid #e0e0e0; }
+tr:nth-child(even) { background: #f8fafc; }
+tr:hover { background: #eef4fb; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+
+/* ── 標籤 ── */
+.badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+.badge-blue { background: #dce6f1; color: #1f4e79; }
+.badge-green { background: #d4edda; color: #155724; }
+.badge-yellow { background: #fff3cd; color: #856404; }
+.badge-gray { background: #e2e3e5; color: #383d41; }
+
+/* ── 提示 ── */
+.alert { padding: 10px 16px; border-radius: 5px; margin-bottom: 16px; font-size: 13px; }
+.alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.alert-danger  { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+/* ── 頁籤 ── */
+.dept-tabs  { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.month-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+.dept-tab { padding: 7px 16px; border-radius: 18px; background: white; border: 2px solid #bdd7ee; color: #1f4e79; font-weight: bold; cursor: pointer; text-decoration: none; transition: all 0.2s; font-size: 13px; }
+.dept-tab:hover, .dept-tab.active { background: #2e75b6; border-color: #2e75b6; color: white; }
+.month-tab { padding: 5px 12px; border-radius: 13px; background: #f0f4f8; border: 1px solid #ddd; color: #555; cursor: pointer; text-decoration: none; transition: all 0.2s; font-size: 12px; }
+.month-tab:hover, .month-tab.active { background: #1f4e79; border-color: #1f4e79; color: white; }
+
+/* ── 統計卡 ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.stat-card { background: white; border-radius: 8px; padding: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border-left: 4px solid #2e75b6; }
+.stat-card .value { font-size: 20px; font-weight: bold; color: #1f4e79; }
+.stat-card .label { font-size: 12px; color: #888; margin-top: 3px; }
+
+/* ── Toast ── */
+#toast { position: fixed; top: 64px; right: 18px; padding: 11px 18px; border-radius: 6px; color: white; font-weight: bold; opacity: 0; transition: opacity 0.3s; z-index: 2000; font-size: 13px; pointer-events: none; }
+#toast.show { opacity: 1; }
+#toast.success { background: #28a745; }
+#toast.error   { background: #dc3545; }
+
+.input-num { text-align: right; }
+
+@media (max-width: 768px) {
+  nav { gap: 4px; padding: 8px 10px; }
+  nav .logo { font-size: 13px; }
+  .container { padding: 0 8px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">📊 紡織所 業務收支系統</span>
+  <a href="/" {% if request.path=='/' %}class="active"{% endif %}>🏠 首頁</a>
+  <a href="/summary" {% if '/summary' in request.path %}class="active"{% endif %}>📈 彙整</a>
+  <a href="/contracts" {% if '/contracts' in request.path %}class="active"{% endif %}>📋 合約</a>
+  <a href="/export_excel" class="btn btn-success btn-sm" style="margin-left:4px;" title="匯出本年度 Excel">⬇ Excel</a>
+
+  {% if all_years is defined and all_years %}
+  <div class="year-switcher" style="margin-left:8px;" title="切換年度">
+    <select id="year-select" onchange="switchYear(this.value)">
+      {% for y in all_years %}
+      <option value="{{ y }}" {% if y == year %}selected{% endif %}>民國 {{ y }} 年</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% elif year is defined %}
+  <span style="color:rgba(255,255,255,0.7); font-size:12px; margin-left:8px;">民國 {{ year }} 年</span>
+  {% endif %}
+
+  <span class="spacer"></span>
+
+  {% if session.get('user') %}
+  <span class="user-info">👤 {{ session.get('display_name', session.get('user')) }}</span>
+  {% if session.get('role') == 'admin' %}
+  <a href="/admin/users" {% if '/admin' in request.path %}class="active"{% endif %} title="使用者管理">👥</a>
+  {% endif %}
+  <a href="/change_password" title="修改密碼">🔑</a>
+  <a href="/logout" style="color:rgba(255,180,180,0.9);" title="登出"
+     onclick="return confirm('確定要登出？')">🚪</a>
+  {% endif %}
+</nav>
+
+<div id="toast"></div>
+<div class="container">
+{% block content %}{% endblock %}
+</div>
+
+<script>
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  setTimeout(() => { t.className = ''; }, 3000);
+}
+function fmt(n) {
+  if (n === null || n === undefined || n === '') return '-';
+  const v = parseFloat(n);
+  if (isNaN(v)) return '-';
+  return Math.round(v).toLocaleString('zh-TW');
+}
+function parseFmt(s) {
+  return parseFloat(String(s).replace(/,/g,'')) || 0;
+}
+function switchYear(year) {
+  fetch('/api/switch_year', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({year: parseInt(year)})
+  }).then(() => {
+    // 重新載入當前頁，保留路徑
+    location.reload();
+  });
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

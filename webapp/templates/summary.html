@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}彙整報表 - {{ year }}年業務收支{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">📈 {{ year }}年 六部門 來自民間業務收支彙整報表</div>
+  <div class="card-body" style="overflow-x:auto; padding:12px;">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width:80px;">部門</th>
+          <th>項目</th>
+          {% for m in months %}<th>{{ m }}月</th>{% endfor %}
+          <th style="background:#dce6f1;">合計</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set dept_colors = ['#e8f4fd','#e8fdf0','#fdf4e8','#f4e8fd','#fde8f0','#f0fde8'] %}
+        {% for d_idx, dept in departments|enumerate %}
+        {% set bg = dept_colors[d_idx % 6] %}
+        {% for row_item, row_label, row_style in [
+            ('來自民間業務收入合計','來自民間收入','background:#c6efce; font-weight:bold;'),
+            ('支出合計','支出合計','background:#ffc7c7; font-weight:bold;'),
+            ('net','收支差額','background:#fff3cd; font-weight:bold;'),
+            ('unclaim','未核銷合計','background:#fff9c4;'),
+          ] %}
+        <tr style="{{ row_style }}">
+          {% if loop.index == 1 %}
+          <td rowspan="4" style="text-align:center; font-weight:bold; background:{{ bg }}; vertical-align:middle; border:1px solid #ddd;">{{ dept }}</td>
+          {% endif %}
+          <td>{{ row_label }}</td>
+          {% set ns = namespace(total=0) %}
+          {% for m in months %}
+            {% set dept_data = data.get(dept, {}) %}
+            {% set month_data = dept_data.get(m, {}) %}
+            {% if row_item == 'net' %}
+              {% set inc = month_data.get('來自民間業務收入合計', 0) or 0 %}
+              {% set exp = month_data.get('支出合計', 0) or 0 %}
+              {% set val = inc - exp %}
+            {% elif row_item == 'unclaim' %}
+              {% set val = month_data.get('unclaim', 0) or 0 %}
+            {% else %}
+              {% set val = month_data.get(row_item, 0) or 0 %}
+            {% endif %}
+            {% set ns.total = ns.total + val %}
+            <td class="text-right" style="font-size:12px;">{{ "{:,.0f}".format(val) if val else '-' }}</td>
+          {% endfor %}
+          <td class="text-right" style="font-weight:bold;">{{ "{:,.0f}".format(ns.total) if ns.total else '-' }}</td>
+        </tr>
+        {% endfor %}
+        <tr><td colspan="{{ 15 }}" style="height:6px; background:#f0f4f8;"></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 月份趨勢 -->
+<div class="card">
+  <div class="card-header">📊 各部門月度收入趨勢</div>
+  <div class="card-body">
+    <div id="chart-area" style="min-height:300px; display:flex; align-items:center; justify-content:center; color:#999;">
+      圖表載入中...
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+// 讀取彙整 API 並繪製簡易圖表
+fetch('/api/summary_data').then(r=>r.json()).then(data => {
+  const months = {{ months|list }};
+  const depts = {{ departments|tojson }};
+  const colors = ['#2e75b6','#28a745','#ffc107','#dc3545','#6f42c1','#17a2b8'];
+
+  const chartArea = document.getElementById('chart-area');
+  const maxVal = Math.max(1, ...depts.flatMap(d => months.map(m => (data[d]||{})[m]?.income || 0)));
+
+  let html = '<div style="width:100%; overflow-x:auto;"><table style="width:100%; min-width:700px; border-collapse:collapse;">';
+  html += '<tr><th style="text-align:left; width:80px;">部門</th>';
+  months.forEach(m => html += `<th style="text-align:center; width:70px; font-size:12px;">${m}月</th>`);
+  html += '<th style="text-align:right; width:90px;">合計</th></tr>';
+
+  depts.forEach((dept, i) => {
+    const color = colors[i % colors.length];
+    html += `<tr><td style="font-weight:bold; color:${color}; padding:4px 8px;">${dept}</td>`;
+    let total = 0;
+    months.forEach(m => {
+      const val = (data[dept]||{})[m]?.income || 0;
+      total += val;
+      const pct = Math.round(val / maxVal * 100);
+      html += `<td style="padding:4px 6px; vertical-align:bottom;">
+        <div title="${val.toLocaleString()}" style="background:${color}; height:${Math.max(pct,val>0?2:0)}px; min-height:${val>0?'2px':'0'}; border-radius:2px 2px 0 0; margin-bottom:2px;"></div>
+        <div style="font-size:10px; text-align:center; color:#666;">${val > 0 ? Math.round(val/10000)+'萬' : '-'}</div>
+      </td>`;
+    });
+    html += `<td style="text-align:right; font-weight:bold; padding:4px 8px; color:${color};">${total > 0 ? total.toLocaleString() : '-'}</td></tr>`;
+  });
+  html += '</table></div>';
+  chartArea.innerHTML = html;
+}).catch(() => {
+  document.getElementById('chart-area').textContent = '暫無資料';
+});
+</script>
+{% endblock %}

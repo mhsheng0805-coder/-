@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}使用者管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    👥 使用者管理
+    <button class="btn btn-success btn-sm" style="margin-left:auto;" onclick="showAddForm()">＋ 新增帳號</button>
+  </div>
+  <div class="card-body" style="overflow-x:auto; padding:12px;">
+
+    <!-- 新增帳號表單 -->
+    <div id="add-form" style="display:none; background:#f0f8ff; border:1px solid #bdd7ee; border-radius:8px; padding:16px; margin-bottom:16px;">
+      <h4 style="margin-bottom:12px; color:#1f4e79;">新增帳號</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; align-items:end;">
+        <div class="form-group" style="margin:0;">
+          <label>帳號 *</label>
+          <input type="text" id="new-username" autocomplete="off" placeholder="登入帳號">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>顯示名稱</label>
+          <input type="text" id="new-display" autocomplete="off" placeholder="姓名">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>密碼 * (至少6碼)</label>
+          <input type="password" id="new-password" autocomplete="new-password" placeholder="初始密碼">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>權限</label>
+          <select id="new-role">
+            <option value="user">一般使用者</option>
+            <option value="admin">管理員</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button class="btn btn-primary" onclick="addUser()">💾 新增</button>
+        <button class="btn btn-sm" style="background:#ccc;color:#333;" onclick="document.getElementById('add-form').style.display='none'">取消</button>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>帳號</th><th>顯示名稱</th><th>權限</th><th>建立時間</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr id="user-row-{{ u.id }}">
+          <td><strong>{{ u.username }}</strong></td>
+          <td>{{ u.display_name or '-' }}</td>
+          <td class="text-center">
+            {% if u.role == 'admin' %}
+              <span class="badge badge-blue">管理員</span>
+            {% else %}
+              <span class="badge badge-gray">一般使用者</span>
+            {% endif %}
+          </td>
+          <td class="text-center" style="font-size:12px; color:#888;">{{ u.created_at[:10] if u.created_at else '-' }}</td>
+          <td class="text-center">
+            {% if u.username != 'admin' %}
+            <button class="btn btn-danger btn-sm" onclick="deleteUser({{ u.id }}, '{{ u.username }}')">刪除</button>
+            {% else %}
+            <span style="font-size:12px; color:#aaa;">（預設帳號）</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="margin-top:16px; padding:12px; background:#fff9c4; border-radius:6px; font-size:13px; color:#7a6000;">
+      💡 <strong>提示：</strong>新帳號建立後，請通知使用者登入並立即修改密碼（右上角「修改密碼」）。
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function showAddForm() {
+  document.getElementById('add-form').style.display = 'block';
+  document.getElementById('new-username').focus();
+}
+function addUser() {
+  const username = document.getElementById('new-username').value.trim();
+  const display  = document.getElementById('new-display').value.trim();
+  const password = document.getElementById('new-password').value;
+  const role     = document.getElementById('new-role').value;
+  if (!username) { alert('請輸入帳號'); return; }
+  if (password.length < 6) { alert('密碼至少需要 6 個字元'); return; }
+  fetch('/admin/add_user', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username, display_name: display, password, role})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { alert('錯誤：' + d.error); return; }
+    showToast('✅ 帳號已新增，請重新整理頁面');
+    document.getElementById('add-form').style.display = 'none';
+    setTimeout(() => location.reload(), 1200);
+  });
+}
+function deleteUser(id, username) {
+  if (!confirm(`確定要刪除帳號「${username}」？此操作無法復原。`)) return;
+  fetch(`/admin/delete_user/${id}`, {method:'DELETE'})
+    .then(r => r.json()).then(d => {
+      if (d.error) { alert('錯誤：' + d.error); return; }
+      document.getElementById('user-row-' + id).remove();
+      showToast('已刪除帳號：' + username, 'error');
+    });
+}
+</script>
+{% endblock %}

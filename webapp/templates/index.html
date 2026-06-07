@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}首頁 - 紡織所業務收支系統{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">🏠 {{ year }}年 紡織所 來自民間業務收支管理系統</div>
+  <div class="card-body">
+    <p style="color:#666; margin-bottom:20px;">請選擇部門及月份開始填寫資料，或查看彙整報表。</p>
+    <div class="dept-tabs">
+      {% for dept in departments %}
+      <a href="/dept/{{ dept }}?month=1" class="dept-tab">{{ dept }}</a>
+      {% endfor %}
+    </div>
+    <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+      <a href="/summary" class="btn btn-primary">📈 查看彙整報表</a>
+      <a href="/contracts" class="btn btn-warning">📋 合約追蹤明細</a>
+      <a href="/export_excel" class="btn btn-success">⬇ 匯出 Excel</a>
+    </div>
+  </div>
+</div>
+
+<div id="stats-area" class="stats-grid">
+  <div class="stat-card"><div class="value" id="stat-income">-</div><div class="label">來自民間業務收入合計（累計）</div></div>
+  <div class="stat-card" style="border-color:#28a745"><div class="value" id="stat-expense" style="color:#28a745">-</div><div class="label">支出合計（累計）</div></div>
+  <div class="stat-card" style="border-color:#ffc107"><div class="value" id="stat-net" style="color:#856404">-</div><div class="label">收支差額</div></div>
+  <div class="stat-card" style="border-color:#dc3545"><div class="value" id="stat-unclaim" style="color:#dc3545">-</div><div class="label">未核銷費用合計</div></div>
+  <div class="stat-card" style="border-color:#6f42c1"><div class="value" id="stat-contracts" style="color:#6f42c1">-</div><div class="label">合約總筆數</div></div>
+</div>
+
+<div class="card">
+  <div class="card-header">📊 各部門收支概況（全年累計）</div>
+  <div class="card-body" style="overflow-x:auto;">
+    <table id="overview-table">
+      <thead><tr>
+        <th>部門</th><th>來自民間收入</th><th>支出合計</th><th>收支差額</th><th>未核銷費用</th><th>合約筆數</th><th>操作</th>
+      </tr></thead>
+      <tbody id="overview-tbody">
+        {% for dept in departments %}
+        <tr id="row-{{ dept }}">
+          <td class="text-center"><strong>{{ dept }}</strong></td>
+          <td class="text-right">-</td><td class="text-right">-</td>
+          <td class="text-right">-</td><td class="text-right">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center"><a href="/dept/{{ dept }}?month=1" class="btn btn-primary btn-sm">填寫</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+fetch('/api/overview').then(r=>r.json()).then(data => {
+  let totalIncome=0, totalExp=0, totalUnclaim=0, totalContracts=0;
+  data.depts.forEach(d => {
+    const tr = document.getElementById('row-' + d.dept);
+    if (!tr) return;
+    const net = d.income - d.expense;
+    tr.cells[1].textContent = fmt(d.income);
+    tr.cells[2].textContent = fmt(d.expense);
+    tr.cells[3].textContent = fmt(net);
+    tr.cells[3].style.color = net >= 0 ? '#155724' : '#721c24';
+    tr.cells[4].textContent = fmt(d.unclaim);
+    tr.cells[5].textContent = d.contracts;
+    totalIncome += d.income; totalExp += d.expense;
+    totalUnclaim += d.unclaim; totalContracts += d.contracts;
+  });
+  document.getElementById('stat-income').textContent = fmt(totalIncome);
+  document.getElementById('stat-expense').textContent = fmt(totalExp);
+  document.getElementById('stat-net').textContent = fmt(totalIncome - totalExp);
+  document.getElementById('stat-unclaim').textContent = fmt(totalUnclaim);
+  document.getElementById('stat-contracts').textContent = totalContracts + ' 筆';
+}).catch(()=>{});
+</script>
+{% endblock %}
