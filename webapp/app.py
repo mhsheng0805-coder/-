@@ -955,21 +955,23 @@ def export_excel():
                      download_name=f'{year}年業務收支資料_{datetime.now().strftime("%Y%m%d")}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+init_db()  # 無論何種執行方式都先初始化 DB
+
 if __name__ == '__main__':
-    init_db()
     import socket
     try:
         local_ip = socket.gethostbyname(socket.gethostname())
     except:
         local_ip = '127.0.0.1'
+    port = int(os.environ.get('PORT', 5001))
     current_year = CURRENT_ROC_YEAR
     print('=' * 55)
     print(f'  紡織所業務部門來自民間業務收入明細（多年度版）')
     print('=' * 55)
-    print(f'  本機網址 : http://127.0.0.1:5001')
-    print(f'  區域網路 : http://{local_ip}:5001')
+    print(f'  本機網址 : http://127.0.0.1:{port}')
+    print(f'  區域網路 : http://{local_ip}:{port}')
     print(f'  當前年度 : 民國 {current_year} 年')
     print(f'  預設帳號 : admin / admin1234')
     print('  (請登入後立即修改密碼)')
     print('=' * 55)
-    app.run(host='0.0.0.0', port=5001, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
