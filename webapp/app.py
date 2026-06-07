@@ -13,6 +13,31 @@ from openpyxl.utils import get_column_letter
 import io
 from functools import wraps
 
+# ── PostgreSQL / SQLite 雙模式 ─────────────────────────
+_DATABASE_URL = os.environ.get('DATABASE_URL', '')
+if _DATABASE_URL.startswith('postgres://'):
+    _DATABASE_URL = _DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+IS_PG = bool(_DATABASE_URL)
+
+if IS_PG:
+    import psycopg2, psycopg2.extras
+
+class _PgWrapper:
+    """讓 psycopg2 連線的介面與 sqlite3 一致（支援 ?  佔位符 + dict row）"""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        sql = sql.replace('?', '%s')
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, params if params else None)
+        return cur
+
+    def commit(self):  self._conn.commit()
+    def close(self):   self._conn.close()
+    def __enter__(self): return self
+    def __exit__(self, *a): self.close()
+
 app = Flask(__name__)
 # secret_key 固定化以確保重啟後 session 仍有效
 _SECRET_FILE = os.path.join(os.path.dirname(__file__), '.secret_key')
@@ -85,80 +110,105 @@ DEPT_EXPENSE_PPT = {dept: [
 ] for dept in DEPARTMENTS}
 
 # ── 資料庫 ─────────────────────────────────────────────
+_SCHEMA_SQLITE = '''
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
+    display_name TEXT, role TEXT DEFAULT 'user',
+    reset_token TEXT, reset_expires DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS revenue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    item TEXT NOT NULL, amount REAL DEFAULT 0, goal REAL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, dept, month, item)
+);
+CREATE TABLE IF NOT EXISTS contracts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    client TEXT, amount REAL DEFAULT 0, sign_date TEXT, due_date TEXT,
+    status TEXT DEFAULT '洽談中', actual_amount REAL DEFAULT 0,
+    note TEXT, carry_next INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS unclaimed (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    item TEXT NOT NULL, amount REAL DEFAULT 0, note TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, dept, month, item)
+);
+'''
+
+_SCHEMA_PG = '''
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
+    display_name TEXT, role TEXT DEFAULT 'user',
+    reset_token TEXT, reset_expires TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS revenue (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    item TEXT NOT NULL, amount REAL DEFAULT 0, goal REAL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, dept, month, item)
+);
+CREATE TABLE IF NOT EXISTS contracts (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    client TEXT, amount REAL DEFAULT 0, sign_date TEXT, due_date TEXT,
+    status TEXT DEFAULT '洽談中', actual_amount REAL DEFAULT 0,
+    note TEXT, carry_next INTEGER DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS unclaimed (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    item TEXT NOT NULL, amount REAL DEFAULT 0, note TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, dept, month, item)
+);
+'''
+
 def init_db():
-    con = sqlite3.connect(DB)
-    cur = con.cursor()
-    cur.executescript('''
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    );
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        display_name TEXT,
-        role TEXT DEFAULT 'user',
-        reset_token TEXT,
-        reset_expires DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS revenue (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        year INTEGER NOT NULL,
-        dept TEXT NOT NULL,
-        month INTEGER NOT NULL,
-        item TEXT NOT NULL,
-        amount REAL DEFAULT 0,
-        goal REAL DEFAULT 0,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(year, dept, month, item)
-    );
-    CREATE TABLE IF NOT EXISTS contracts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        year INTEGER NOT NULL,
-        dept TEXT NOT NULL,
-        month INTEGER NOT NULL,
-        client TEXT,
-        amount REAL DEFAULT 0,
-        sign_date TEXT,
-        due_date TEXT,
-        status TEXT DEFAULT '洽談中',
-        actual_amount REAL DEFAULT 0,
-        note TEXT,
-        carry_next INTEGER DEFAULT 0,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS unclaimed (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        year INTEGER NOT NULL,
-        dept TEXT NOT NULL,
-        month INTEGER NOT NULL,
-        item TEXT NOT NULL,
-        amount REAL DEFAULT 0,
-        note TEXT,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(year, dept, month, item)
-    );
-    ''')
-    con.commit()
-
-    # 初始年度設定
-    cur.execute("INSERT OR IGNORE INTO settings (key,value) VALUES ('current_year',?)",
-                (str(CURRENT_ROC_YEAR),))
-
-    # 預設管理員
-    cur.execute("SELECT COUNT(*) FROM users")
-    if cur.fetchone()[0] == 0:
-        cur.execute(
-            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?,?,?,?)",
-            ('admin', hash_pw('admin1234'), '系統管理員', 'admin')
-        )
-        print('已建立預設帳號: admin / admin1234  (請登入後立即修改密碼)')
-    con.commit()
-    con.close()
+    if IS_PG:
+        conn = psycopg2.connect(_DATABASE_URL)
+        cur = conn.cursor()
+        for stmt in _SCHEMA_PG.split(';'):
+            s = stmt.strip()
+            if s:
+                cur.execute(s)
+        cur.execute("INSERT INTO settings (key,value) VALUES ('current_year',%s) ON CONFLICT DO NOTHING",
+                    (str(CURRENT_ROC_YEAR),))
+        cur.execute("SELECT COUNT(*) FROM users")
+        if cur.fetchone()[0] == 0:
+            cur.execute("INSERT INTO users (username,password_hash,display_name,role) VALUES (%s,%s,%s,%s)",
+                        ('admin', hash_pw('admin1234'), '系統管理員', 'admin'))
+            print('已建立預設帳號: admin / admin1234')
+        conn.commit(); conn.close()
+    else:
+        con = sqlite3.connect(DB)
+        cur = con.cursor()
+        cur.executescript(_SCHEMA_SQLITE)
+        con.commit()
+        cur.execute("INSERT OR IGNORE INTO settings (key,value) VALUES ('current_year',?)",
+                    (str(CURRENT_ROC_YEAR),))
+        cur.execute("SELECT COUNT(*) FROM users")
+        if cur.fetchone()[0] == 0:
+            cur.execute("INSERT INTO users (username,password_hash,display_name,role) VALUES (?,?,?,?)",
+                        ('admin', hash_pw('admin1234'), '系統管理員', 'admin'))
+            print('已建立預設帳號: admin / admin1234')
+        con.commit(); con.close()
 
 def get_db():
+    if IS_PG:
+        return _PgWrapper(psycopg2.connect(_DATABASE_URL))
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
     return con
