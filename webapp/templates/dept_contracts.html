@@ -50,8 +50,10 @@
     <!-- 新增/編輯表單 -->
     <div id="contract-form" style="display:none; background:#f8f0ff; border:1px solid #d0b0ef;
          border-radius:8px; padding:16px; margin-top:16px;">
-      <h4 style="margin-bottom:12px; color:#4a1a7b;">合約資料</h4>
+      <h4 style="margin-bottom:14px; color:#4a1a7b; border-bottom:1px solid #d0b0ef; padding-bottom:8px;">合約資料</h4>
       <input type="hidden" id="cf-id">
+
+      <!-- 基本資訊 -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="form-group">
           <label>客戶/計畫名稱 *</label>
@@ -66,10 +68,6 @@
           <input type="date" id="cf-sign-date">
         </div>
         <div class="form-group">
-          <label>預計完成日</label>
-          <input type="date" id="cf-due-date">
-        </div>
-        <div class="form-group">
           <label>狀態</label>
           <select id="cf-status">
             <option>洽談中</option>
@@ -78,22 +76,63 @@
             <option>完成</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>本月實收金額 (元)</label>
-          <input type="text" id="cf-actual" class="input-num" style="width:100%;" value="0">
-        </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label>備註</label>
           <textarea id="cf-note" rows="2"></textarea>
         </div>
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>
-            <input type="checkbox" id="cf-carry" style="width:auto; margin-right:6px;">
-            延續至下月繼續追蹤
+      </div>
+
+      <!-- 延續下月 -->
+      <div style="margin:10px 0; padding:10px; background:#ede8ff; border-radius:6px;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:bold; cursor:pointer;">
+          <input type="checkbox" id="cf-carry" style="width:auto;">
+          延續至下月繼續追蹤
+        </label>
+      </div>
+
+      <!-- 合約金額類型 -->
+      <div style="margin:10px 0; padding:12px; background:#fff3e0; border-radius:6px; border:1px solid #ffe0b2;">
+        <div style="font-weight:bold; color:#5d4037; margin-bottom:10px;">💰 合約金額方式</div>
+        <div style="display:flex; gap:20px; margin-bottom:10px;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="radio" name="cf-payment" value="當年" id="cf-pay-single" checked onchange="toggleInstallments()">
+            當年簽約（一次性）
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="radio" name="cf-payment" value="分期" id="cf-pay-install" onchange="toggleInstallments()">
+            分期
           </label>
         </div>
+        <div id="install-section" style="display:none;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+            <label style="white-space:nowrap; font-size:13px;">共分</label>
+            <input type="number" id="cf-installments" min="2" max="20" value="2" style="width:60px;"
+                   oninput="buildInstallmentRows()">
+            <label style="white-space:nowrap; font-size:13px;">期</label>
+          </div>
+          <div id="installment-rows" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <!-- 動態產生 -->
+          </div>
+        </div>
       </div>
-      <div style="display:flex; gap:8px;">
+
+      <!-- 跨部門 -->
+      <div style="margin:10px 0; padding:12px; background:#e8f5e9; border-radius:6px; border:1px solid #c8e6c9;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer; color:#2e7d32;">
+            <input type="checkbox" id="cf-cross-dept" style="width:auto;" onchange="toggleCrossDept()">
+            跨部門合約
+          </label>
+        </div>
+        <div id="cross-dept-section" style="display:none;">
+          <div style="font-size:13px; color:#555; margin-bottom:8px;">請勾選涉及的部門並填寫各部門金額：</div>
+          <div id="cross-dept-rows" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <!-- 動態產生 -->
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:14px;">
         <button class="btn btn-primary" onclick="saveContract()">💾 儲存</button>
         <button class="btn btn-sm" style="background:#ccc; color:#333;" onclick="hideContractForm()">取消</button>
       </div>
@@ -112,6 +151,12 @@
 <script>
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
+const ALL_DEPTS = {{ departments | tojson }};
+
+const statusColors = {
+  '洽談中':'badge-yellow','新增簽約':'badge-blue',
+  '已簽約執行中':'badge-green','完成':'badge-gray'
+};
 
 function loadData() {
   fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
@@ -120,10 +165,7 @@ function loadData() {
   });
 }
 
-const statusColors = {
-  '洽談中':'badge-yellow','新增簽約':'badge-blue',
-  '已簽約執行中':'badge-green','完成':'badge-gray'
-};
+function parseJSON(s, def) { try { return JSON.parse(s||''); } catch(e) { return def; } }
 
 function renderContracts(list) {
   const el = document.getElementById('contract-list');
@@ -133,22 +175,30 @@ function renderContracts(list) {
   el.innerHTML = `<table>
     <thead><tr>
       <th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th>
-      <th>預計完成</th><th>狀態</th><th>實收金額</th><th>延續</th><th>備註</th><th>操作</th>
+      <th>狀態</th><th>金額方式</th><th>跨部門</th><th>延續</th><th>備註</th><th>操作</th>
     </tr></thead>
-    <tbody>${list.map(c=>`<tr>
-      <td>${c.client||''}</td>
-      <td class="text-right">${fmt(c.amount)}</td>
-      <td class="text-center">${c.sign_date||''}</td>
-      <td class="text-center">${c.due_date||''}</td>
-      <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
-      <td class="text-right">${fmt(c.actual_amount)}</td>
-      <td class="text-center">${c.carry_next?'✅':''}</td>
-      <td>${c.note||''}</td>
-      <td class="text-center">
-        <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
-      </td>
-    </tr>`).join('')}</tbody>
+    <tbody>${list.map(c=>{
+      const idata = parseJSON(c.installment_data, []);
+      const cdData = parseJSON(c.cross_dept_data, {});
+      const payStr = c.payment_type === '分期'
+        ? `分期(${c.installments}期)` : '當年';
+      const cdStr = c.cross_dept ? Object.entries(cdData).filter(([,v])=>v>0)
+        .map(([d,v])=>`${d}:${fmt(v)}`).join('<br>') || '✓' : '';
+      return `<tr>
+        <td>${c.client||''}</td>
+        <td class="text-right">${fmt(c.amount)}</td>
+        <td class="text-center">${c.sign_date||''}</td>
+        <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
+        <td class="text-center" style="font-size:12px;">${payStr}</td>
+        <td style="font-size:12px;">${cdStr}</td>
+        <td class="text-center">${c.carry_next?'✅':''}</td>
+        <td style="font-size:12px;">${c.note||''}</td>
+        <td class="text-center" style="white-space:nowrap;">
+          <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
   </table>`;
 }
 
@@ -157,12 +207,11 @@ function renderCarryForward(list) {
   if (!el) return;
   if (!list.length) { el.innerHTML = '<em style="color:#999;">無延續合約。</em>'; return; }
   el.innerHTML = `<table>
-    <thead><tr><th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th><th>預計完成</th><th>狀態</th><th>備註</th></tr></thead>
+    <thead><tr><th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th><th>狀態</th><th>備註</th></tr></thead>
     <tbody>${list.map(c=>`<tr style="background:#f5eeff;">
       <td>${c.client||''}</td>
       <td class="text-right">${fmt(c.amount)}</td>
       <td class="text-center">${c.sign_date||''}</td>
-      <td class="text-center">${c.due_date||''}</td>
       <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
       <td>${c.note||''}</td>
     </tr>`).join('')}</tbody>
@@ -175,34 +224,148 @@ function showContractForm(contract) {
   document.getElementById('cf-client').value = contract?.client || '';
   document.getElementById('cf-amount').value = fmt(contract?.amount || 0);
   document.getElementById('cf-sign-date').value = contract?.sign_date || '';
-  document.getElementById('cf-due-date').value = contract?.due_date || '';
   document.getElementById('cf-status').value = contract?.status || '洽談中';
-  document.getElementById('cf-actual').value = fmt(contract?.actual_amount || 0);
   document.getElementById('cf-note').value = contract?.note || '';
   document.getElementById('cf-carry').checked = !!contract?.carry_next;
+
+  // 金額方式
+  const ptype = contract?.payment_type || '當年';
+  document.getElementById('cf-pay-single').checked = ptype === '當年';
+  document.getElementById('cf-pay-install').checked = ptype === '分期';
+  document.getElementById('cf-installments').value = contract?.installments || 2;
+  toggleInstallments();
+
+  // 分期資料
+  if (ptype === '分期') {
+    const idata = parseJSON(contract?.installment_data, []);
+    buildInstallmentRows(idata);
+  }
+
+  // 跨部門
+  const hasCross = !!contract?.cross_dept;
+  document.getElementById('cf-cross-dept').checked = hasCross;
+  toggleCrossDept();
+  if (hasCross) {
+    const cdData = parseJSON(contract?.cross_dept_data, {});
+    buildCrossDeptRows(cdData);
+  }
+
   document.getElementById('cf-client').focus();
+  document.getElementById('contract-form').scrollIntoView({behavior:'smooth'});
 }
 function hideContractForm() { document.getElementById('contract-form').style.display = 'none'; }
 function editContract(c) { showContractForm(c); }
 
+// ── 分期邏輯 ────────────────────────────────────────────
+function toggleInstallments() {
+  const isInstall = document.getElementById('cf-pay-install').checked;
+  document.getElementById('install-section').style.display = isInstall ? 'block' : 'none';
+  if (isInstall) buildInstallmentRows();
+}
+
+function buildInstallmentRows(existing) {
+  const n = parseInt(document.getElementById('cf-installments').value) || 2;
+  const container = document.getElementById('installment-rows');
+  // 保留現有值
+  const prev = existing || Array.from(container.querySelectorAll('.install-row')).map(r => ({
+    year: r.querySelector('.install-year').value,
+    amount: r.querySelector('.install-amount').value,
+  }));
+  container.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const row = document.createElement('div');
+    row.className = 'install-row';
+    row.style.cssText = 'display:flex; gap:8px; align-items:center; background:#fff8e1; padding:6px 8px; border-radius:4px;';
+    const yr = prev[i]?.year || '';
+    const am = prev[i]?.amount !== undefined ? prev[i].amount : 0;
+    row.innerHTML = `<span style="font-size:12px; white-space:nowrap; color:#5d4037;">第${i+1}期</span>
+      <input type="number" class="install-year" placeholder="年度(民國)" min="100" max="200"
+             value="${yr}" style="width:90px; font-size:13px;">
+      <input type="text" class="install-amount input-num" placeholder="金額"
+             value="${fmt(am)}" style="flex:1; font-size:13px;">`;
+    container.appendChild(row);
+  }
+}
+
+// ── 跨部門邏輯 ──────────────────────────────────────────
+function toggleCrossDept() {
+  const has = document.getElementById('cf-cross-dept').checked;
+  document.getElementById('cross-dept-section').style.display = has ? 'block' : 'none';
+  if (has) buildCrossDeptRows();
+}
+
+function buildCrossDeptRows(existing) {
+  existing = existing || {};
+  const container = document.getElementById('cross-dept-rows');
+  container.innerHTML = '';
+  ALL_DEPTS.forEach(d => {
+    const isChecked = d in existing && existing[d] > 0;
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex; align-items:center; gap:8px; background:#f1f8e9; padding:6px 8px; border-radius:4px;';
+    div.innerHTML = `<input type="checkbox" class="cd-check" data-dept="${d}"
+        style="width:auto; margin:0;" ${isChecked ? 'checked' : ''}
+        onchange="toggleCdAmount(this)">
+      <span style="min-width:52px; font-size:13px;">${d}</span>
+      <input type="text" class="cd-amount input-num" data-dept="${d}"
+        placeholder="金額" value="${fmt(existing[d] || 0)}"
+        style="flex:1; font-size:13px; ${isChecked ? '' : 'visibility:hidden;'}">`;
+    container.appendChild(div);
+  });
+}
+
+function toggleCdAmount(cb) {
+  const dept = cb.dataset.dept;
+  const amtInp = document.querySelector(`.cd-amount[data-dept="${dept}"]`);
+  amtInp.style.visibility = cb.checked ? 'visible' : 'hidden';
+  if (!cb.checked) amtInp.value = fmt(0);
+}
+
+// ── 儲存 ────────────────────────────────────────────────
 function saveContract() {
+  const client = document.getElementById('cf-client').value.trim();
+  if (!client) { alert('請填寫客戶/計畫名稱'); return; }
+
+  const ptype = document.getElementById('cf-pay-install').checked ? '分期' : '當年';
+  const installments = parseInt(document.getElementById('cf-installments').value) || 1;
+  const installment_data = ptype === '分期'
+    ? Array.from(document.querySelectorAll('#installment-rows .install-row')).map(r => ({
+        year: parseInt(r.querySelector('.install-year').value) || null,
+        amount: parseFmt(r.querySelector('.install-amount').value),
+      }))
+    : [];
+
+  const hasCross = document.getElementById('cf-cross-dept').checked;
+  const cross_dept_data = {};
+  if (hasCross) {
+    document.querySelectorAll('#cross-dept-rows .cd-check').forEach(cb => {
+      if (cb.checked) {
+        const amt = document.querySelector(`.cd-amount[data-dept="${cb.dataset.dept}"]`);
+        cross_dept_data[cb.dataset.dept] = parseFmt(amt?.value || '0');
+      }
+    });
+  }
+
   const payload = {
     id: document.getElementById('cf-id').value || null,
     dept: DEPT, month: MONTH,
-    client: document.getElementById('cf-client').value,
+    client,
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
-    due_date: document.getElementById('cf-due-date').value,
     status: document.getElementById('cf-status').value,
-    actual_amount: parseFmt(document.getElementById('cf-actual').value),
     note: document.getElementById('cf-note').value,
     carry_next: document.getElementById('cf-carry').checked ? 1 : 0,
+    payment_type: ptype,
+    installments: ptype === '分期' ? installments : 1,
+    installment_data,
+    cross_dept: hasCross ? 1 : 0,
+    cross_dept_data,
   };
-  if (!payload.client) { alert('請填寫客戶/計畫名稱'); return; }
+
   fetch('/api/save_contract',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(payload)})
     .then(r=>r.json()).then(()=>{ showToast('✅ 合約已儲存'); hideContractForm(); loadData(); });
 }
+
 function deleteContract(id) {
   if (!confirm('確定刪除此合約？')) return;
   fetch(`/api/delete_contract/${id}`,{method:'DELETE'})

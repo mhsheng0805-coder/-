@@ -129,9 +129,13 @@ CREATE TABLE IF NOT EXISTS revenue (
 CREATE TABLE IF NOT EXISTS contracts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
-    client TEXT, amount REAL DEFAULT 0, sign_date TEXT, due_date TEXT,
-    status TEXT DEFAULT '洽談中', actual_amount REAL DEFAULT 0,
+    client TEXT, amount REAL DEFAULT 0, sign_date TEXT,
+    status TEXT DEFAULT '洽談中',
     note TEXT, carry_next INTEGER DEFAULT 0,
+    cross_dept INTEGER DEFAULT 0, cross_dept_data TEXT DEFAULT '{}',
+    payment_type TEXT DEFAULT '當年',
+    installments INTEGER DEFAULT 1,
+    installment_data TEXT DEFAULT '[]',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS unclaimed (
@@ -162,9 +166,13 @@ CREATE TABLE IF NOT EXISTS revenue (
 CREATE TABLE IF NOT EXISTS contracts (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
-    client TEXT, amount REAL DEFAULT 0, sign_date TEXT, due_date TEXT,
-    status TEXT DEFAULT '洽談中', actual_amount REAL DEFAULT 0,
+    client TEXT, amount REAL DEFAULT 0, sign_date TEXT,
+    status TEXT DEFAULT '洽談中',
     note TEXT, carry_next INTEGER DEFAULT 0,
+    cross_dept INTEGER DEFAULT 0, cross_dept_data TEXT DEFAULT '{}',
+    payment_type TEXT DEFAULT '當年',
+    installments INTEGER DEFAULT 1,
+    installment_data TEXT DEFAULT '[]',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS unclaimed (
@@ -176,6 +184,22 @@ CREATE TABLE IF NOT EXISTS unclaimed (
 );
 '''
 
+_MIGRATE_CONTRACTS = [
+    "ALTER TABLE contracts ADD COLUMN cross_dept INTEGER DEFAULT 0",
+    "ALTER TABLE contracts ADD COLUMN cross_dept_data TEXT DEFAULT '{}'",
+    "ALTER TABLE contracts ADD COLUMN payment_type TEXT DEFAULT '當年'",
+    "ALTER TABLE contracts ADD COLUMN installments INTEGER DEFAULT 1",
+    "ALTER TABLE contracts ADD COLUMN installment_data TEXT DEFAULT '[]'",
+]
+
+def _migrate(cur, is_pg):
+    """升級舊版 contracts 資料表（新增欄位）"""
+    for stmt in _MIGRATE_CONTRACTS:
+        try:
+            cur.execute(stmt)
+        except Exception:
+            pass  # 欄位已存在時忽略
+
 def init_db():
     if IS_PG:
         conn = psycopg2.connect(_DATABASE_URL)
@@ -184,6 +208,7 @@ def init_db():
             s = stmt.strip()
             if s:
                 cur.execute(s)
+        _migrate(cur, True)
         cur.execute("INSERT INTO settings (key,value) VALUES ('current_year',%s) ON CONFLICT DO NOTHING",
                     (str(CURRENT_ROC_YEAR),))
         cur.execute("SELECT COUNT(*) FROM users")
@@ -197,6 +222,7 @@ def init_db():
         cur = con.cursor()
         cur.executescript(_SCHEMA_SQLITE)
         con.commit()
+        _migrate(cur, False)
         cur.execute("INSERT OR IGNORE INTO settings (key,value) VALUES ('current_year',?)",
                     (str(CURRENT_ROC_YEAR),))
         cur.execute("SELECT COUNT(*) FROM users")
@@ -495,23 +521,36 @@ def save_unclaimed():
 @app.route('/api/save_contract', methods=['POST'])
 @login_required
 def save_contract():
+    import json as _json
     d = request.json
     year = get_current_year()
     con = get_db()
+    cross_dept_data = _json.dumps(d.get('cross_dept_data', {}), ensure_ascii=False)
+    installment_data = _json.dumps(d.get('installment_data', []), ensure_ascii=False)
     if d.get('id'):
-        con.execute('''UPDATE contracts SET client=?, amount=?, sign_date=?, due_date=?,
-            status=?, actual_amount=?, note=?, carry_next=?, updated_at=CURRENT_TIMESTAMP
+        con.execute('''UPDATE contracts SET client=?, amount=?, sign_date=?,
+            status=?, note=?, carry_next=?,
+            cross_dept=?, cross_dept_data=?,
+            payment_type=?, installments=?, installment_data=?,
+            updated_at=CURRENT_TIMESTAMP
             WHERE id=?''',
-            (d['client'], d['amount'], d.get('sign_date',''), d.get('due_date',''),
-             d['status'], d.get('actual_amount',0), d.get('note',''), d.get('carry_next',0), d['id']))
+            (d['client'], d['amount'], d.get('sign_date',''),
+             d['status'], d.get('note',''), d.get('carry_next',0),
+             1 if d.get('cross_dept') else 0, cross_dept_data,
+             d.get('payment_type','當年'), d.get('installments',1), installment_data,
+             d['id']))
     else:
         con.execute('''INSERT INTO contracts
-            (year, dept, month, client, amount, sign_date, due_date,
-             status, actual_amount, note, carry_next)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+            (year, dept, month, client, amount, sign_date,
+             status, note, carry_next,
+             cross_dept, cross_dept_data,
+             payment_type, installments, installment_data)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (year, d['dept'], d['month'], d['client'], d['amount'],
-             d.get('sign_date',''), d.get('due_date',''), d['status'],
-             d.get('actual_amount',0), d.get('note',''), d.get('carry_next',0)))
+             d.get('sign_date',''), d['status'],
+             d.get('note',''), d.get('carry_next',0),
+             1 if d.get('cross_dept') else 0, cross_dept_data,
+             d.get('payment_type','當年'), d.get('installments',1), installment_data))
     con.commit()
     con.close()
     return jsonify({'status': 'ok'})
