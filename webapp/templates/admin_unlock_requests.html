@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}解鎖申請管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#721c24,#c0392b);">
+    🔓 解鎖申請管理 — {{ year }}年
+  </div>
+  <div class="card-body" style="padding:12px; overflow-x:auto;">
+    {% if not requests %}
+    <div style="padding:24px; text-align:center; color:#999; font-size:14px;">
+      ✅ 目前沒有待審核的解鎖申請
+    </div>
+    {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>部門</th><th>月份</th><th>申請人</th><th>申請時間</th>
+          <th>申請原因</th><th>鎖定人</th><th>鎖定時間</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="req-tbody">
+        {% for r in requests %}
+        <tr id="req-row-{{ r.dept }}-{{ r.month }}">
+          <td class="text-center"><strong>{{ r.dept }}</strong></td>
+          <td class="text-center">{{ r.month }}月</td>
+          <td class="text-center">{{ r.req_by or '-' }}</td>
+          <td class="text-center" style="font-size:12px;">{{ (r.req_at or '')[:16] }}</td>
+          <td>{{ r.req_reason or '-' }}</td>
+          <td class="text-center" style="font-size:12px; color:#888;">{{ r.locked_by or '-' }}</td>
+          <td class="text-center" style="font-size:12px; color:#888;">{{ (r.locked_at or '')[:16] }}</td>
+          <td class="text-center" style="white-space:nowrap;">
+            <button class="btn btn-success btn-sm"
+                    onclick="approveUnlock('{{ r.dept }}', {{ r.month }}, this)">✅ 核准解鎖</button>
+            <button class="btn btn-sm" style="background:#6c757d;color:white;"
+                    onclick="rejectRequest('{{ r.dept }}', {{ r.month }}, this)">❌ 拒絕</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 修改紀錄查詢 -->
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#444,#666);">
+    📋 修改紀錄查詢
+  </div>
+  <div class="card-body" style="padding:12px;">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+      <select id="log-dept" style="width:120px;">
+        <option value="">— 部門 —</option>
+        {% for d in ['原料部','產品部','檢驗部','製程部','雲分部','產服部'] %}
+        <option value="{{ d }}">{{ d }}</option>
+        {% endfor %}
+      </select>
+      <select id="log-month" style="width:90px;">
+        <option value="">— 月份 —</option>
+        {% for m in range(1,13) %}
+        <option value="{{ m }}">{{ m }}月</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" onclick="loadLog()">🔍 查詢</button>
+    </div>
+    <div id="log-result"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function approveUnlock(dept, month, btn) {
+  if (!confirm(`確定核准 ${dept} ${month}月 的解鎖申請？`)) return;
+  fetch('/api/unlock_dept', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({dept, month})
+  }).then(r=>r.json()).then(d=>{
+    if (d.error) { alert(d.error); return; }
+    const row = document.getElementById(`req-row-${dept}-${month}`);
+    if (row) row.remove();
+    showToast(`✅ 已核准 ${dept} ${month}月 解鎖`);
+    if (!document.querySelector('#req-tbody tr')) {
+      document.querySelector('.card-body').innerHTML =
+        '<div style="padding:24px;text-align:center;color:#999;">✅ 目前沒有待審核的解鎖申請</div>';
+    }
+  });
+}
+function rejectRequest(dept, month, btn) {
+  if (!confirm(`確定拒絕 ${dept} ${month}月 的解鎖申請？\n（資料將維持鎖定狀態）`)) return;
+  fetch('/api/request_unlock', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({dept, month, reason: '__reject__', _reject: true})
+  });
+  // 僅清除申請旗標，維持鎖定
+  fetch('/api/reject_unlock', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({dept, month})
+  }).then(r=>r.json()).then(()=>{
+    const row = document.getElementById(`req-row-${dept}-${month}`);
+    if (row) row.remove();
+    showToast(`已拒絕 ${dept} ${month}月 解鎖申請`, 'error');
+  });
+}
+
+const actionLabel = {'edit':'✏️ 修改','lock':'🔒 鎖定','unlock':'🔓 解鎖','request_unlock':'📩 申請解鎖'};
+function loadLog() {
+  const dept  = document.getElementById('log-dept').value;
+  const month = document.getElementById('log-month').value;
+  if (!dept || !month) { alert('請選擇部門和月份'); return; }
+  const el = document.getElementById('log-result');
+  el.innerHTML = '<em style="color:#999;">載入中...</em>';
+  fetch(`/api/audit_log/${dept}/${month}`).then(r=>r.json()).then(d=>{
+    const logs = d.logs || [];
+    if (!logs.length) { el.innerHTML='<em style="color:#999;">該部門月份尚無修改紀錄。</em>'; return; }
+    el.innerHTML = `<table style="font-size:12px;">
+      <thead><tr><th>時間</th><th>操作</th><th>資料表</th><th>項目</th>
+        <th>修改前</th><th>修改後</th><th>操作者</th><th>備註</th></tr></thead>
+      <tbody>${logs.map(l=>`<tr>
+        <td style="white-space:nowrap;">${(l.changed_at||'').slice(0,16)}</td>
+        <td>${actionLabel[l.action]||l.action}</td>
+        <td style="font-size:11px;color:#888;">${l.table_name||''}</td>
+        <td>${l.item||''}</td>
+        <td style="color:#c0392b;max-width:140px;word-break:break-all;">${l.old_value||''}</td>
+        <td style="color:#27ae60;max-width:140px;word-break:break-all;">${l.new_value||''}</td>
+        <td class="text-center">${l.changed_by||''}</td>
+        <td style="color:#888;">${l.note||''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  });
+}
+</script>
+{% endblock %}

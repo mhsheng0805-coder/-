@@ -117,6 +117,11 @@
 
 </div>
 
+<!-- 鎖定狀態列 -->
+<div id="lock-bar" style="display:none; padding:10px 16px; border-radius:8px; margin-bottom:12px;
+     display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+</div>
+
 <!-- 收支摘要 + 按鈕 -->
 <div class="card">
   <div class="card-header" style="background:linear-gradient(135deg,#7b5c00,#b8860b);">
@@ -147,6 +152,20 @@
       <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
       <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
       <span id="autosave-status" style="font-size:12px; color:#888; margin-left:4px;"></span>
+    </div>
+  </div>
+</div>
+
+<!-- 修改紀錄 -->
+<div class="card" id="audit-card" style="display:none;">
+  <div class="card-header" style="background:linear-gradient(135deg,#555,#777); cursor:pointer;"
+       onclick="toggleAudit()">
+    📋 修改紀錄
+    <span id="audit-toggle" style="margin-left:auto; font-size:12px;">▼ 展開</span>
+  </div>
+  <div id="audit-body" style="display:none;">
+    <div class="card-body" style="padding:12px; overflow-x:auto;">
+      <div id="audit-content"><em style="color:#999;">載入中...</em></div>
     </div>
   </div>
 </div>
@@ -231,9 +250,7 @@ function scheduleAutoSave() {
   _autoSaveTimer = setTimeout(() => saveAll(false), 1200);
 }
 
-document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp => {
-  inp.addEventListener('input', scheduleAutoSave);
-});
+// 事件綁定在 loadLockStatus 後統一處理（見底部）
 
 function loadData() {
   fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
@@ -288,5 +305,130 @@ function saveAll(showMsg = true) {
 }
 
 loadData();
+
+// ── 鎖定狀態 ──────────────────────────────────────────
+const IS_ADMIN = {{ 'true' if session.get('role') == 'admin' else 'false' }};
+let _locked = false;
+
+function loadLockStatus() {
+  fetch(`/api/lock_status/${DEPT}/${MONTH}`).then(r=>r.json()).then(d=>{
+    _locked = d.locked;
+    renderLockBar(d);
+    setFieldsLocked(d.locked);
+    document.getElementById('audit-card').style.display = 'block';
+    loadAuditLog();
+  });
+}
+
+function renderLockBar(d) {
+  const bar = document.getElementById('lock-bar');
+  bar.style.display = 'flex';
+  if (d.locked) {
+    bar.style.background = '#fff3cd'; bar.style.border = '1px solid #ffc107';
+    let html = `<span style="font-size:15px;">🔒</span>
+      <strong style="color:#856404;">資料已鎖定</strong>
+      <span style="font-size:12px;color:#7a6000;">由 ${d.locked_by||''} 鎖定於 ${(d.locked_at||'').slice(0,16)}</span>`;
+    if (IS_ADMIN) {
+      html += `<button class="btn btn-sm" style="background:#28a745;color:white;margin-left:auto;"
+               onclick="doUnlock()">🔓 解鎖</button>`;
+    } else if (!d.unlock_requested) {
+      html += `<button class="btn btn-sm btn-warning" style="margin-left:auto;"
+               onclick="showRequestUnlock()">📩 申請解鎖</button>`;
+    } else {
+      html += `<span style="margin-left:auto;font-size:12px;color:#dc3545;">⏳ 解鎖申請中（${d.req_by}）</span>`;
+    }
+    bar.innerHTML = html;
+  } else {
+    bar.style.background = '#d4edda'; bar.style.border = '1px solid #c3e6cb';
+    bar.innerHTML = `<span style="font-size:15px;">🔓</span>
+      <span style="color:#155724;">資料未鎖定</span>
+      <button class="btn btn-sm" style="background:#6c757d;color:white;margin-left:auto;"
+              onclick="doLock()">🔒 鎖定資料</button>`;
+  }
+}
+
+function setFieldsLocked(locked) {
+  document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp => {
+    inp.disabled = locked;
+    inp.style.background = locked ? '#f5f5f5' : '';
+    inp.style.cursor = locked ? 'not-allowed' : '';
+  });
+  const saveBtn = document.querySelector('.btn-success[onclick*="saveAll"]');
+  if (saveBtn) { saveBtn.disabled = locked; saveBtn.style.opacity = locked ? '.4' : '1'; }
+  if (locked) clearTimeout(_autoSaveTimer);
+}
+
+function doLock() {
+  if (!confirm(`確定要鎖定 ${DEPT} ${MONTH}月 的資料？\n鎖定後需管理員解鎖才能修改。`)) return;
+  fetch('/api/lock_dept',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({dept:DEPT,month:MONTH})})
+    .then(r=>r.json()).then(d=>{
+      if (d.error) { alert(d.error); return; }
+      showToast('🔒 資料已鎖定'); loadLockStatus();
+    });
+}
+
+function doUnlock() {
+  if (!confirm(`確定要解鎖 ${DEPT} ${MONTH}月 的資料？`)) return;
+  fetch('/api/unlock_dept',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({dept:DEPT,month:MONTH})})
+    .then(r=>r.json()).then(d=>{
+      if (d.error) { alert(d.error); return; }
+      showToast('🔓 資料已解鎖'); loadLockStatus();
+    });
+}
+
+function showRequestUnlock() {
+  const reason = prompt('請說明申請解鎖的原因：');
+  if (reason === null) return;
+  fetch('/api/request_unlock',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({dept:DEPT,month:MONTH,reason})})
+    .then(r=>r.json()).then(d=>{
+      if (d.error) { alert(d.error); return; }
+      showToast('✅ 已送出解鎖申請，請等待管理員審核'); loadLockStatus();
+    });
+}
+
+// ── 修改紀錄 ──────────────────────────────────────────
+let _auditOpen = false;
+function toggleAudit() {
+  _auditOpen = !_auditOpen;
+  document.getElementById('audit-body').style.display = _auditOpen ? 'block' : 'none';
+  document.getElementById('audit-toggle').textContent = _auditOpen ? '▲ 收合' : '▼ 展開';
+  if (_auditOpen) loadAuditLog();
+}
+
+function loadAuditLog() {
+  fetch(`/api/audit_log/${DEPT}/${MONTH}`).then(r=>r.json()).then(d=>{
+    const el = document.getElementById('audit-content');
+    const logs = d.logs || [];
+    if (!logs.length) { el.innerHTML='<em style="color:#999;">尚無修改紀錄。</em>'; return; }
+    const actionLabel = {
+      'edit':'✏️ 修改', 'lock':'🔒 鎖定', 'unlock':'🔓 解鎖',
+      'request_unlock':'📩 申請解鎖'
+    };
+    el.innerHTML = `<table style="font-size:12px;">
+      <thead><tr><th>時間</th><th>操作</th><th>項目</th><th>修改前</th><th>修改後</th><th>操作者</th><th>備註</th></tr></thead>
+      <tbody>${logs.map(l=>`<tr>
+        <td style="white-space:nowrap;">${(l.changed_at||'').slice(0,16)}</td>
+        <td class="text-center">${actionLabel[l.action]||l.action}</td>
+        <td>${l.item||''}</td>
+        <td style="color:#c0392b;">${l.old_value||''}</td>
+        <td style="color:#27ae60;">${l.new_value||''}</td>
+        <td class="text-center">${l.changed_by||''}</td>
+        <td style="color:#888;">${l.note||''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  });
+}
+
+// autosave 時若已鎖定則跳過
+const _origSchedule = scheduleAutoSave;
+// scheduleAutoSave 已在上方定義，在 input 事件裡，如果鎖定就不觸發儲存
+document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp=>{
+  inp.addEventListener('input', ()=>{ if (!_locked) scheduleAutoSave(); });
+});
+
+loadLockStatus();
 </script>
 {% endblock %}

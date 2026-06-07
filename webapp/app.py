@@ -146,6 +146,22 @@ CREATE TABLE IF NOT EXISTS unclaimed (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, month, item)
 );
+CREATE TABLE IF NOT EXISTS locks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    locked INTEGER DEFAULT 0, locked_by TEXT, locked_at DATETIME,
+    unlock_requested INTEGER DEFAULT 0, req_by TEXT, req_at DATETIME, req_reason TEXT,
+    unlocked_by TEXT, unlocked_at DATETIME,
+    UNIQUE(year, dept, month)
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    action TEXT NOT NULL, table_name TEXT,
+    item TEXT, old_value TEXT, new_value TEXT,
+    changed_by TEXT, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    note TEXT
+);
 '''
 
 _SCHEMA_PG = '''
@@ -184,11 +200,57 @@ CREATE TABLE IF NOT EXISTS unclaimed (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, month, item)
 );
+CREATE TABLE IF NOT EXISTS locks (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    locked INTEGER DEFAULT 0, locked_by TEXT, locked_at TIMESTAMP,
+    unlock_requested INTEGER DEFAULT 0, req_by TEXT, req_at TIMESTAMP, req_reason TEXT,
+    unlocked_by TEXT, unlocked_at TIMESTAMP,
+    UNIQUE(year, dept, month)
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+    action TEXT NOT NULL, table_name TEXT,
+    item TEXT, old_value TEXT, new_value TEXT,
+    changed_by TEXT, changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    note TEXT
+);
 '''
 
 _MIGRATE_USERS = [
     "ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN disabled INTEGER DEFAULT 0",
+]
+_MIGRATE_NEW_TABLES_SQLITE = [
+    """CREATE TABLE IF NOT EXISTS locks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+        locked INTEGER DEFAULT 0, locked_by TEXT, locked_at DATETIME,
+        unlock_requested INTEGER DEFAULT 0, req_by TEXT, req_at DATETIME, req_reason TEXT,
+        unlocked_by TEXT, unlocked_at DATETIME,
+        UNIQUE(year, dept, month))""",
+    """CREATE TABLE IF NOT EXISTS audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+        action TEXT NOT NULL, table_name TEXT,
+        item TEXT, old_value TEXT, new_value TEXT,
+        changed_by TEXT, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, note TEXT)""",
+]
+_MIGRATE_NEW_TABLES_PG = [
+    """CREATE TABLE IF NOT EXISTS locks (
+        id SERIAL PRIMARY KEY,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+        locked INTEGER DEFAULT 0, locked_by TEXT, locked_at TIMESTAMP,
+        unlock_requested INTEGER DEFAULT 0, req_by TEXT, req_at TIMESTAMP, req_reason TEXT,
+        unlocked_by TEXT, unlocked_at TIMESTAMP,
+        UNIQUE(year, dept, month))""",
+    """CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+        action TEXT NOT NULL, table_name TEXT,
+        item TEXT, old_value TEXT, new_value TEXT,
+        changed_by TEXT, changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, note TEXT)""",
 ]
 
 _MIGRATE_CONTRACTS = [
@@ -202,11 +264,12 @@ _MIGRATE_CONTRACTS = [
 
 def _migrate(cur, is_pg):
     """升級舊版資料表（新增欄位）"""
-    for stmt in _MIGRATE_USERS + _MIGRATE_CONTRACTS:
+    new_tables = _MIGRATE_NEW_TABLES_PG if is_pg else _MIGRATE_NEW_TABLES_SQLITE
+    for stmt in _MIGRATE_USERS + _MIGRATE_CONTRACTS + new_tables:
         try:
             cur.execute(stmt)
         except Exception:
-            pass  # 欄位已存在時忽略
+            pass  # 欄位/表已存在時忽略
 
 def init_db():
     if IS_PG:
@@ -422,6 +485,21 @@ def change_password():
     year = get_current_year()
     return render_template('change_password.html', error=error, success=success, year=year)
 
+@app.route('/admin/unlock_requests_page')
+@login_required
+def admin_unlock_requests_page():
+    if session.get('role') != 'admin':
+        return redirect(url_for('index'))
+    year = get_current_year()
+    all_years = get_all_years()
+    con = get_db()
+    reqs = [dict(r) for r in con.execute(
+        'SELECT * FROM locks WHERE year=? AND unlock_requested=1 ORDER BY req_at DESC', (year,)
+    ).fetchall()]
+    con.close()
+    return render_template('admin_unlock_requests.html', requests=reqs,
+                           year=year, all_years=all_years)
+
 @app.route('/admin/users')
 @login_required
 def admin_users():
@@ -614,6 +692,140 @@ def get_data(dept, month):
     return jsonify({'revenue': data, 'unclaimed': unclaim_data,
                     'contracts': contracts, 'carry_forward': carry_forward})
 
+def _is_locked(con, year, dept, month):
+    row = con.execute('SELECT locked FROM locks WHERE year=? AND dept=? AND month=?',
+                      (year, dept, month)).fetchone()
+    return bool(row and row['locked'])
+
+def _log(con, year, dept, month, action, table_name='', item='', old_val='', new_val='', note=''):
+    con.execute('''INSERT INTO audit_log (year,dept,month,action,table_name,item,old_value,new_value,changed_by,note)
+        VALUES (?,?,?,?,?,?,?,?,?,?)''',
+        (year, dept, month, action, table_name, item, str(old_val), str(new_val),
+         session.get('user','?'), note))
+
+@app.route('/api/lock_status/<dept>/<int:month>')
+@login_required
+def lock_status(dept, month):
+    year = get_current_year()
+    con = get_db()
+    row = con.execute('SELECT * FROM locks WHERE year=? AND dept=? AND month=?',
+                      (year, dept, month)).fetchone()
+    con.close()
+    if not row:
+        return jsonify({'locked': False, 'unlock_requested': False})
+    return jsonify({
+        'locked': bool(row['locked']),
+        'locked_by': row['locked_by'] or '',
+        'locked_at': str(row['locked_at'] or ''),
+        'unlock_requested': bool(row['unlock_requested']),
+        'req_by': row['req_by'] or '',
+        'req_reason': row['req_reason'] or '',
+    })
+
+@app.route('/api/lock_dept', methods=['POST'])
+@login_required
+def lock_dept():
+    d = request.json
+    year = get_current_year()
+    dept, month = d['dept'], d['month']
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    con = get_db()
+    if _is_locked(con, year, dept, month):
+        con.close()
+        return jsonify({'error': '已鎖定'}), 400
+    con.execute('''INSERT INTO locks (year,dept,month,locked,locked_by,locked_at)
+        VALUES (?,?,?,1,?,?)
+        ON CONFLICT(year,dept,month) DO UPDATE
+        SET locked=1, locked_by=excluded.locked_by, locked_at=excluded.locked_at,
+            unlock_requested=0, req_by=NULL, req_at=NULL, unlocked_by=NULL, unlocked_at=NULL''',
+        (year, dept, month, session['user'], now))
+    _log(con, year, dept, month, 'lock', note=f'由 {session["user"]} 鎖定')
+    con.commit(); con.close()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/request_unlock', methods=['POST'])
+@login_required
+def request_unlock():
+    d = request.json
+    year = get_current_year()
+    dept, month = d['dept'], d['month']
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    reason = d.get('reason', '').strip()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    con = get_db()
+    con.execute('''INSERT INTO locks (year,dept,month,locked,unlock_requested,req_by,req_at,req_reason)
+        VALUES (?,?,?,1,1,?,?,?)
+        ON CONFLICT(year,dept,month) DO UPDATE
+        SET unlock_requested=1, req_by=excluded.req_by, req_at=excluded.req_at,
+            req_reason=excluded.req_reason''',
+        (year, dept, month, session['user'], now, reason))
+    _log(con, year, dept, month, 'request_unlock', note=f'申請解鎖，原因：{reason}')
+    con.commit(); con.close()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/unlock_dept', methods=['POST'])
+@login_required
+def unlock_dept():
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    d = request.json
+    year = get_current_year()
+    dept, month = d['dept'], d['month']
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    con = get_db()
+    con.execute('''UPDATE locks SET locked=0, unlock_requested=0,
+        unlocked_by=?, unlocked_at=? WHERE year=? AND dept=? AND month=?''',
+        (session['user'], now, year, dept, month))
+    _log(con, year, dept, month, 'unlock', note=f'由管理員 {session["user"]} 解鎖')
+    con.commit(); con.close()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/reject_unlock', methods=['POST'])
+@login_required
+def reject_unlock():
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    d = request.json
+    year = get_current_year()
+    dept, month = d['dept'], d['month']
+    con = get_db()
+    con.execute('''UPDATE locks SET unlock_requested=0, req_by=NULL, req_at=NULL, req_reason=NULL
+        WHERE year=? AND dept=? AND month=?''', (year, dept, month))
+    _log(con, year, dept, month, 'reject_unlock', note=f'管理員 {session["user"]} 拒絕解鎖申請')
+    con.commit(); con.close()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/unlock_requests')
+@login_required
+def unlock_requests():
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    year = get_current_year()
+    con = get_db()
+    rows = [dict(r) for r in con.execute(
+        'SELECT * FROM locks WHERE year=? AND unlock_requested=1 ORDER BY req_at DESC', (year,)
+    ).fetchall()]
+    con.close()
+    return jsonify({'requests': rows})
+
+@app.route('/api/audit_log/<dept>/<int:month>')
+@login_required
+def get_audit_log(dept, month):
+    if not can_access_dept(dept) and session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    year = get_current_year()
+    con = get_db()
+    rows = [dict(r) for r in con.execute(
+        '''SELECT * FROM audit_log WHERE year=? AND dept=? AND month=?
+           ORDER BY changed_at DESC LIMIT 100''',
+        (year, dept, month)
+    ).fetchall()]
+    con.close()
+    return jsonify({'logs': rows})
+
 @app.route('/api/save_revenue', methods=['POST'])
 @login_required
 def save_revenue():
@@ -623,12 +835,22 @@ def save_revenue():
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
     con = get_db()
+    if _is_locked(con, year, dept, month):
+        con.close()
+        return jsonify({'error': 'locked'}), 423
     for item, vals in d['items'].items():
+        old = con.execute('SELECT amount,goal FROM revenue WHERE year=? AND dept=? AND month=? AND item=?',
+                          (year,dept,month,item)).fetchone()
+        new_amt, new_goal = vals.get('amount',0), vals.get('goal',0)
+        if old and (old['amount'] != new_amt or old['goal'] != new_goal):
+            _log(con, year, dept, month, 'edit', 'revenue', item,
+                 f"金額:{old['amount']},目標:{old['goal']}",
+                 f"金額:{new_amt},目標:{new_goal}")
         con.execute('''INSERT INTO revenue (year, dept, month, item, amount, goal)
             VALUES (?,?,?,?,?,?)
             ON CONFLICT(year, dept, month, item) DO UPDATE
             SET amount=excluded.amount, goal=excluded.goal, updated_at=CURRENT_TIMESTAMP''',
-            (year, dept, month, item, vals.get('amount', 0), vals.get('goal', 0)))
+            (year, dept, month, item, new_amt, new_goal))
     con.commit()
     con.close()
     return jsonify({'status': 'ok'})
@@ -642,7 +864,14 @@ def save_unclaimed():
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
     con = get_db()
+    if _is_locked(con, year, dept, month):
+        con.close()
+        return jsonify({'error': 'locked'}), 423
     for item, amount in d['items'].items():
+        old = con.execute('SELECT amount FROM unclaimed WHERE year=? AND dept=? AND month=? AND item=?',
+                          (year,dept,month,item)).fetchone()
+        if old and old['amount'] != amount:
+            _log(con, year, dept, month, 'edit', 'unclaimed', item, old['amount'], amount)
         con.execute('''INSERT INTO unclaimed (year, dept, month, item, amount)
             VALUES (?,?,?,?,?)
             ON CONFLICT(year, dept, month, item) DO UPDATE
@@ -661,6 +890,9 @@ def save_contract():
     if not can_access_dept(d.get('dept', '')):
         return jsonify({'error': 'forbidden'}), 403
     con = get_db()
+    if _is_locked(con, year, d.get('dept',''), d.get('month',0)):
+        con.close()
+        return jsonify({'error': 'locked'}), 423
     cross_dept_data = _json.dumps(d.get('cross_dept_data', {}), ensure_ascii=False)
     installment_data = _json.dumps(d.get('installment_data', []), ensure_ascii=False)
     if d.get('id'):
