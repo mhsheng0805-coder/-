@@ -2,10 +2,11 @@
 {% block title %}{{ dept }} {{ year }}年 來自民間業務收支表{% endblock %}
 {% block content %}
 
-<!-- 頁首 -->
+<!-- 頁首標題 -->
 <div class="card">
-  <div class="card-header">
-    📝 {{ year }}年 {{ dept }} 來自民間業務收支表
+  <div class="card-header" style="flex-direction:column; align-items:flex-start; gap:4px;">
+    <div style="font-size:11px; opacity:.75; letter-spacing:.5px;">紡織產業綜合研究所　民國 {{ year }} 年</div>
+    <div style="font-size:16px; font-weight:bold; letter-spacing:1px;">📊 來自民間業務收支表　—　{{ dept }}</div>
   </div>
   <div class="card-body" style="padding:10px 14px;">
     <!-- 部門切換 -->
@@ -28,6 +29,10 @@
   </div>
 </div>
 
+<!-- 鎖定狀態列 -->
+<div id="lock-bar" style="display:none; padding:10px 16px; border-radius:8px; margin-bottom:12px;
+     display:flex; align-items:center; gap:12px; flex-wrap:wrap;"></div>
+
 <!-- 收入 / 支出 並排 -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
 
@@ -40,7 +45,9 @@
     <table>
       <thead><tr>
         <th style="text-align:left;">項目</th>
-        <th>金額 (元)</th><th>年度目標</th><th>達成率</th>
+        <th>年度目標</th>
+        <th>1–{{ month }}月<br>金額 (元)</th>
+        <th>達成率</th>
       </tr></thead>
       <tbody>
         {% set income_totals = ['來自民間收入合計'] %}
@@ -48,12 +55,12 @@
         <tr {% if item in income_totals %}style="background:#c6efce; font-weight:bold;"
             {% else %}style="background:#ebf8ee;"{% endif %}>
           <td>{{ item }}</td>
-          <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
-               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
-               value="0"></td>
           <td><input type="text" class="input-num income-goal" data-item="{{ item }}"
                {% if item in income_totals %}readonly style="background:#f5f5f5;"{% endif %}
-               value="0"></td>
+               value=""></td>
+          <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
+               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
+               value=""></td>
           <td class="text-center income-rate" data-item="{{ item }}">-</td>
         </tr>
         {% endfor %}
@@ -72,8 +79,9 @@
     <table>
       <thead><tr>
         <th style="text-align:left;">項目</th>
+        <th>年度目標</th>
         <th>已核銷</th><th>已申請<br>未核銷</th><th>小計</th>
-        <th>年度目標</th><th>達成率</th>
+        <th>達成率</th>
       </tr></thead>
       <tbody>
         {% set exp_totals = ['其他民間收入支出'] %}
@@ -89,23 +97,23 @@
             {% else %}style="background:#fff0f0;"{% endif %}>
           <td>{{ item }}</td>
           {% if item in exp_totals %}
+            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
+                 readonly style="background:#f5f5f5;" value=""></td>
             <td class="text-right" id="total-claimed">0</td>
             <td class="text-right" id="total-unclaim">0</td>
             <td><input type="text" class="input-num expense-amt" data-item="{{ item }}"
-                 readonly style="background:#ffe0e0; font-weight:bold;" value="0"></td>
-            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
-                 readonly style="background:#f5f5f5;" value="0"></td>
+                 readonly style="background:#ffe0e0; font-weight:bold;" value=""></td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% else %}
-            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}" value="0"></td>
+            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}" value=""></td>
+            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}" value=""></td>
             {% if uc_item %}
-            <td><input type="text" class="input-num unclaim-amt" data-item="{{ uc_item }}" value="0"
+            <td><input type="text" class="input-num unclaim-amt" data-item="{{ uc_item }}" value=""
                  style="background:#fffde7;"></td>
             {% else %}
             <td style="text-align:center; color:#ccc;">—</td>
             {% endif %}
-            <td class="text-right exp-sub" data-item="{{ item }}">0</td>
-            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}" value="0"></td>
+            <td class="text-right exp-sub" data-item="{{ item }}">—</td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% endif %}
         </tr>
@@ -115,11 +123,6 @@
   </div>
 </div>
 
-</div>
-
-<!-- 鎖定狀態列 -->
-<div id="lock-bar" style="display:none; padding:10px 16px; border-radius:8px; margin-bottom:12px;
-     display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
 </div>
 
 <!-- 收支摘要 + 按鈕 -->
@@ -156,6 +159,33 @@
   </div>
 </div>
 
+<!-- ── 動態圖表區 ── -->
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#1f3c6b,#2e5fa8); cursor:pointer;"
+       onclick="toggleCharts()">
+    📊 動態分析圖表
+    <span id="chart-toggle" style="margin-left:auto; font-size:12px;">▼ 展開</span>
+  </div>
+  <div id="chart-body" style="display:none;">
+    <div class="card-body" style="padding:16px;">
+      <!-- 圖表選項列 -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+        <button class="btn btn-sm" id="chart-btn-bar" onclick="showChart('bar')"
+                style="background:#2e75b6;color:white;">📊 收支對比</button>
+        <button class="btn btn-sm" id="chart-btn-income" onclick="showChart('income')"
+                style="background:#e8f0fb;color:#1f4e79;">💰 收入明細</button>
+        <button class="btn btn-sm" id="chart-btn-expense" onclick="showChart('expense')"
+                style="background:#e8f0fb;color:#1f4e79;">💸 支出明細</button>
+        <button class="btn btn-sm" id="chart-btn-rate" onclick="showChart('rate')"
+                style="background:#e8f0fb;color:#1f4e79;">🎯 目標達成率</button>
+      </div>
+      <div style="position:relative; height:320px;">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 修改紀錄 -->
 <div class="card" id="audit-card" style="display:none;">
   <div class="card-header" style="background:linear-gradient(135deg,#555,#777); cursor:pointer;"
@@ -172,6 +202,7 @@
 
 {% endblock %}
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
@@ -184,6 +215,13 @@ const UNCLAIM_MAP = {
   '材料費用':'材料費(未核銷)',
 };
 
+// 空白 → 顯示空字串（目標值為0時顯示空白）
+function fmtGoal(v) {
+  const n = parseFloat(String(v).replace(/,/g,''));
+  if (isNaN(n) || n === 0) return '';
+  return Math.round(n).toLocaleString('zh-TW');
+}
+
 function calcAll() {
   // 收入合計
   let incTotal = 0;
@@ -191,7 +229,7 @@ function calcAll() {
     if (inp.dataset.item !== INCOME_TOTAL_ITEM) incTotal += parseFmt(inp.value);
   });
   const incInp = document.querySelector(`.income-amt[data-item="${INCOME_TOTAL_ITEM}"]`);
-  if (incInp) incInp.value = fmt(incTotal);
+  if (incInp) incInp.value = incTotal > 0 ? fmt(incTotal) : '';
 
   // 支出：每行小計
   let totalClaimed = 0, totalUnclaim = 0;
@@ -203,42 +241,48 @@ function calcAll() {
     const ucInp = ucItem ? document.querySelector(`.unclaim-amt[data-item="${ucItem}"]`) : null;
     const ucAmt = ucInp ? parseFmt(ucInp.value) : 0;
     const sub = document.querySelector(`.exp-sub[data-item="${inp.dataset.item}"]`);
-    if (sub) sub.textContent = fmt(claimed + ucAmt);
+    const subVal = claimed + ucAmt;
+    if (sub) sub.textContent = subVal > 0 ? fmt(subVal) : '—';
   });
   document.querySelectorAll('.unclaim-amt').forEach(inp => {
     totalUnclaim += parseFmt(inp.value);
   });
   const expTotal = totalClaimed + totalUnclaim;
   const expInp = document.querySelector(`.expense-amt[data-item="${EXPENSE_TOTAL_ITEM}"]`);
-  if (expInp) expInp.value = fmt(expTotal);
+  if (expInp) expInp.value = expTotal > 0 ? fmt(expTotal) : '';
   const clEl = document.getElementById('total-claimed');
   const ucEl = document.getElementById('total-unclaim');
-  if (clEl) clEl.textContent = fmt(totalClaimed);
-  if (ucEl) ucEl.textContent = fmt(totalUnclaim);
+  if (clEl) clEl.textContent = totalClaimed > 0 ? fmt(totalClaimed) : '0';
+  if (ucEl) ucEl.textContent = totalUnclaim > 0 ? fmt(totalUnclaim) : '0';
 
-  // 達成率
+  // 達成率（收入）
   document.querySelectorAll('.income-rate').forEach(td => {
     const item = td.dataset.item;
-    const amt = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value || 0);
-    const goal = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value || 0);
+    const amt  = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
+    const goal = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
     td.textContent = goal > 0 ? (amt/goal*100).toFixed(1)+'%' : '-';
   });
+  // 達成率（支出）
   document.querySelectorAll('.expense-rate').forEach(td => {
     const item = td.dataset.item;
-    const sub = item === EXPENSE_TOTAL_ITEM ? expTotal :
-      parseFmt(document.querySelector(`.exp-sub[data-item="${item}"]`)?.textContent || 0);
-    const goal = parseFmt(document.querySelector(`.expense-goal[data-item="${item}"]`)?.value || 0);
-    td.textContent = goal > 0 ? (sub/goal*100).toFixed(1)+'%' : '-';
+    const sub  = item === EXPENSE_TOTAL_ITEM ? expTotal :
+      parseFmt(document.querySelector(`.exp-sub[data-item="${item}"]`)?.textContent||0);
+    const goalInp = document.querySelector(`.expense-goal[data-item="${item}"]`);
+    const goalVal = parseFmt(goalInp?.value||0);
+    td.textContent = goalVal > 0 ? (sub/goalVal*100).toFixed(1)+'%' : '-';
   });
 
   // 摘要
-  document.getElementById('net-income').textContent = fmt(incTotal);
-  document.getElementById('net-claimed').textContent = fmt(totalClaimed);
-  document.getElementById('net-unclaim').textContent = fmt(totalUnclaim);
+  document.getElementById('net-income').textContent  = fmt(incTotal);
+  document.getElementById('net-claimed').textContent  = fmt(totalClaimed);
+  document.getElementById('net-unclaim').textContent  = fmt(totalUnclaim);
   const net = incTotal - expTotal;
   const netEl = document.getElementById('net-diff');
   netEl.textContent = fmt(net);
   netEl.style.color = net >= 0 ? '#155724' : '#721c24';
+
+  // 更新圖表（若已展開）
+  if (_chartOpen && _currentChart) renderChart(_currentChart);
 }
 
 let _autoSaveTimer = null;
@@ -250,43 +294,49 @@ function scheduleAutoSave() {
   _autoSaveTimer = setTimeout(() => saveAll(false), 1200);
 }
 
-// 事件綁定在 loadLockStatus 後統一處理（見底部）
-
 function loadData() {
   fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
     const rev = data.revenue || {};
-    document.querySelectorAll('.income-amt,.income-goal').forEach(inp => {
+    document.querySelectorAll('.income-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
-      inp.value = fmt(d ? (inp.classList.contains('income-goal') ? d.goal : d.amount) : 0);
+      const v = d ? d.amount : 0;
+      inp.value = v > 0 ? fmt(v) : '';
     });
-    document.querySelectorAll('.expense-amt,.expense-goal').forEach(inp => {
+    document.querySelectorAll('.income-goal').forEach(inp => {
       const d = rev[inp.dataset.item];
-      inp.value = fmt(d ? (inp.classList.contains('expense-goal') ? d.goal : d.amount) : 0);
+      inp.value = fmtGoal(d ? d.goal : 0);
+    });
+    document.querySelectorAll('.expense-amt').forEach(inp => {
+      const d = rev[inp.dataset.item];
+      const v = d ? d.amount : 0;
+      inp.value = v > 0 ? fmt(v) : '';
+    });
+    document.querySelectorAll('.expense-goal').forEach(inp => {
+      const d = rev[inp.dataset.item];
+      inp.value = fmtGoal(d ? d.goal : 0);
     });
     const uc = data.unclaimed || {};
     document.querySelectorAll('.unclaim-amt').forEach(inp => {
-      inp.value = fmt(uc[inp.dataset.item] || 0);
+      const v = uc[inp.dataset.item] || 0;
+      inp.value = v > 0 ? fmt(v) : '';
     });
     calcAll();
   });
 }
 
 function saveAll(showMsg = true) {
-  // 收支資料
   const items = {};
   document.querySelectorAll('.income-amt').forEach(inp => {
+    const goalInp = document.querySelector(`.income-goal[data-item="${inp.dataset.item}"]`);
     items[inp.dataset.item] = {
       amount: parseFmt(inp.value),
-      goal: parseFmt(document.querySelector(`.income-goal[data-item="${inp.dataset.item}"]`)?.value||0)
+      goal:   parseFmt(goalInp?.value||0)
     };
   });
   document.querySelectorAll('.expense-amt').forEach(inp => {
-    items[inp.dataset.item] = {
-      amount: parseFmt(inp.value),
-      goal: parseFmt(document.querySelector(`.expense-goal[data-item="${inp.dataset.item}"]`)?.value||0)
-    };
+    const goalInp = document.querySelector(`.expense-goal[data-item="${inp.dataset.item}"]`);
+    items[inp.dataset.item] = { amount: parseFmt(inp.value), goal: parseFmt(goalInp?.value||0) };
   });
-  // 未核銷
   const ucItems = {};
   document.querySelectorAll('.unclaim-amt').forEach(inp => {
     ucItems[inp.dataset.item] = parseFmt(inp.value);
@@ -404,8 +454,7 @@ function loadAuditLog() {
     const logs = d.logs || [];
     if (!logs.length) { el.innerHTML='<em style="color:#999;">尚無修改紀錄。</em>'; return; }
     const actionLabel = {
-      'edit':'✏️ 修改', 'lock':'🔒 鎖定', 'unlock':'🔓 解鎖',
-      'request_unlock':'📩 申請解鎖'
+      'edit':'✏️ 修改','lock':'🔒 鎖定','unlock':'🔓 解鎖','request_unlock':'📩 申請解鎖'
     };
     el.innerHTML = `<table style="font-size:12px;">
       <thead><tr><th>時間</th><th>操作</th><th>項目</th><th>修改前</th><th>修改後</th><th>操作者</th><th>備註</th></tr></thead>
@@ -422,13 +471,198 @@ function loadAuditLog() {
   });
 }
 
-// autosave 時若已鎖定則跳過
-const _origSchedule = scheduleAutoSave;
-// scheduleAutoSave 已在上方定義，在 input 事件裡，如果鎖定就不觸發儲存
+// autosave 已鎖定則跳過
 document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp=>{
   inp.addEventListener('input', ()=>{ if (!_locked) scheduleAutoSave(); });
 });
 
 loadLockStatus();
+
+// ═══════════════════════════════════════════════════════
+// ── Power BI 風格動態圖表 ──────────────────────────────
+// ═══════════════════════════════════════════════════════
+let _chartOpen = false;
+let _currentChart = 'bar';
+let _chartInstance = null;
+
+function toggleCharts() {
+  _chartOpen = !_chartOpen;
+  document.getElementById('chart-body').style.display = _chartOpen ? 'block' : 'none';
+  document.getElementById('chart-toggle').textContent = _chartOpen ? '▲ 收合' : '▼ 展開';
+  if (_chartOpen) renderChart(_currentChart);
+}
+
+function showChart(type) {
+  _currentChart = type;
+  // 更新按鈕外觀
+  ['bar','income','expense','rate'].forEach(t => {
+    const btn = document.getElementById(`chart-btn-${t}`);
+    if (!btn) return;
+    btn.style.background = t === type ? '#2e75b6' : '#e8f0fb';
+    btn.style.color      = t === type ? 'white'   : '#1f4e79';
+  });
+  renderChart(type);
+}
+
+function getIncomeData() {
+  const labels = [], amounts = [], goals = [];
+  document.querySelectorAll('.income-amt').forEach(inp => {
+    if (inp.dataset.item === INCOME_TOTAL_ITEM) return;
+    labels.push(inp.dataset.item);
+    amounts.push(parseFmt(inp.value));
+    const g = document.querySelector(`.income-goal[data-item="${inp.dataset.item}"]`);
+    goals.push(parseFmt(g?.value||0));
+  });
+  return { labels, amounts, goals };
+}
+
+function getExpenseData() {
+  const labels = [], amounts = [], goals = [];
+  document.querySelectorAll('.expense-amt').forEach(inp => {
+    if (inp.dataset.item === EXPENSE_TOTAL_ITEM) return;
+    labels.push(inp.dataset.item);
+    const sub = document.querySelector(`.exp-sub[data-item="${inp.dataset.item}"]`);
+    amounts.push(sub ? parseFmt(sub.textContent) : parseFmt(inp.value));
+    const gs = document.querySelectorAll(`.expense-goal[data-item="${inp.dataset.item}"]`);
+    let gv = 0; gs.forEach(g=>{ if(g.style.display!=='none') gv=parseFmt(g.value); });
+    goals.push(gv);
+  });
+  return { labels, amounts, goals };
+}
+
+const PALETTE = {
+  blue:   '#2e75b6', lightBlue: 'rgba(46,117,182,0.18)',
+  green:  '#27ae60', lightGreen:'rgba(39,174,96,0.18)',
+  red:    '#c0392b', lightRed:  'rgba(192,57,43,0.18)',
+  amber:  '#e67e22', lightAmber:'rgba(230,126,34,0.18)',
+  purple: '#8e44ad', teal: '#16a085',
+};
+
+const CHART_DEFAULTS = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'top', labels: { font: { family: '微軟正黑體', size: 12 }, usePointStyle: true } },
+    tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Math.round(ctx.raw).toLocaleString('zh-TW')} 元` } }
+  },
+  scales: {
+    x: { ticks: { font: { family: '微軟正黑體', size: 11 } }, grid: { color: '#f0f0f0' } },
+    y: {
+      ticks: { font: { family: '微軟正黑體', size: 11 }, callback: v => (v/10000).toFixed(0)+'萬' },
+      grid: { color: '#f0f0f0' },
+      beginAtZero: true
+    }
+  }
+};
+
+function renderChart(type) {
+  const canvas = document.getElementById('mainChart');
+  if (_chartInstance) { _chartInstance.destroy(); _chartInstance = null; }
+
+  const incData = getIncomeData();
+  const expData = getExpenseData();
+
+  let cfg = null;
+
+  if (type === 'bar') {
+    // 收支對比：收入合計 vs 支出合計
+    const incTotal = incData.amounts.reduce((a,b)=>a+b,0);
+    const expTotal = expData.amounts.reduce((a,b)=>a+b,0);
+    const incGoal  = incData.goals.reduce((a,b)=>a+b,0);
+    const expGoal  = expData.goals.reduce((a,b)=>a+b,0);
+    cfg = {
+      type: 'bar',
+      data: {
+        labels: [`1–${MONTH}月累計`],
+        datasets: [
+          { label: '收入目標', data: [incGoal], backgroundColor: PALETTE.lightGreen, borderColor: PALETTE.green, borderWidth: 2 },
+          { label: '實際收入', data: [incTotal], backgroundColor: PALETTE.green,     borderColor: PALETTE.green, borderWidth: 0, borderRadius: 4 },
+          { label: '支出目標', data: [expGoal],  backgroundColor: PALETTE.lightRed,  borderColor: PALETTE.red,  borderWidth: 2 },
+          { label: '實際支出', data: [expTotal], backgroundColor: PALETTE.red,        borderColor: PALETTE.red,  borderWidth: 0, borderRadius: 4 },
+        ]
+      },
+      options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins,
+        title: { display: true, text: `${DEPT} ${MONTH}月 收支對比`, font: { size: 13, family:'微軟正黑體' } }
+      }}
+    };
+  }
+
+  else if (type === 'income') {
+    cfg = {
+      type: 'bar',
+      data: {
+        labels: incData.labels,
+        datasets: [
+          { label: '年度目標', data: incData.goals,   backgroundColor: PALETTE.lightGreen, borderColor: PALETTE.green, borderWidth: 2, type: 'line', fill: false, tension: .3, pointRadius: 5 },
+          { label: '實際收入', data: incData.amounts, backgroundColor: incData.amounts.map((_,i) => i%2===0 ? PALETTE.blue : PALETTE.teal), borderRadius: 4 },
+        ]
+      },
+      options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins,
+        title: { display: true, text: `收入各項目明細（1–${MONTH}月）`, font: { size: 13, family:'微軟正黑體' } }
+      }}
+    };
+  }
+
+  else if (type === 'expense') {
+    cfg = {
+      type: 'bar',
+      data: {
+        labels: expData.labels,
+        datasets: [
+          { label: '年度目標', data: expData.goals,   backgroundColor: PALETTE.lightRed, borderColor: PALETTE.red, borderWidth: 2, type: 'line', fill: false, tension: .3, pointRadius: 5 },
+          { label: '實際支出', data: expData.amounts, backgroundColor: expData.amounts.map((_,i) => i%2===0 ? PALETTE.red : PALETTE.amber), borderRadius: 4 },
+        ]
+      },
+      options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins,
+        title: { display: true, text: `支出各項目明細（1–${MONTH}月）`, font: { size: 13, family:'微軟正黑體' } }
+      }}
+    };
+  }
+
+  else if (type === 'rate') {
+    const labels = [], rates = [], colors = [];
+    incData.labels.forEach((l,i) => {
+      const g = incData.goals[i], a = incData.amounts[i];
+      if (g > 0) { labels.push(l); rates.push(+(a/g*100).toFixed(1)); colors.push(PALETTE.blue); }
+    });
+    expData.labels.forEach((l,i) => {
+      const g = expData.goals[i], a = expData.amounts[i];
+      if (g > 0) { labels.push(l); rates.push(+(a/g*100).toFixed(1)); colors.push(PALETTE.red); }
+    });
+    cfg = {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: '目標達成率 (%)',
+          data: rates,
+          backgroundColor: colors.map(c => c + 'cc'),
+          borderColor: colors, borderWidth: 1, borderRadius: 4
+        }]
+      },
+      options: {
+        ...CHART_DEFAULTS,
+        plugins: { ...CHART_DEFAULTS.plugins,
+          title: { display: true, text: `目標達成率（1–${MONTH}月）`, font: { size: 13, family:'微軟正黑體' } },
+          annotation: {},
+          tooltip: { callbacks: { label: ctx => ` 達成率: ${ctx.raw}%` } }
+        },
+        scales: {
+          x: CHART_DEFAULTS.scales.x,
+          y: { ticks: { callback: v => v+'%', font:{size:11,family:'微軟正黑體'} }, grid:{color:'#f0f0f0'}, beginAtZero:true,
+               afterDataLimits: ax => { ax.max = Math.max(ax.max, 100); } }
+        }
+      }
+    };
+    // 100% 參考線
+    cfg.data.datasets.push({
+      type: 'line', label: '100% 目標線',
+      data: labels.map(()=>100),
+      borderColor: '#e67e22', borderWidth: 2, borderDash: [6,4],
+      pointRadius: 0, fill: false
+    });
+  }
+
+  if (cfg) _chartInstance = new Chart(canvas, cfg);
+}
 </script>
 {% endblock %}
