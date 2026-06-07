@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
     client TEXT, amount REAL DEFAULT 0, sign_date TEXT,
-    status TEXT DEFAULT '洽談中',
+    status TEXT DEFAULT '洽談中', group_name TEXT DEFAULT '',
     note TEXT, carry_next INTEGER DEFAULT 0,
     cross_dept INTEGER DEFAULT 0, cross_dept_data TEXT DEFAULT '{}',
     payment_type TEXT DEFAULT '當年',
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
     client TEXT, amount REAL DEFAULT 0, sign_date TEXT,
-    status TEXT DEFAULT '洽談中',
+    status TEXT DEFAULT '洽談中', group_name TEXT DEFAULT '',
     note TEXT, carry_next INTEGER DEFAULT 0,
     cross_dept INTEGER DEFAULT 0, cross_dept_data TEXT DEFAULT '{}',
     payment_type TEXT DEFAULT '當年',
@@ -190,6 +190,7 @@ _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN payment_type TEXT DEFAULT '當年'",
     "ALTER TABLE contracts ADD COLUMN installments INTEGER DEFAULT 1",
     "ALTER TABLE contracts ADD COLUMN installment_data TEXT DEFAULT '[]'",
+    "ALTER TABLE contracts ADD COLUMN group_name TEXT DEFAULT ''",
 ]
 
 def _migrate(cur, is_pg):
@@ -529,26 +530,26 @@ def save_contract():
     installment_data = _json.dumps(d.get('installment_data', []), ensure_ascii=False)
     if d.get('id'):
         con.execute('''UPDATE contracts SET client=?, amount=?, sign_date=?,
-            status=?, note=?, carry_next=?,
+            status=?, group_name=?, note=?, carry_next=?,
             cross_dept=?, cross_dept_data=?,
             payment_type=?, installments=?, installment_data=?,
             updated_at=CURRENT_TIMESTAMP
             WHERE id=?''',
             (d['client'], d['amount'], d.get('sign_date',''),
-             d['status'], d.get('note',''), d.get('carry_next',0),
+             d['status'], d.get('group_name',''), d.get('note',''), d.get('carry_next',0),
              1 if d.get('cross_dept') else 0, cross_dept_data,
              d.get('payment_type','當年'), d.get('installments',1), installment_data,
              d['id']))
     else:
         con.execute('''INSERT INTO contracts
             (year, dept, month, client, amount, sign_date,
-             status, note, carry_next,
+             status, group_name, note, carry_next,
              cross_dept, cross_dept_data,
              payment_type, installments, installment_data)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (year, d['dept'], d['month'], d['client'], d['amount'],
              d.get('sign_date',''), d['status'],
-             d.get('note',''), d.get('carry_next',0),
+             d.get('group_name',''), d.get('note',''), d.get('carry_next',0),
              1 if d.get('cross_dept') else 0, cross_dept_data,
              d.get('payment_type','當年'), d.get('installments',1), installment_data))
     con.commit()

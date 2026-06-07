@@ -60,6 +60,10 @@
           <input type="text" id="cf-client">
         </div>
         <div class="form-group">
+          <label>組別</label>
+          <input type="text" id="cf-group" placeholder="例：第一組、研發組…">
+        </div>
+        <div class="form-group">
           <label>合約金額 (元)</label>
           <input type="text" id="cf-amount" class="input-num" style="width:100%;" value="0">
         </div>
@@ -174,7 +178,7 @@ function renderContracts(list) {
   }
   el.innerHTML = `<table>
     <thead><tr>
-      <th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th>
+      <th>客戶/計畫</th><th>組別</th><th>合約金額</th><th>簽約日期</th>
       <th>狀態</th><th>金額方式</th><th>跨部門</th><th>延續</th><th>備註</th><th>操作</th>
     </tr></thead>
     <tbody>${list.map(c=>{
@@ -186,6 +190,7 @@ function renderContracts(list) {
         .map(([d,v])=>`${d}:${fmt(v)}`).join('<br>') || '✓' : '';
       return `<tr>
         <td>${c.client||''}</td>
+        <td style="font-size:12px;">${c.group_name||''}</td>
         <td class="text-right">${fmt(c.amount)}</td>
         <td class="text-center">${c.sign_date||''}</td>
         <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
@@ -222,6 +227,7 @@ function showContractForm(contract) {
   document.getElementById('contract-form').style.display = 'block';
   document.getElementById('cf-id').value = contract?.id || '';
   document.getElementById('cf-client').value = contract?.client || '';
+  document.getElementById('cf-group').value = contract?.group_name || '';
   document.getElementById('cf-amount').value = fmt(contract?.amount || 0);
   document.getElementById('cf-sign-date').value = contract?.sign_date || '';
   document.getElementById('cf-status').value = contract?.status || '洽談中';
@@ -349,6 +355,7 @@ function saveContract() {
     id: document.getElementById('cf-id').value || null,
     dept: DEPT, month: MONTH,
     client,
+    group_name: document.getElementById('cf-group').value.trim(),
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
     status: document.getElementById('cf-status').value,
