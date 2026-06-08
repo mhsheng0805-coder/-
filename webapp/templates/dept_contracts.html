@@ -66,8 +66,12 @@
       <!-- 基本資訊 -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="form-group">
-          <label>客戶/計畫名稱 *</label>
+          <label>洽談廠商/客戶 *</label>
           <input type="text" id="cf-client">
+        </div>
+        <div class="form-group">
+          <label>計畫名稱</label>
+          <input type="text" id="cf-project" placeholder="計畫/案件名稱">
         </div>
         <div class="form-group">
           <label>組別</label>
@@ -238,7 +242,7 @@ function renderContracts(list) {
         amtLabel = ''; amtVal = fmt(c.amount || 0); dateVal = c.sign_date || '';
       }
       return `<tr>
-        <td>${c.client||''}</td>
+        <td>${c.client||''}${c.project_name ? `<br><span style="font-size:11px;color:#888;">${c.project_name}</span>` : ''}</td>
         <td style="font-size:12px;">${c.group_name||''}</td>
         <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
         <td class="text-right">${amtVal ? amtLabel + amtVal : ''}</td>
@@ -263,7 +267,7 @@ function renderCarryForward(list) {
   el.innerHTML = `<table>
     <thead><tr><th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th><th>狀態</th><th>備註</th></tr></thead>
     <tbody>${list.map(c=>`<tr style="background:#f5eeff;">
-      <td>${c.client||''}</td>
+      <td>${c.client||''}${c.project_name ? `<br><span style="font-size:11px;color:#888;">${c.project_name}</span>` : ''}</td>
       <td class="text-right">${fmt(c.amount)}</td>
       <td class="text-center">${c.sign_date||''}</td>
       <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
@@ -276,6 +280,7 @@ function showContractForm(contract) {
   document.getElementById('contract-form').style.display = 'block';
   document.getElementById('cf-id').value = contract?.id || '';
   document.getElementById('cf-client').value = contract?.client || '';
+  document.getElementById('cf-project').value = contract?.project_name || '';
   document.getElementById('cf-group').value = contract?.group_name || '';
   document.getElementById('cf-amount').value = fmt(contract?.amount || 0);
   document.getElementById('cf-sign-date').value = contract?.sign_date || '';
@@ -439,7 +444,7 @@ function collectCrossDeptData() {
 // ── 儲存 ────────────────────────────────────────────────
 function saveContract() {
   const client = document.getElementById('cf-client').value.trim();
-  if (!client) { alert('請填寫客戶/計畫名稱'); return; }
+  if (!client) { alert('請填寫洽談廠商/客戶'); return; }
 
   const ptype = document.getElementById('cf-pay-install').checked ? '分期' : '當年';
   const installments = parseInt(document.getElementById('cf-installments').value) || 1;
@@ -457,6 +462,7 @@ function saveContract() {
     id: document.getElementById('cf-id').value || null,
     dept: DEPT, month: MONTH,
     client,
+    project_name: document.getElementById('cf-project').value.trim(),
     group_name: document.getElementById('cf-group').value.trim(),
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
@@ -508,6 +514,7 @@ function saveContractSilent(onDone) {
   const payload = {
     id: document.getElementById('cf-id').value || null,
     dept: DEPT, month: MONTH, client,
+    project_name: document.getElementById('cf-project').value.trim(),
     group_name: document.getElementById('cf-group').value.trim(),
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
