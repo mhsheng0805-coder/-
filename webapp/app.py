@@ -528,9 +528,12 @@ def add_user():
         con.execute("INSERT INTO users (username, password_hash, display_name, role, dept) VALUES (?,?,?,?,?)",
                     (username, hash_pw(password), d.get('display_name',''), d.get('role','user'), d.get('dept','')))
         con.commit()
-    except sqlite3.IntegrityError:
-        con.close()
-        return jsonify({'error': '帳號已存在'}), 400
+    except Exception as e:
+        try: con.close()
+        except Exception: pass
+        if 'unique' in str(e).lower() or 'integrity' in str(e).lower() or 'duplicate' in str(e).lower():
+            return jsonify({'error': '帳號已存在'}), 400
+        return jsonify({'error': f'新增失敗：{e}'}), 500
     con.close()
     return jsonify({'status': 'ok'})
 
