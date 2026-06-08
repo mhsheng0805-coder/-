@@ -17,7 +17,7 @@
       {% endfor %}
     </div>
     <!-- 月份選擇 -->
-    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       <span style="font-size:13px; color:#555; font-weight:bold;">月份：</span>
       {% for m in months %}
       <a href="/dept/{{ dept }}?month={{ m }}"
@@ -25,6 +25,16 @@
          {% if m == month %}background:#1f4e79; color:white; font-weight:bold;
          {% else %}background:#e8f0fb; color:#1f4e79;{% endif %}">{{ m }}月</a>
       {% endfor %}
+    </div>
+    <!-- 填報項目：收支 / 合約 -->
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px solid #eee;">
+      <span style="font-size:13px; color:#555; font-weight:bold;">填報項目：</span>
+      <a href="/dept/{{ dept }}?month={{ month }}"
+         style="display:inline-block; padding:7px 22px; border-radius:20px; font-size:14px; font-weight:bold; text-decoration:none;
+                background:#1f4e79; color:white; box-shadow:0 2px 6px rgba(31,78,121,.35);">收支</a>
+      <a href="/dept/{{ dept }}/contracts?month={{ month }}"
+         style="display:inline-block; padding:7px 22px; border-radius:20px; font-size:14px; font-weight:bold; text-decoration:none;
+                background:#f0e8ff; color:#7b3fa0; border:2px solid #d9c2f0;">合約</a>
     </div>
   </div>
 </div>
@@ -151,7 +161,6 @@
     </div>
     <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center;">
       <button class="btn btn-success" onclick="saveAll(true)">💾 儲存收支資料</button>
-      <a href="/dept/{{ dept }}/contracts?month={{ month }}" class="btn btn-warning">合約</a>
       <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
       <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
       <span id="autosave-status" style="font-size:12px; color:#888; margin-left:4px;"></span>

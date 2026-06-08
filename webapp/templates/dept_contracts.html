@@ -13,7 +13,7 @@
          class="dept-tab {% if d == dept %}active{% endif %}">{{ d }}</a>
       {% endfor %}
     </div>
-    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       <span style="font-size:13px; color:#555; font-weight:bold;">月份：</span>
       {% for m in months %}
       <a href="/dept/{{ dept }}/contracts?month={{ m }}"
@@ -21,6 +21,16 @@
          {% if m == month %}background:#4a1a7b; color:white; font-weight:bold;
          {% else %}background:#f0e8ff; color:#4a1a7b;{% endif %}">{{ m }}月</a>
       {% endfor %}
+    </div>
+    <!-- 填報項目：收支 / 合約 -->
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px solid #eee;">
+      <span style="font-size:13px; color:#555; font-weight:bold;">填報項目：</span>
+      <a href="/dept/{{ dept }}?month={{ month }}"
+         style="display:inline-block; padding:7px 22px; border-radius:20px; font-size:14px; font-weight:bold; text-decoration:none;
+                background:#e8f0fb; color:#1f4e79; border:2px solid #bdd7ee;">收支</a>
+      <a href="/dept/{{ dept }}/contracts?month={{ month }}"
+         style="display:inline-block; padding:7px 22px; border-radius:20px; font-size:14px; font-weight:bold; text-decoration:none;
+                background:#7b3fa0; color:white; box-shadow:0 2px 6px rgba(123,63,160,.35);">合約</a>
     </div>
   </div>
 </div>
