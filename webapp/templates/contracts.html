@@ -100,4 +100,132 @@
   </div>
 </div>
 {% endif %}
+
+<!-- ── 動態圖表 ── -->
+{% if contracts %}
+<div class="card">
+  <div class="card-header" style="background:linear-gradient(135deg,#1f3c6b,#2e5fa8);">
+    📊 合約動態分析
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+      <button class="btn btn-sm" id="cb-status" onclick="showContractChart('status')" style="background:#2e75b6;color:white;">🍩 合約狀態分佈</button>
+      <button class="btn btn-sm" id="cb-dept"   onclick="showContractChart('dept')"   style="background:#e8f0fb;color:#1f4e79;">🏢 各部門合約金額</button>
+      <button class="btn btn-sm" id="cb-month"  onclick="showContractChart('month')" style="background:#e8f0fb;color:#1f4e79;">📅 各月新增合約金額</button>
+    </div>
+    <div style="position:relative; height:360px;">
+      <canvas id="contractChart"></canvas>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if contracts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const CONTRACTS = {{ contracts|tojson }};
+const STATUS_COLORS = {'洽談中':'#ffc107','新增簽約':'#2e75b6','已簽約執行中':'#28a745','完成':'#6c757d'};
+const DEPT_COLORS2 = ['#2e75b6','#28a745','#e67e22','#c0392b','#8e44ad','#16a085'];
+let _ctChart = null;
+let _currentCT = 'status';
+
+function showContractChart(type) {
+  _currentCT = type;
+  ['status','dept','month'].forEach(t => {
+    const btn = document.getElementById(`cb-${t}`);
+    if (!btn) return;
+    btn.style.background = t === type ? '#2e75b6' : '#e8f0fb';
+    btn.style.color      = t === type ? 'white'   : '#1f4e79';
+  });
+  renderContractChart(type);
+}
+
+function renderContractChart(type) {
+  const canvas = document.getElementById('contractChart');
+  if (_ctChart) { _ctChart.destroy(); _ctChart = null; }
+  let cfg = null;
+
+  if (type === 'status') {
+    const counts = {};
+    CONTRACTS.forEach(c => { const s = c.status || '未分類'; counts[s] = (counts[s]||0) + 1; });
+    const labels = Object.keys(counts);
+    const values = labels.map(l => counts[l]);
+    const colors = labels.map(l => STATUS_COLORS[l] || '#999');
+    cfg = {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { font: { family:'微軟正黑體', size: 12 }, usePointStyle: true } },
+          title: { display: true, text: '合約狀態分佈（依筆數）', font: { size: 13, family:'微軟正黑體' } },
+          tooltip: { callbacks: { label: ctx => {
+            const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            const pct = total > 0 ? (ctx.raw/total*100).toFixed(1) : 0;
+            return ` ${ctx.label}: ${ctx.raw} 筆 (${pct}%)`;
+          }}}
+        }
+      }
+    };
+  }
+
+  else if (type === 'dept') {
+    const sums = {};
+    CONTRACTS.forEach(c => { sums[c.dept] = (sums[c.dept]||0) + (c.amount||0); });
+    const labels = Object.keys(sums);
+    const values = labels.map(l => sums[l]);
+    cfg = {
+      type: 'bar',
+      data: { labels, datasets: [{ label: '合約金額 (元)', data: values,
+        backgroundColor: labels.map((_,i)=>DEPT_COLORS2[i%DEPT_COLORS2.length]+'cc'),
+        borderColor: labels.map((_,i)=>DEPT_COLORS2[i%DEPT_COLORS2.length]), borderWidth: 1, borderRadius: 4 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: '各部門合約金額加總', font: { size: 13, family:'微軟正黑體' } },
+          tooltip: { callbacks: { label: ctx => ` ${Math.round(ctx.raw).toLocaleString('zh-TW')} 元` } }
+        },
+        scales: {
+          x: { ticks: { font: { family:'微軟正黑體', size: 11 } }, grid: { color: '#f0f0f0' } },
+          y: { ticks: { font: { family:'微軟正黑體', size: 11 }, callback: v => (v/10000).toFixed(0)+'萬' }, grid: { color: '#f0f0f0' }, beginAtZero: true }
+        }
+      }
+    };
+  }
+
+  else if (type === 'month') {
+    const sums = {};
+    CONTRACTS.forEach(c => { sums[c.month] = (sums[c.month]||0) + (c.amount||0); });
+    const labels = Array.from({length:12}, (_,i)=>i+1);
+    const values = labels.map(m => sums[m] || 0);
+    cfg = {
+      type: 'bar',
+      data: { labels: labels.map(m=>m+'月'), datasets: [{ label: '新增合約金額', data: values,
+        backgroundColor: 'rgba(46,117,182,.6)', borderColor: '#2e75b6', borderWidth: 1, borderRadius: 4,
+        type: 'line', fill: true, tension: .3, pointRadius: 4, backgroundColorAlpha: .2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: '各月新增合約金額趨勢', font: { size: 13, family:'微軟正黑體' } },
+          tooltip: { callbacks: { label: ctx => ` ${Math.round(ctx.raw).toLocaleString('zh-TW')} 元` } }
+        },
+        scales: {
+          x: { ticks: { font: { family:'微軟正黑體', size: 11 } }, grid: { color: '#f0f0f0' } },
+          y: { ticks: { font: { family:'微軟正黑體', size: 11 }, callback: v => (v/10000).toFixed(0)+'萬' }, grid: { color: '#f0f0f0' }, beginAtZero: true }
+        }
+      }
+    };
+    cfg.data.datasets[0].borderColor = '#2e75b6';
+    cfg.data.datasets[0].backgroundColor = 'rgba(46,117,182,.18)';
+  }
+
+  if (cfg) _ctChart = new Chart(canvas, cfg);
+}
+
+showContractChart('status');
+</script>
+{% endif %}
 {% endblock %}
