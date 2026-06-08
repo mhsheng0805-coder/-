@@ -74,21 +74,37 @@
           <input type="text" id="cf-group" placeholder="例：第一組、研發組…">
         </div>
         <div class="form-group">
-          <label>合約金額 (元)</label>
-          <input type="text" id="cf-amount" class="input-num" style="width:100%;" value="0">
-        </div>
-        <div class="form-group">
-          <label>簽約日期</label>
-          <input type="date" id="cf-sign-date">
-        </div>
-        <div class="form-group">
           <label>狀態</label>
-          <select id="cf-status">
-            <option>洽談中</option>
-            <option>新增簽約</option>
-            <option>已簽約執行中</option>
-            <option>完成</option>
+          <select id="cf-status" onchange="toggleStatusFields()">
+            <option value="洽談中">洽談中</option>
+            <option value="預計簽約">預計簽約</option>
+            <option value="已簽約">已簽約</option>
           </select>
+        </div>
+        <div></div>
+        <div id="status-expected-fields" style="display:none; grid-column:1/-1;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="form-group">
+              <label>預計簽約金額 (元)</label>
+              <input type="text" id="cf-expected-amount" class="input-num" style="width:100%;" value="0">
+            </div>
+            <div class="form-group">
+              <label>預計簽約日期</label>
+              <input type="date" id="cf-expected-date">
+            </div>
+          </div>
+        </div>
+        <div id="status-signed-fields" style="display:none; grid-column:1/-1;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="form-group">
+              <label>簽約金額 (元)</label>
+              <input type="text" id="cf-amount" class="input-num" style="width:100%;" value="0">
+            </div>
+            <div class="form-group">
+              <label>簽約日期</label>
+              <input type="date" id="cf-sign-date">
+            </div>
+          </div>
         </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label>備註</label>
@@ -170,9 +186,16 @@ const MONTH = {{ month }};
 const ALL_DEPTS = {{ departments | tojson }};
 
 const statusColors = {
-  '洽談中':'badge-yellow','新增簽約':'badge-blue',
-  '已簽約執行中':'badge-green','完成':'badge-gray'
+  '洽談中':'badge-yellow','預計簽約':'badge-blue','已簽約':'badge-green',
+  // 相容舊資料
+  '新增簽約':'badge-blue','已簽約執行中':'badge-green','完成':'badge-gray'
 };
+
+function toggleStatusFields() {
+  const status = document.getElementById('cf-status').value;
+  document.getElementById('status-expected-fields').style.display = (status === '預計簽約') ? 'block' : 'none';
+  document.getElementById('status-signed-fields').style.display = (status === '已簽約') ? 'block' : 'none';
+}
 
 function loadData() {
   fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
@@ -190,8 +213,9 @@ function renderContracts(list) {
   }
   el.innerHTML = `<table>
     <thead><tr>
-      <th>客戶/計畫</th><th>組別</th><th>合約金額</th><th>簽約日期</th>
-      <th>狀態</th><th>金額方式</th><th>跨部門</th><th>延續</th><th>備註</th><th>操作</th>
+      <th>客戶/計畫</th><th>組別</th><th>狀態</th>
+      <th>金額</th><th>日期</th>
+      <th>金額方式</th><th>跨部門</th><th>延續</th><th>備註</th><th>操作</th>
     </tr></thead>
     <tbody>${list.map(c=>{
       const idata = parseJSON(c.installment_data, []);
@@ -206,12 +230,19 @@ function renderContracts(list) {
           const detail = arr.map(e => e.year ? `${e.year}年:${fmt(e.amount)}` : fmt(e.amount)).join('、');
           return `${d}（${detail}）`;
         }).filter(Boolean).join('<br>') || '✓' : '';
+      // 依狀態顯示對應的金額／日期
+      let amtLabel = '', amtVal = '', dateVal = '';
+      if (c.status === '預計簽約') {
+        amtLabel = '預計：'; amtVal = fmt(c.expected_amount || 0); dateVal = c.expected_date || '';
+      } else if (c.status === '已簽約') {
+        amtLabel = ''; amtVal = fmt(c.amount || 0); dateVal = c.sign_date || '';
+      }
       return `<tr>
         <td>${c.client||''}</td>
         <td style="font-size:12px;">${c.group_name||''}</td>
-        <td class="text-right">${fmt(c.amount)}</td>
-        <td class="text-center">${c.sign_date||''}</td>
         <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
+        <td class="text-right">${amtVal ? amtLabel + amtVal : ''}</td>
+        <td class="text-center">${dateVal}</td>
         <td class="text-center" style="font-size:12px;">${payStr}</td>
         <td style="font-size:12px;">${cdStr}</td>
         <td class="text-center">${c.carry_next?'✅':''}</td>
@@ -248,7 +279,10 @@ function showContractForm(contract) {
   document.getElementById('cf-group').value = contract?.group_name || '';
   document.getElementById('cf-amount').value = fmt(contract?.amount || 0);
   document.getElementById('cf-sign-date').value = contract?.sign_date || '';
+  document.getElementById('cf-expected-amount').value = fmt(contract?.expected_amount || 0);
+  document.getElementById('cf-expected-date').value = contract?.expected_date || '';
   document.getElementById('cf-status').value = contract?.status || '洽談中';
+  toggleStatusFields();
   document.getElementById('cf-note').value = contract?.note || '';
   document.getElementById('cf-carry').checked = !!contract?.carry_next;
 
@@ -426,6 +460,8 @@ function saveContract() {
     group_name: document.getElementById('cf-group').value.trim(),
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
+    expected_amount: parseFmt(document.getElementById('cf-expected-amount').value),
+    expected_date: document.getElementById('cf-expected-date').value,
     status: document.getElementById('cf-status').value,
     note: document.getElementById('cf-note').value,
     carry_next: document.getElementById('cf-carry').checked ? 1 : 0,
@@ -475,6 +511,8 @@ function saveContractSilent(onDone) {
     group_name: document.getElementById('cf-group').value.trim(),
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
+    expected_amount: parseFmt(document.getElementById('cf-expected-amount').value),
+    expected_date: document.getElementById('cf-expected-date').value,
     status: document.getElementById('cf-status').value,
     note: document.getElementById('cf-note').value,
     carry_next: document.getElementById('cf-carry').checked ? 1 : 0,

@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     payment_type TEXT DEFAULT '當年',
     installments INTEGER DEFAULT 1,
     installment_data TEXT DEFAULT '[]',
+    expected_amount REAL DEFAULT 0, expected_date TEXT DEFAULT '',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS unclaimed (
@@ -191,6 +192,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     payment_type TEXT DEFAULT '當年',
     installments INTEGER DEFAULT 1,
     installment_data TEXT DEFAULT '[]',
+    expected_amount REAL DEFAULT 0, expected_date TEXT DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS unclaimed (
@@ -260,6 +262,8 @@ _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN installments INTEGER DEFAULT 1",
     "ALTER TABLE contracts ADD COLUMN installment_data TEXT DEFAULT '[]'",
     "ALTER TABLE contracts ADD COLUMN group_name TEXT DEFAULT ''",
+    "ALTER TABLE contracts ADD COLUMN expected_amount REAL DEFAULT 0",
+    "ALTER TABLE contracts ADD COLUMN expected_date TEXT DEFAULT ''",
 ]
 
 def _migrate(cur, is_pg):
@@ -898,30 +902,36 @@ def save_contract():
         return jsonify({'error': 'locked'}), 423
     cross_dept_data = _json.dumps(d.get('cross_dept_data', {}), ensure_ascii=False)
     installment_data = _json.dumps(d.get('installment_data', []), ensure_ascii=False)
+    expected_amount = d.get('expected_amount', 0)
+    expected_date = d.get('expected_date', '')
     if d.get('id'):
         con.execute('''UPDATE contracts SET client=?, amount=?, sign_date=?,
             status=?, group_name=?, note=?, carry_next=?,
             cross_dept=?, cross_dept_data=?,
             payment_type=?, installments=?, installment_data=?,
+            expected_amount=?, expected_date=?,
             updated_at=CURRENT_TIMESTAMP
             WHERE id=?''',
             (d['client'], d['amount'], d.get('sign_date',''),
              d['status'], d.get('group_name',''), d.get('note',''), d.get('carry_next',0),
              1 if d.get('cross_dept') else 0, cross_dept_data,
              d.get('payment_type','當年'), d.get('installments',1), installment_data,
+             expected_amount, expected_date,
              d['id']))
     else:
         con.execute('''INSERT INTO contracts
             (year, dept, month, client, amount, sign_date,
              status, group_name, note, carry_next,
              cross_dept, cross_dept_data,
-             payment_type, installments, installment_data)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+             payment_type, installments, installment_data,
+             expected_amount, expected_date)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (year, d['dept'], d['month'], d['client'], d['amount'],
              d.get('sign_date',''), d['status'],
              d.get('group_name',''), d.get('note',''), d.get('carry_next',0),
              1 if d.get('cross_dept') else 0, cross_dept_data,
-             d.get('payment_type','當年'), d.get('installments',1), installment_data))
+             d.get('payment_type','當年'), d.get('installments',1), installment_data,
+             expected_amount, expected_date))
     con.commit()
     if not d.get('id'):
         new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0] if not IS_PG else \
@@ -1005,9 +1015,9 @@ def export_contracts_excel(dept, month):
     ws = wb.active; ws.title = f'{month}月合約'
     ws['A1'] = f'{year}年 {dept} {month}月 合約追蹤'
     ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
-    ws.merge_cells('A1:J1'); ws.row_dimensions[1].height = 22
-    headers = ['客戶/計畫','組別','合約金額','簽約日期','狀態','金額方式','期數','跨部門','延續下月','備註']
-    widths  = [28,12,14,12,14,10,8,20,8,20]
+    ws.merge_cells('A1:L1'); ws.row_dimensions[1].height = 22
+    headers = ['客戶/計畫','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','金額方式','期數','跨部門','延續下月','備註']
+    widths  = [28,12,14,16,14,14,12,10,8,20,8,20]
     for c,(h,w) in enumerate(zip(headers,widths),1):
         cell = ws.cell(2,c,h); cell.font=hfont; cell.fill=hfill
         cell.alignment=ctr; cell.border=border
@@ -1031,8 +1041,9 @@ def export_contracts_excel(dept, month):
                 )
                 parts.append(f"{k}（{detail}）")
             cd_str = '；'.join(parts)
-        vals = [r.get('client',''), r.get('group_name',''), r.get('amount',0),
-                r.get('sign_date',''), r.get('status',''),
+        vals = [r.get('client',''), r.get('group_name',''), r.get('status',''),
+                r.get('expected_amount',0) or '', r.get('expected_date',''),
+                r.get('amount',0) or '', r.get('sign_date',''),
                 r.get('payment_type','當年'), r.get('installments',1) if r.get('payment_type')=='分期' else '',
                 cd_str, '是' if r.get('carry_next') else '', r.get('note','')]
         for c,v in enumerate(vals,1):
