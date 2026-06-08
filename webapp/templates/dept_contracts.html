@@ -140,7 +140,7 @@
         </div>
         <div id="cross-dept-section" style="display:none;">
           <div style="font-size:13px; color:#555; margin-bottom:8px;">請勾選涉及的部門並填寫各部門金額：</div>
-          <div id="cross-dept-rows" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div id="cross-dept-rows" style="display:grid; grid-template-columns:1fr; gap:8px;">
             <!-- 動態產生 -->
           </div>
         </div>
@@ -198,8 +198,14 @@ function renderContracts(list) {
       const cdData = parseJSON(c.cross_dept_data, {});
       const payStr = c.payment_type === '分期'
         ? `分期(${c.installments}期)` : '當年';
-      const cdStr = c.cross_dept ? Object.entries(cdData).filter(([,v])=>v>0)
-        .map(([d,v])=>`${d}:${fmt(v)}`).join('<br>') || '✓' : '';
+      const cdStr = c.cross_dept ? Object.entries(cdData).map(([d, entries]) => {
+          let arr = entries;
+          if (typeof arr === 'number') arr = arr > 0 ? [{year:null, amount:arr}] : [];
+          arr = (Array.isArray(arr) ? arr : []).filter(e => e.amount > 0);
+          if (!arr.length) return null;
+          const detail = arr.map(e => e.year ? `${e.year}年:${fmt(e.amount)}` : fmt(e.amount)).join('、');
+          return `${d}（${detail}）`;
+        }).filter(Boolean).join('<br>') || '✓' : '';
       return `<tr>
         <td>${c.client||''}</td>
         <td style="font-size:12px;">${c.group_name||''}</td>
@@ -318,29 +324,82 @@ function toggleCrossDept() {
 }
 
 function buildCrossDeptRows(existing) {
+  // existing: { 部門: [{year, amount}, ...] } （亦相容舊格式 { 部門: 金額 }）
   existing = existing || {};
   const container = document.getElementById('cross-dept-rows');
   container.innerHTML = '';
   ALL_DEPTS.forEach(d => {
-    const isChecked = d in existing && existing[d] > 0;
-    const div = document.createElement('div');
-    div.style.cssText = 'display:flex; align-items:center; gap:8px; background:#f1f8e9; padding:6px 8px; border-radius:4px;';
-    div.innerHTML = `<input type="checkbox" class="cd-check" data-dept="${d}"
-        style="width:auto; margin:0;" ${isChecked ? 'checked' : ''}
-        onchange="toggleCdAmount(this)">
-      <span style="min-width:52px; font-size:13px;">${d}</span>
-      <input type="text" class="cd-amount input-num" data-dept="${d}"
-        placeholder="金額" value="${fmt(existing[d] || 0)}"
-        style="flex:1; font-size:13px; ${isChecked ? '' : 'visibility:hidden;'}">`;
-    container.appendChild(div);
+    let entries = existing[d];
+    if (typeof entries === 'number') entries = entries > 0 ? [{year: null, amount: entries}] : [];
+    entries = Array.isArray(entries) ? entries : [];
+    const isChecked = entries.length > 0;
+
+    const block = document.createElement('div');
+    block.className = 'cd-block';
+    block.dataset.dept = d;
+    block.style.cssText = 'background:#f1f8e9; padding:8px; border-radius:4px;';
+    block.innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" class="cd-check" data-dept="${d}"
+          style="width:auto; margin:0;" ${isChecked ? 'checked' : ''}
+          onchange="toggleCdBlock(this)">
+        <span style="min-width:52px; font-size:13px; font-weight:bold;">${d}</span>
+        <button type="button" class="btn btn-sm" style="background:#c8e6c9;color:#2e7d32;"
+          onclick="addCdYearRow('${d}')">＋ 新增年度</button>
+      </div>
+      <div class="cd-year-rows" data-dept="${d}"
+        style="margin:6px 0 0 28px; display:${isChecked ? 'flex' : 'none'}; flex-direction:column; gap:4px;">
+      </div>`;
+    container.appendChild(block);
+
+    if (isChecked) {
+      entries.forEach(e => addCdYearRow(d, e.year, e.amount));
+    } else {
+      addCdYearRow(d, null, 0); // 預先準備一列（隱藏中），勾選後可直接使用
+    }
   });
 }
 
-function toggleCdAmount(cb) {
+function addCdYearRow(dept, year, amount) {
+  const wrap = document.querySelector(`.cd-year-rows[data-dept="${dept}"]`);
+  if (!wrap) return;
+  const row = document.createElement('div');
+  row.className = 'cd-year-row';
+  row.style.cssText = 'display:flex; gap:6px; align-items:center;';
+  row.innerHTML = `<input type="number" class="cd-year" placeholder="年度(民國)" min="100" max="200"
+        value="${year ?? ''}" style="width:90px; font-size:13px;">
+      <input type="text" class="cd-amount input-num" placeholder="金額"
+        value="${fmt(amount || 0)}" style="flex:1; font-size:13px;">
+      <button type="button" class="btn btn-sm" style="background:#dc3545;color:white;"
+        onclick="this.parentElement.remove()">✕</button>`;
+  wrap.appendChild(row);
+}
+
+function toggleCdBlock(cb) {
   const dept = cb.dataset.dept;
-  const amtInp = document.querySelector(`.cd-amount[data-dept="${dept}"]`);
-  amtInp.style.visibility = cb.checked ? 'visible' : 'hidden';
-  if (!cb.checked) amtInp.value = fmt(0);
+  const wrap = document.querySelector(`.cd-year-rows[data-dept="${dept}"]`);
+  if (!wrap) return;
+  if (cb.checked) {
+    wrap.style.display = 'flex';
+    if (!wrap.querySelector('.cd-year-row')) addCdYearRow(dept, null, 0);
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function collectCrossDeptData() {
+  const data = {};
+  document.querySelectorAll('#cross-dept-rows .cd-block').forEach(block => {
+    const dept = block.dataset.dept;
+    const cb = block.querySelector('.cd-check');
+    if (!cb.checked) return;
+    const entries = Array.from(block.querySelectorAll('.cd-year-row')).map(r => ({
+      year: parseInt(r.querySelector('.cd-year').value) || null,
+      amount: parseFmt(r.querySelector('.cd-amount').value),
+    })).filter(e => e.amount > 0 || e.year);
+    if (entries.length) data[dept] = entries;
+  });
+  return data;
 }
 
 // ── 儲存 ────────────────────────────────────────────────
@@ -358,15 +417,7 @@ function saveContract() {
     : [];
 
   const hasCross = document.getElementById('cf-cross-dept').checked;
-  const cross_dept_data = {};
-  if (hasCross) {
-    document.querySelectorAll('#cross-dept-rows .cd-check').forEach(cb => {
-      if (cb.checked) {
-        const amt = document.querySelector(`.cd-amount[data-dept="${cb.dataset.dept}"]`);
-        cross_dept_data[cb.dataset.dept] = parseFmt(amt?.value || '0');
-      }
-    });
-  }
+  const cross_dept_data = hasCross ? collectCrossDeptData() : {};
 
   const payload = {
     id: document.getElementById('cf-id').value || null,
@@ -417,15 +468,7 @@ function saveContractSilent(onDone) {
         amount: parseFmt(r.querySelector('.install-amount').value),
       })) : [];
   const hasCross = document.getElementById('cf-cross-dept').checked;
-  const cross_dept_data = {};
-  if (hasCross) {
-    document.querySelectorAll('#cross-dept-rows .cd-check').forEach(cb => {
-      if (cb.checked) {
-        const amt = document.querySelector(`.cd-amount[data-dept="${cb.dataset.dept}"]`);
-        cross_dept_data[cb.dataset.dept] = parseFmt(amt?.value || '0');
-      }
-    });
-  }
+  const cross_dept_data = hasCross ? collectCrossDeptData() : {};
   const payload = {
     id: document.getElementById('cf-id').value || null,
     dept: DEPT, month: MONTH, client,

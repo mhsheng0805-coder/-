@@ -1014,7 +1014,23 @@ def export_contracts_excel(dept, month):
         ws.column_dimensions[get_column_letter(c)].width=w
     for ri,r in enumerate(rows,3):
         cd = _json.loads(r.get('cross_dept_data') or '{}')
-        cd_str = '；'.join(f"{k}:{v:,.0f}" for k,v in cd.items() if v) if r.get('cross_dept') else ''
+        def _cd_entries(v):
+            if isinstance(v, (int, float)):
+                return [{'year': None, 'amount': v}] if v else []
+            return v if isinstance(v, list) else []
+        cd_str = ''
+        if r.get('cross_dept'):
+            parts = []
+            for k, v in cd.items():
+                entries = [e for e in _cd_entries(v) if e.get('amount')]
+                if not entries:
+                    continue
+                detail = '、'.join(
+                    f"{e['year']}年:{e['amount']:,.0f}" if e.get('year') else f"{e['amount']:,.0f}"
+                    for e in entries
+                )
+                parts.append(f"{k}（{detail}）")
+            cd_str = '；'.join(parts)
         vals = [r.get('client',''), r.get('group_name',''), r.get('amount',0),
                 r.get('sign_date',''), r.get('status',''),
                 r.get('payment_type','當年'), r.get('installments',1) if r.get('payment_type')=='分期' else '',
