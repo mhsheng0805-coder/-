@@ -36,8 +36,8 @@
       <thead>
         <tr>
           <th>月份</th><th>部門</th><th style="min-width:160px;">客戶/計畫名稱</th>
-          <th>合約金額</th><th>簽約日期</th><th>預計完成</th>
-          <th>狀態</th><th>實收金額</th><th>延續</th><th>備註</th>
+          <th>合約金額</th><th>簽約日期</th>
+          <th>狀態</th><th>延續</th><th>備註</th>
         </tr>
       </thead>
       <tbody>
@@ -49,11 +49,9 @@
           <td>{{ c.client or '' }}</td>
           <td class="text-right">{{ "{:,.0f}".format(c.amount or 0) }}</td>
           <td class="text-center">{{ c.sign_date or '' }}</td>
-          <td class="text-center">{{ c.due_date or '' }}</td>
           <td class="text-center">
             <span class="badge {{ status_colors.get(c.status, 'badge-gray') }}">{{ c.status or '' }}</span>
           </td>
-          <td class="text-right">{{ "{:,.0f}".format(c.actual_amount or 0) }}</td>
           <td class="text-center">{{ '✅' if c.carry_next else '' }}</td>
           <td>{{ c.note or '' }}</td>
         </tr>
@@ -63,9 +61,7 @@
         <tr style="background:#dce6f1; font-weight:bold;">
           <td colspan="3" class="text-right">合計</td>
           <td class="text-right">{{ "{:,.0f}".format(contracts|sum(attribute='amount')) }}</td>
-          <td colspan="3"></td>
-          <td class="text-right">{{ "{:,.0f}".format(contracts|sum(attribute='actual_amount')) }}</td>
-          <td colspan="2"></td>
+          <td colspan="4"></td>
         </tr>
       </tfoot>
     </table>

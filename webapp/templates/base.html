@@ -106,7 +106,7 @@ tr:hover { background: #eef4fb; }
   <span class="logo">📊 紡織所業務部門來自民間業務收入明細</span>
   <a href="/" {% if request.path=='/' %}class="active"{% endif %}>🏠 首頁</a>
   <a href="/summary" {% if '/summary' in request.path %}class="active"{% endif %}>📈 彙整</a>
-  <a href="/contracts" {% if '/contracts' in request.path %}class="active"{% endif %}>📋 合約</a>
+  <a href="/contracts" {% if '/contracts' in request.path %}class="active"{% endif %}>合約</a>
   <a href="/export_excel" class="btn btn-success btn-sm" style="margin-left:4px;" title="匯出本年度 Excel">⬇ Excel</a>
 
   {% if all_years is defined and all_years %}
