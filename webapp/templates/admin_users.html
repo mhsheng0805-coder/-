@@ -44,7 +44,7 @@
         <div class="form-group" style="margin:0;">
           <label>密碼 * <span style="font-size:11px; color:#888;">（至少6碼）</span></label>
           <div style="position:relative;">
-            <input type="password" id="new-password" autocomplete="new-password" placeholder="初始密碼"
+            <input type="password" id="new-password" autocomplete="off" data-lpignore="true" data-form-type="other" placeholder="初始密碼"
                    style="padding-right:36px;">
             <span onclick="togglePwEl('new-password',this)"
                   style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:17px;color:#888;user-select:none;opacity:.5;">👁</span>
@@ -53,7 +53,7 @@
         <div class="form-group" style="margin:0;">
           <label>確認密碼 *</label>
           <div style="position:relative;">
-            <input type="password" id="new-password2" autocomplete="new-password" placeholder="再次輸入密碼"
+            <input type="password" id="new-password2" autocomplete="off" data-lpignore="true" data-form-type="other" placeholder="再次輸入密碼"
                    style="padding-right:36px;">
             <span onclick="togglePwEl('new-password2',this)"
                   style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:17px;color:#888;user-select:none;opacity:.5;">👁</span>
@@ -132,7 +132,7 @@
         <div class="form-group" style="margin:0;">
           <label>新密碼 * <span style="font-size:11px; color:#888;">（至少6碼）</span></label>
           <div style="position:relative;">
-            <input type="password" id="reset-pw1" placeholder="輸入新密碼" autocomplete="new-password"
+            <input type="password" id="reset-pw1" placeholder="輸入新密碼" autocomplete="off" data-lpignore="true" data-form-type="other"
                    style="padding-right:36px;">
             <span onclick="togglePwEl('reset-pw1',this)"
                   style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
@@ -142,7 +142,7 @@
         <div class="form-group" style="margin:0;">
           <label>確認新密碼 *</label>
           <div style="position:relative;">
-            <input type="password" id="reset-pw2" placeholder="再次輸入" autocomplete="new-password"
+            <input type="password" id="reset-pw2" placeholder="再次輸入" autocomplete="off" data-lpignore="true" data-form-type="other"
                    style="padding-right:36px;">
             <span onclick="togglePwEl('reset-pw2',this)"
                   style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
