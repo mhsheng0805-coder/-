@@ -1055,7 +1055,7 @@ def api_summary_data():
     year = get_current_year()
     con = get_db()
     rows = con.execute(
-        "SELECT dept, month, item, amount FROM revenue WHERE year=? AND item IN ('來自民間收入合計','其他民間收入支出')",
+        "SELECT dept, month, item, amount, goal FROM revenue WHERE year=? AND item IN ('來自民間收入合計','其他民間收入支出')",
         (year,)
     ).fetchall()
     ucl = con.execute(
@@ -1068,8 +1068,10 @@ def api_summary_data():
         d = data.setdefault(r['dept'], {}).setdefault(r['month'], {})
         if r['item'] == '來自民間收入合計':
             d['income'] = r['amount']
+            d['income_goal'] = r['goal']
         else:
             d['expense'] = r['amount']
+            d['expense_goal'] = r['goal']
     for r in ucl:
         data.setdefault(r['dept'], {}).setdefault(r['month'], {})['unclaim'] = r['total']
     return jsonify(data)

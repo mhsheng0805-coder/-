@@ -54,51 +54,165 @@
   </div>
 </div>
 
-<!-- 月份趨勢 -->
+<!-- ── 全所主管儀表板（Power BI 風格）── -->
 <div class="card">
-  <div class="card-header">📊 各部門月度收入趨勢</div>
-  <div class="card-body">
-    <div id="chart-area" style="min-height:300px; display:flex; align-items:center; justify-content:center; color:#999;">
-      圖表載入中...
+  <div class="card-header" style="background:linear-gradient(135deg,#1f3c6b,#2e5fa8);">
+    📊 {{ year }}年 全所主管儀表板
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+      <button class="btn btn-sm" id="sb-rate"   onclick="showSummaryChart('rate')"   style="background:#2e75b6;color:white;">🎯 各部門收入達成率</button>
+      <button class="btn btn-sm" id="sb-trend"  onclick="showSummaryChart('trend')"  style="background:#e8f0fb;color:#1f4e79;">📈 全所收支趨勢</button>
+      <button class="btn btn-sm" id="sb-net"    onclick="showSummaryChart('net')"    style="background:#e8f0fb;color:#1f4e79;">📉 收支差額月度變化</button>
+      <button class="btn btn-sm" id="sb-share"  onclick="showSummaryChart('share')"  style="background:#e8f0fb;color:#1f4e79;">🍩 各部門收入貢獻比</button>
+    </div>
+    <div style="position:relative; height:380px;">
+      <canvas id="summaryChart"></canvas>
     </div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// 讀取彙整 API 並繪製簡易圖表
+const MONTHS = {{ months|list|tojson }};
+const DEPTS  = {{ departments|tojson }};
+const year_text = '{{ year }}年';
+const DEPT_COLORS = ['#2e75b6','#28a745','#e67e22','#c0392b','#8e44ad','#16a085'];
+
+const SB_DEFAULTS = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'top', labels: { font: { family:'微軟正黑體', size: 12 }, usePointStyle: true } },
+    tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Math.round(ctx.raw).toLocaleString('zh-TW')}` } }
+  },
+  scales: {
+    x: { ticks: { font: { family:'微軟正黑體', size: 11 } }, grid: { color: '#f0f0f0' } },
+    y: { ticks: { font: { family:'微軟正黑體', size: 11 } }, grid: { color: '#f0f0f0' }, beginAtZero: true }
+  }
+};
+
+let _sbChart = null;
+let _summaryData = {};
+let _currentSB = 'rate';
+
 fetch('/api/summary_data').then(r=>r.json()).then(data => {
-  const months = {{ months|list }};
-  const depts = {{ departments|tojson }};
-  const colors = ['#2e75b6','#28a745','#ffc107','#dc3545','#6f42c1','#17a2b8'];
-
-  const chartArea = document.getElementById('chart-area');
-  const maxVal = Math.max(1, ...depts.flatMap(d => months.map(m => (data[d]||{})[m]?.income || 0)));
-
-  let html = '<div style="width:100%; overflow-x:auto;"><table style="width:100%; min-width:700px; border-collapse:collapse;">';
-  html += '<tr><th style="text-align:left; width:80px;">部門</th>';
-  months.forEach(m => html += `<th style="text-align:center; width:70px; font-size:12px;">${m}月</th>`);
-  html += '<th style="text-align:right; width:90px;">合計</th></tr>';
-
-  depts.forEach((dept, i) => {
-    const color = colors[i % colors.length];
-    html += `<tr><td style="font-weight:bold; color:${color}; padding:4px 8px;">${dept}</td>`;
-    let total = 0;
-    months.forEach(m => {
-      const val = (data[dept]||{})[m]?.income || 0;
-      total += val;
-      const pct = Math.round(val / maxVal * 100);
-      html += `<td style="padding:4px 6px; vertical-align:bottom;">
-        <div title="${val.toLocaleString()}" style="background:${color}; height:${Math.max(pct,val>0?2:0)}px; min-height:${val>0?'2px':'0'}; border-radius:2px 2px 0 0; margin-bottom:2px;"></div>
-        <div style="font-size:10px; text-align:center; color:#666;">${val > 0 ? Math.round(val/10000)+'萬' : '-'}</div>
-      </td>`;
-    });
-    html += `<td style="text-align:right; font-weight:bold; padding:4px 8px; color:${color};">${total > 0 ? total.toLocaleString() : '-'}</td></tr>`;
-  });
-  html += '</table></div>';
-  chartArea.innerHTML = html;
-}).catch(() => {
-  document.getElementById('chart-area').textContent = '暫無資料';
+  _summaryData = data || {};
+  showSummaryChart('rate');
+}).catch(()=>{
+  document.getElementById('summaryChart').parentElement.innerHTML =
+    '<div style="text-align:center;color:#999;padding:40px;">暫無資料</div>';
 });
+
+function showSummaryChart(type) {
+  _currentSB = type;
+  ['rate','trend','net','share'].forEach(t => {
+    const btn = document.getElementById(`sb-${t}`);
+    if (!btn) return;
+    btn.style.background = t === type ? '#2e75b6' : '#e8f0fb';
+    btn.style.color      = t === type ? 'white'   : '#1f4e79';
+  });
+  renderSummaryChart(type);
+}
+
+function deptTotal(dept, key) {
+  let total = 0;
+  MONTHS.forEach(m => { total += (_summaryData[dept]||{})[m]?.[key] || 0; });
+  return total;
+}
+
+function renderSummaryChart(type) {
+  const canvas = document.getElementById('summaryChart');
+  if (_sbChart) { _sbChart.destroy(); _sbChart = null; }
+  let cfg = null;
+
+  if (type === 'rate') {
+    // 各部門收入達成率（年度累計收入 / 年度收入目標）
+    const labels = [], rates = [], colors = [];
+    DEPTS.forEach((d,i) => {
+      const inc  = deptTotal(d, 'income');
+      const goal = deptTotal(d, 'income_goal');
+      labels.push(d);
+      rates.push(goal > 0 ? +(inc/goal*100).toFixed(1) : 0);
+      colors.push(DEPT_COLORS[i % DEPT_COLORS.length]);
+    });
+    cfg = {
+      type: 'bar',
+      data: { labels, datasets: [
+        { label: '收入目標達成率 (%)', data: rates, backgroundColor: colors.map(c=>c+'cc'), borderColor: colors, borderWidth: 1, borderRadius: 4 },
+        { type: 'line', label: '100% 目標線', data: labels.map(()=>100), borderColor: '#e67e22', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false }
+      ]},
+      options: { ...SB_DEFAULTS, indexAxis: 'y',
+        plugins: { ...SB_DEFAULTS.plugins, title: { display: true, text: `各部門收入目標達成率（${year_text}）`, font: { size: 13, family:'微軟正黑體' } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label.includes('100%') ? ' 目標線: 100%' : ` 達成率: ${ctx.raw}%` } } },
+        scales: { x: { ticks: { callback: v=>v+'%', font:{family:'微軟正黑體',size:11} }, grid:{color:'#f0f0f0'}, beginAtZero:true },
+                  y: SB_DEFAULTS.scales.x }
+      }
+    };
+  }
+
+  else if (type === 'trend') {
+    // 全所收支趨勢（各部門加總，逐月）
+    const incSeries = MONTHS.map(m => DEPTS.reduce((s,d)=> s + ((_summaryData[d]||{})[m]?.income||0), 0));
+    const expSeries = MONTHS.map(m => DEPTS.reduce((s,d)=> s + ((_summaryData[d]||{})[m]?.expense||0), 0));
+    cfg = {
+      type: 'line',
+      data: { labels: MONTHS.map(m=>m+'月'), datasets: [
+        { label: '收入合計', data: incSeries, borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,.15)', fill: true, tension: .35, pointRadius: 4 },
+        { label: '支出合計', data: expSeries, borderColor: '#c0392b', backgroundColor: 'rgba(192,57,43,.12)', fill: true, tension: .35, pointRadius: 4 },
+      ]},
+      options: { ...SB_DEFAULTS,
+        plugins: { ...SB_DEFAULTS.plugins, title: { display: true, text: '全所收支趨勢（各部門加總）', font: { size: 13, family:'微軟正黑體' } } },
+        scales: { x: SB_DEFAULTS.scales.x, y: { ...SB_DEFAULTS.scales.y, ticks: { ...SB_DEFAULTS.scales.y.ticks, callback: v => (v/10000).toFixed(0)+'萬' } } }
+      }
+    };
+  }
+
+  else if (type === 'net') {
+    // 收支差額月度變化（全所）
+    const netSeries = MONTHS.map(m => DEPTS.reduce((s,d)=> {
+      const md = (_summaryData[d]||{})[m] || {};
+      return s + ((md.income||0) - (md.expense||0));
+    }, 0));
+    cfg = {
+      type: 'bar',
+      data: { labels: MONTHS.map(m=>m+'月'), datasets: [
+        { label: '收支差額', data: netSeries,
+          backgroundColor: netSeries.map(v => v >= 0 ? 'rgba(39,174,96,.55)' : 'rgba(192,57,43,.55)'),
+          borderColor: netSeries.map(v => v >= 0 ? '#27ae60' : '#c0392b'),
+          borderWidth: 1, borderRadius: 4 }
+      ]},
+      options: { ...SB_DEFAULTS,
+        plugins: { ...SB_DEFAULTS.plugins, title: { display: true, text: '全所收支差額月度變化（收入－支出）', font: { size: 13, family:'微軟正黑體' } },
+          legend: { display: false } },
+        scales: { x: SB_DEFAULTS.scales.x, y: { ...SB_DEFAULTS.scales.y, ticks: { ...SB_DEFAULTS.scales.y.ticks, callback: v => (v/10000).toFixed(0)+'萬' } } }
+      }
+    };
+  }
+
+  else if (type === 'share') {
+    // 各部門收入貢獻比（年度累計）
+    const labels = [], values = [];
+    DEPTS.forEach(d => { labels.push(d); values.push(deptTotal(d, 'income')); });
+    cfg = {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: DEPT_COLORS, borderColor: '#fff', borderWidth: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { font: { family:'微軟正黑體', size: 12 }, usePointStyle: true } },
+          title: { display: true, text: '各部門收入貢獻比（年度累計）', font: { size: 13, family:'微軟正黑體' } },
+          tooltip: { callbacks: { label: ctx => {
+            const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            const pct = total > 0 ? (ctx.raw/total*100).toFixed(1) : 0;
+            return ` ${ctx.label}: ${Math.round(ctx.raw).toLocaleString('zh-TW')} 元 (${pct}%)`;
+          }}}
+        }
+      }
+    };
+  }
+
+  if (cfg) _sbChart = new Chart(canvas, cfg);
+}
 </script>
 {% endblock %}
