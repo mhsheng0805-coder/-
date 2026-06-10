@@ -142,7 +142,7 @@
     ⚖️ {{ month }}月 收支摘要
   </div>
   <div class="card-body">
-    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
       <div class="stat-card">
         <div class="value" id="net-income">-</div>
         <div class="label">來自民間收入合計</div>
@@ -158,6 +158,12 @@
       <div class="stat-card" style="border-color:#ffc107;">
         <div class="value" id="net-diff" style="color:#856404;">-</div>
         <div class="label">收支差額（收入－支出小計）</div>
+      </div>
+      <div class="stat-card" style="border-color:#6f42c1;">
+        <div class="value" id="net-y-val" style="color:#6f42c1;">-</div>
+        <div class="label">財務貢獻(Y值）
+          <span id="net-y-rate" style="font-size:11px; display:block; color:#888;">達成率：-</span>
+        </div>
       </div>
     </div>
     <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center;">
@@ -251,6 +257,21 @@
       </table>
     </div>
 
+    <div style="margin-bottom:20px;">
+      <div style="background:#e8d5f5; padding:8px 12px; font-weight:bold; border-radius:4px 4px 0 0; color:#6f42c1; font-size:13px;">🎯 財務貢獻目標</div>
+      <table style="width:100%; border-collapse:collapse;">
+        <tbody><tr style="background:#f9f0ff;">
+          <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px; font-weight:bold;">財務貢獻(Y值）目標</td>
+          <td style="padding:4px 8px; border:1px solid #ddd;">
+            <input type="text" id="gm-y-input" class="input-num"
+              oninput="fmtOnInput(this)"
+              style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;" value="">
+          </td>
+        </tr></tbody>
+      </table>
+      <p style="font-size:11px;color:#888;margin:4px 0 0 2px;">實際值由系統自動計算：(收入－支出＋轉回設備費) － 服務收入×11.5%</p>
+    </div>
+
     <div style="display:flex; gap:10px; justify-content:flex-end;">
       <button class="btn" onclick="closeGoalsModal()" style="background:#6c757d;color:white;">取消</button>
       <button class="btn btn-success" onclick="saveGoals()">💾 儲存年度目標</button>
@@ -268,6 +289,7 @@ const INCOME_TOTAL_ITEM = '來自民間收入';
 const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
 const EXPENSE_ITEMS = {{ expense_items | tojson }};
+let _annualGoals = {};
 const UNCLAIM_MAP = {
   '業務費':'業務費(未核銷)',
   '維護費':'維護費(未核銷)',
@@ -341,6 +363,17 @@ function calcAll() {
   netEl.textContent = fmt(net);
   netEl.style.color = net >= 0 ? '#155724' : '#721c24';
 
+  // 財務貢獻 Y值 = (A合計 - B合計 + 轉回專案設備使用費) - (試驗+技術+訓練+其他業務) × 11.5%
+  const 轉回 = parseFmt(document.querySelector('.expense-amt[data-item="轉回專案設備使用費"]')?.value || 0);
+  const serviceIncome = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入']
+    .reduce((s, i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value || 0), 0);
+  const yVal = (incTotal - expTotal + 轉回) - serviceIncome * 0.115;
+  const yEl = document.getElementById('net-y-val');
+  if (yEl) { yEl.textContent = fmt(yVal); yEl.style.color = yVal >= 0 ? '#6f42c1' : '#721c24'; }
+  const yGoal = _annualGoals['財務貢獻(Y值)'] || 0;
+  const yRateEl = document.getElementById('net-y-rate');
+  if (yRateEl) yRateEl.textContent = yGoal > 0 ? `達成率：${(yVal/yGoal*100).toFixed(1)}%` : '達成率：-';
+
   // 更新圖表（若已展開）
   if (_chartOpen && _currentChart) renderChart(_currentChart);
 }
@@ -359,6 +392,7 @@ function loadData() {
     fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()),
     fetch(`/api/annual_goals/${DEPT}`).then(r=>r.json()),
   ]).then(([data, goals]) => {
+    _annualGoals = goals;
     const rev = data.revenue || {};
     document.querySelectorAll('.income-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
@@ -402,6 +436,9 @@ function openGoalsModal() {
       INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM)).join('');
     document.getElementById('gm-expense-rows').innerHTML =
       EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM)).join('');
+    // Y值目標
+    const yv = goals['財務貢獻(Y值)'] || 0;
+    document.getElementById('gm-y-input').value = fmtGoal(yv);
   });
   document.getElementById('goals-modal').style.display = 'block';
 }
@@ -449,6 +486,8 @@ function saveGoals() {
   document.querySelectorAll('.gm-input').forEach(inp => {
     goals[inp.dataset.item] = parseFmt(inp.value);
   });
+  const yInp = document.getElementById('gm-y-input');
+  if (yInp) goals['財務貢獻(Y值)'] = parseFmt(yInp.value);
   fetch('/api/save_annual_goals', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
