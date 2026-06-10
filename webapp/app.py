@@ -72,14 +72,18 @@ DEPARTMENTS = ['原料部', '產品部', '檢驗部', '製程部', '雲分部', 
 MONTHS = list(range(1, 13))
 
 INCOME_ITEMS = [
-    '其他民間收入(試驗/技術/訓練/其他)',
+    '試驗服務收入',
+    '技術服務收入',
+    '訓練服務收入',
+    '其他業務收入',
     '配合款-產發署案收入',
+    '配合款-其他政府收入',
     '配合款-其他民間收入',
     '其他專案-來自民間',
-    '科專衍生收入',
-    '能源署衍生收入',
-    '來自民間收入合計',
+    '計畫衍生收入',
+    '來自民間收入',
 ]
+INCOME_TOTAL_ITEM = '來自民間收入'
 EXPENSE_ITEMS = [
     '人事費用',
     '業務費用',
@@ -162,6 +166,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
     changed_by TEXT, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     note TEXT
 );
+CREATE TABLE IF NOT EXISTS annual_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, item TEXT NOT NULL,
+    goal REAL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, dept, item)
+);
 '''
 
 _SCHEMA_PG = '''
@@ -217,6 +228,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
     changed_by TEXT, changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     note TEXT
 );
+CREATE TABLE IF NOT EXISTS annual_goals (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL, dept TEXT NOT NULL, item TEXT NOT NULL,
+    goal REAL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, dept, item)
+);
 '''
 
 _MIGRATE_USERS = [
@@ -254,6 +272,23 @@ _MIGRATE_NEW_TABLES_PG = [
         changed_by TEXT, changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, note TEXT)""",
 ]
 
+_MIGRATE_ANNUAL_GOALS_SQLITE = [
+    """CREATE TABLE IF NOT EXISTS annual_goals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, item TEXT NOT NULL,
+        goal REAL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(year, dept, item))""",
+]
+_MIGRATE_ANNUAL_GOALS_PG = [
+    """CREATE TABLE IF NOT EXISTS annual_goals (
+        id SERIAL PRIMARY KEY,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, item TEXT NOT NULL,
+        goal REAL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(year, dept, item))""",
+]
+
 _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN cross_dept INTEGER DEFAULT 0",
     "ALTER TABLE contracts ADD COLUMN cross_dept_data TEXT DEFAULT '{}'",
@@ -269,7 +304,8 @@ _MIGRATE_CONTRACTS = [
 def _migrate(cur, is_pg):
     """升級舊版資料表（新增欄位）"""
     new_tables = _MIGRATE_NEW_TABLES_PG if is_pg else _MIGRATE_NEW_TABLES_SQLITE
-    for stmt in _MIGRATE_USERS + _MIGRATE_CONTRACTS + new_tables:
+    goal_tables = _MIGRATE_ANNUAL_GOALS_PG if is_pg else _MIGRATE_ANNUAL_GOALS_SQLITE
+    for stmt in _MIGRATE_USERS + _MIGRATE_CONTRACTS + new_tables + goal_tables:
         try:
             cur.execute(stmt)
         except Exception:
@@ -862,6 +898,37 @@ def save_revenue():
     con.close()
     return jsonify({'status': 'ok'})
 
+@app.route('/api/annual_goals/<dept>')
+@login_required
+def get_annual_goals(dept):
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    year = get_current_year()
+    con = get_db()
+    rows = con.execute('SELECT item, goal FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
+    con.close()
+    return jsonify({r['item']: r['goal'] for r in rows})
+
+@app.route('/api/save_annual_goals', methods=['POST'])
+@login_required
+def save_annual_goals():
+    d = request.json
+    dept = d.get('dept', '')
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    year = get_current_year()
+    con = get_db()
+    for item, goal in d.get('goals', {}).items():
+        g = float(goal or 0)
+        con.execute('''INSERT INTO annual_goals (year, dept, item, goal)
+            VALUES (?,?,?,?)
+            ON CONFLICT(year, dept, item) DO UPDATE
+            SET goal=excluded.goal, updated_at=CURRENT_TIMESTAMP''',
+            (year, dept, item, g))
+    con.commit()
+    con.close()
+    return jsonify({'status': 'ok'})
+
 @app.route('/api/save_unclaimed', methods=['POST'])
 @login_required
 def save_unclaimed():
@@ -1071,7 +1138,7 @@ def api_overview():
     con = get_db()
     result = []
     for dept in DEPARTMENTS:
-        income   = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='來自民間收入合計'", (year, dept)).fetchone()[0]
+        income   = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='來自民間收入'", (year, dept)).fetchone()[0]
         expense  = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='其他民間收入支出'", (year, dept)).fetchone()[0]
         unclaim  = con.execute("SELECT COALESCE(SUM(amount),0) FROM unclaimed WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
         contracts= con.execute("SELECT COUNT(*) FROM contracts WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
@@ -1086,23 +1153,28 @@ def api_summary_data():
     year = get_current_year()
     con = get_db()
     rows = con.execute(
-        "SELECT dept, month, item, amount, goal FROM revenue WHERE year=? AND item IN ('來自民間收入合計','其他民間收入支出')",
+        "SELECT dept, month, item, amount FROM revenue WHERE year=? AND item IN ('來自民間收入','其他民間收入支出')",
         (year,)
     ).fetchall()
     ucl = con.execute(
         "SELECT dept, month, SUM(amount) as total FROM unclaimed WHERE year=? GROUP BY dept, month",
         (year,)
     ).fetchall()
+    goals = con.execute(
+        "SELECT dept, item, goal FROM annual_goals WHERE year=? AND item IN ('來自民間收入','其他民間收入支出')",
+        (year,)
+    ).fetchall()
     con.close()
+    goal_map = {(r['dept'], r['item']): r['goal'] for r in goals}
     data = {}
     for r in rows:
         d = data.setdefault(r['dept'], {}).setdefault(r['month'], {})
-        if r['item'] == '來自民間收入合計':
+        if r['item'] == '來自民間收入':
             d['income'] = r['amount']
-            d['income_goal'] = r['goal']
+            d['income_goal'] = goal_map.get((r['dept'], '來自民間收入'), 0)
         else:
             d['expense'] = r['amount']
-            d['expense_goal'] = r['goal']
+            d['expense_goal'] = goal_map.get((r['dept'], '其他民間收入支出'), 0)
     for r in ucl:
         data.setdefault(r['dept'], {}).setdefault(r['month'], {})['unclaim'] = r['total']
     return jsonify(data)
@@ -1504,8 +1576,8 @@ def export_pptx():
         run.font.size = Pt(9); run.font.color.rgb = RGBColor(0x60, 0x60, 0x60); run.font.name = '微軟正黑體'
 
         # 計算總收入/支出
-        total_income_amt  = dept_rev.get('來自民間收入合計', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in income_items)
-        total_income_goal = dept_rev.get('來自民間收入合計', {}).get('goal', 0) or sum(dept_rev.get(i,{}).get('goal',0) for i in income_items)
+        total_income_amt  = dept_rev.get('來自民間收入', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in income_items)
+        total_income_goal = dept_rev.get('來自民間收入', {}).get('goal', 0) or sum(dept_rev.get(i,{}).get('goal',0) for i in income_items)
         total_expense_amt = dept_rev.get('其他民間收入支出', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in expense_items)
         total_expense_goal= dept_rev.get('其他民間收入支出', {}).get('goal', 0) or sum(dept_rev.get(i,{}).get('goal',0) for i in expense_items)
         net = total_income_amt - total_expense_amt
@@ -1650,15 +1722,15 @@ def export_pptx():
     sw = [Inches(2.5), Inches(2.0), Inches(2.0), Inches(2.0), Inches(1.5)]
     for ci, w in enumerate(sw): stbl.columns[ci].width = w
 
-    for ci, h in enumerate(['部門', '來自民間收入合計', '其他民間收入支出', '業務餘絀', 'X達成率']):
+    for ci, h in enumerate(['部門', '來自民間收入', '其他民間收入支出', '業務餘絀', 'X達成率']):
         set_cell(stbl.cell(0, ci), h, bold=True, size=11, bg=C_DARK_BLUE, color=C_WHITE)
 
     grand_income = 0; grand_expense = 0
     for ri, dept in enumerate(DEPARTMENTS, 1):
         dept_rev = cum_rev.get(dept, {})
-        inc  = dept_rev.get('來自民間收入合計', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in DEPT_INCOME_PPT[dept])
+        inc  = dept_rev.get('來自民間收入', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in DEPT_INCOME_PPT[dept])
         exp  = dept_rev.get('其他民間收入支出', {}).get('amount', 0) or sum(dept_rev.get(i,{}).get('amount',0) for i in DEPT_EXPENSE_PPT[dept])
-        goal = dept_rev.get('來自民間收入合計', {}).get('goal', 0)
+        goal = dept_rev.get('來自民間收入', {}).get('goal', 0)
         net  = inc - exp
         grand_income += inc; grand_expense += exp
         row_bg = C_INC_LIGHT if ri % 2 == 0 else C_WHITE

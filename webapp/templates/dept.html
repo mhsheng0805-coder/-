@@ -60,13 +60,13 @@
         <th>達成率</th>
       </tr></thead>
       <tbody>
-        {% set income_totals = ['來自民間收入合計'] %}
+        {% set income_totals = ['來自民間收入'] %}
         {% for item in income_items %}
         <tr {% if item in income_totals %}style="background:#c6efce; font-weight:bold;"
             {% else %}style="background:#ebf8ee;"{% endif %}>
           <td>{{ item }}</td>
           <td><input type="text" class="input-num income-goal" data-item="{{ item }}"
-               {% if item in income_totals %}readonly style="background:#f5f5f5;"{% endif %}
+               readonly style="background:#f0f8ff; color:#1a5276;"
                value=""></td>
           <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
                {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
@@ -108,14 +108,15 @@
           <td>{{ item }}</td>
           {% if item in exp_totals %}
             <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
-                 readonly style="background:#f5f5f5;" value=""></td>
+                 readonly style="background:#f0f8ff; color:#1a5276;" value=""></td>
             <td class="text-right" id="total-claimed">0</td>
             <td class="text-right" id="total-unclaim">0</td>
             <td><input type="text" class="input-num expense-amt" data-item="{{ item }}"
                  readonly style="background:#ffe0e0; font-weight:bold;" value=""></td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% else %}
-            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}" value=""></td>
+            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
+                 readonly style="background:#f0f8ff; color:#1a5276;" value=""></td>
             <td><input type="text" class="input-num expense-amt" data-item="{{ item }}" value=""></td>
             {% if uc_item %}
             <td><input type="text" class="input-num unclaim-amt" data-item="{{ uc_item }}" value=""
@@ -161,6 +162,7 @@
     </div>
     <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center;">
       <button class="btn btn-success" onclick="saveAll(true)">💾 儲存收支資料</button>
+      <button class="btn" style="background:#1a5276;color:white;" onclick="openGoalsModal()">🎯 設定年度目標</button>
       <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
       <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
       <span id="autosave-status" style="font-size:12px; color:#888; margin-left:4px;"></span>
@@ -209,14 +211,54 @@
   </div>
 </div>
 
+<!-- 年度目標設定 Modal -->
+<div id="goals-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; overflow-y:auto;">
+  <div style="background:#fff; max-width:680px; margin:40px auto; border-radius:12px; padding:24px; box-shadow:0 8px 32px rgba(0,0,0,.3);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h3 style="margin:0; color:#1a5276;">🎯 設定年度目標 — <span id="gm-dept"></span></h3>
+      <button onclick="closeGoalsModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:12px;">設定後，每月收支表的「年度目標」欄位將自動帶入，不需逐月填寫。數字可加逗號，例如：1,200,000</p>
+
+    <div style="margin-bottom:16px;">
+      <div style="background:#c6efce; padding:8px 12px; font-weight:bold; border-radius:4px 4px 0 0; color:#1a5276; font-size:13px;">💰 收入項目</div>
+      <table style="width:100%; border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left; padding:6px 10px; background:#e8f5e9; font-size:12px; border:1px solid #ddd;">項目</th>
+          <th style="text-align:right; padding:6px 10px; background:#e8f5e9; font-size:12px; border:1px solid #ddd;">年度目標（元）</th>
+        </tr></thead>
+        <tbody id="gm-income-rows"></tbody>
+      </table>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="background:#ffc7c7; padding:8px 12px; font-weight:bold; border-radius:4px 4px 0 0; color:#8b1a1a; font-size:13px;">💸 支出項目</div>
+      <table style="width:100%; border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left; padding:6px 10px; background:#fff0f0; font-size:12px; border:1px solid #ddd;">項目</th>
+          <th style="text-align:right; padding:6px 10px; background:#fff0f0; font-size:12px; border:1px solid #ddd;">年度目標（元）</th>
+        </tr></thead>
+        <tbody id="gm-expense-rows"></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn" onclick="closeGoalsModal()" style="background:#6c757d;color:white;">取消</button>
+      <button class="btn btn-success" onclick="saveGoals()">💾 儲存年度目標</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
-const INCOME_TOTAL_ITEM = '來自民間收入合計';
+const INCOME_TOTAL_ITEM = '來自民間收入';
 const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
+const INCOME_ITEMS = {{ income_items | tojson }};
+const EXPENSE_ITEMS = {{ expense_items | tojson }};
 const UNCLAIM_MAP = {
   '業務費用':'業務費(未核銷)',
   '維護費用':'維護費(未核銷)',
@@ -304,25 +346,24 @@ function scheduleAutoSave() {
 }
 
 function loadData() {
-  fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
+  Promise.all([
+    fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()),
+    fetch(`/api/annual_goals/${DEPT}`).then(r=>r.json()),
+  ]).then(([data, goals]) => {
     const rev = data.revenue || {};
     document.querySelectorAll('.income-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
-      const v = d ? d.amount : 0;
-      inp.value = v > 0 ? fmt(v) : '';
+      inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
     });
     document.querySelectorAll('.income-goal').forEach(inp => {
-      const d = rev[inp.dataset.item];
-      inp.value = fmtGoal(d ? d.goal : 0);
+      inp.value = fmtGoal(goals[inp.dataset.item] || 0);
     });
     document.querySelectorAll('.expense-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
-      const v = d ? d.amount : 0;
-      inp.value = v > 0 ? fmt(v) : '';
+      inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
     });
     document.querySelectorAll('.expense-goal').forEach(inp => {
-      const d = rev[inp.dataset.item];
-      inp.value = fmtGoal(d ? d.goal : 0);
+      inp.value = fmtGoal(goals[inp.dataset.item] || 0);
     });
     const uc = data.unclaimed || {};
     document.querySelectorAll('.unclaim-amt').forEach(inp => {
@@ -330,6 +371,56 @@ function loadData() {
       inp.value = v > 0 ? fmt(v) : '';
     });
     calcAll();
+  });
+}
+
+// ── 年度目標 Modal ─────────────────────────────────────────
+function openGoalsModal() {
+  document.getElementById('gm-dept').textContent = DEPT;
+  fetch(`/api/annual_goals/${DEPT}`).then(r=>r.json()).then(goals => {
+    const mkRow = (item, isTot) => {
+      const v = goals[item] || 0;
+      return `<tr style="background:${isTot?'#d4edda':'#fff'}">
+        <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px;${isTot?' font-weight:bold;':''}">${item}</td>
+        <td style="padding:4px 8px; border:1px solid #ddd;">
+          <input type="text" class="gm-input input-num" data-item="${item}"
+            value="${fmtGoal(v)}" ${isTot?'readonly style="background:#f0f8ff;width:100%;text-align:right;"':'style="width:100%;text-align:right;"'}
+            oninput="fmtOnInput(this)" style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;">
+        </td>
+      </tr>`;
+    };
+    document.getElementById('gm-income-rows').innerHTML =
+      INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM)).join('');
+    document.getElementById('gm-expense-rows').innerHTML =
+      EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM)).join('');
+  });
+  document.getElementById('goals-modal').style.display = 'block';
+}
+
+function closeGoalsModal() {
+  document.getElementById('goals-modal').style.display = 'none';
+}
+
+function fmtOnInput(inp) {
+  const raw = parseFmt(inp.value);
+  const pos = inp.selectionStart;
+  if (raw > 0) inp.value = raw.toLocaleString('zh-TW');
+  else inp.value = '';
+}
+
+function saveGoals() {
+  const goals = {};
+  document.querySelectorAll('.gm-input').forEach(inp => {
+    goals[inp.dataset.item] = parseFmt(inp.value);
+  });
+  fetch('/api/save_annual_goals', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({dept: DEPT, goals})
+  }).then(r=>r.json()).then(() => {
+    closeGoalsModal();
+    showToast('✅ 年度目標已儲存');
+    loadData();
   });
 }
 
