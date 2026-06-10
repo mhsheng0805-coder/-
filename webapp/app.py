@@ -80,7 +80,8 @@ INCOME_ITEMS = [
     '配合款-其他政府收入',
     '配合款-其他民間收入',
     '其他專案-來自民間',
-    '計畫衍生收入',
+    '科專衍生收入',
+    '能源署衍生收入',
     '來自民間收入',
 ]
 INCOME_TOTAL_ITEM = '來自民間收入'
@@ -929,6 +930,11 @@ def import_goals_excel():
         return str(s or '').strip().rstrip('◎').strip()
 
     item_set = {_norm(i): i for i in all_items}
+    # Excel 舊名稱對照
+    _aliases = {'計畫衍生收入': '科專衍生收入'}
+    for old, new in _aliases.items():
+        if new in [v for v in item_set.values()]:
+            item_set[old] = new
     goals = {}
 
     for sh_name in wb.sheetnames:
