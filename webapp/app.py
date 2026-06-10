@@ -909,6 +909,70 @@ def get_annual_goals(dept):
     con.close()
     return jsonify({r['item']: r['goal'] for r in rows})
 
+@app.route('/api/import_goals_excel', methods=['POST'])
+@login_required
+def import_goals_excel():
+    dept = request.form.get('dept', '')
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'no file'}), 400
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(f.read()), data_only=True)
+    except Exception as e:
+        return jsonify({'error': f'無法讀取 Excel：{e}'}), 400
+
+    all_items = INCOME_ITEMS + EXPENSE_ITEMS
+    # strip known suffixes for matching
+    def _norm(s):
+        return str(s or '').strip().rstrip('◎').strip()
+
+    item_set = {_norm(i): i for i in all_items}
+    goals = {}
+
+    for sh_name in wb.sheetnames:
+        ws = wb[sh_name]
+        # find which dept this sheet belongs to
+        sheet_dept = None
+        goal_col = None   # 0-based column index of 「今年年度預算數」
+        for row in ws.iter_rows(min_row=1, max_row=10, values_only=True):
+            for cell in row:
+                if cell and '部門：' in str(cell):
+                    sheet_dept = str(cell).replace('部門：', '').strip()
+                    break
+            # find header row to determine column
+            row_vals = [str(v or '') for v in row]
+            count = sum(1 for v in row_vals if '年度預算數' in v)
+            if count >= 2:
+                # second occurrence is the current-year goal column
+                found = 0
+                for ci, v in enumerate(row_vals):
+                    if '年度預算數' in v:
+                        found += 1
+                        if found == 2:
+                            goal_col = ci
+                            break
+
+        if sheet_dept is None or goal_col is None:
+            continue
+        if dept not in sheet_dept and sheet_dept not in dept:
+            continue
+
+        # extract item → goal
+        for row in ws.iter_rows(values_only=True):
+            name = _norm(row[0] if row else None)
+            if name in item_set:
+                try:
+                    val = float(row[goal_col] or 0)
+                except (TypeError, ValueError):
+                    val = 0
+                goals[item_set[name]] = val
+
+    if not goals:
+        return jsonify({'error': f'未在 Excel 中找到「{dept}」部門資料'}), 404
+    return jsonify({'goals': goals})
+
 @app.route('/api/save_annual_goals', methods=['POST'])
 @login_required
 def save_annual_goals():

@@ -218,7 +218,16 @@
       <h3 style="margin:0; color:#1a5276;">🎯 設定年度目標 — <span id="gm-dept"></span></h3>
       <button onclick="closeGoalsModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
     </div>
-    <p style="font-size:12px;color:#888;margin-bottom:12px;">設定後，每月收支表的「年度目標」欄位將自動帶入，不需逐月填寫。數字可加逗號，例如：1,200,000</p>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+      <p style="font-size:12px;color:#888;margin:0;">設定後，每月收支表的「年度目標」欄位將自動帶入，不需逐月填寫。</p>
+      <button class="btn btn-sm" style="background:#217346;color:white;white-space:nowrap;"
+              onclick="document.getElementById('goals-excel-input').click()">
+        📥 從 Excel 匯入
+      </button>
+      <input type="file" id="goals-excel-input" accept=".xlsx,.xls" style="display:none"
+             onchange="importGoalsExcel(this)">
+      <span id="goals-import-status" style="font-size:12px;color:#888;"></span>
+    </div>
 
     <div style="margin-bottom:16px;">
       <div style="background:#c6efce; padding:8px 12px; font-weight:bold; border-radius:4px 4px 0 0; color:#1a5276; font-size:13px;">💰 收入項目</div>
@@ -406,6 +415,33 @@ function fmtOnInput(inp) {
   const pos = inp.selectionStart;
   if (raw > 0) inp.value = raw.toLocaleString('zh-TW');
   else inp.value = '';
+}
+
+function importGoalsExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('goals-import-status');
+  statusEl.textContent = '⏳ 解析中...';
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('dept', DEPT);
+  fetch('/api/import_goals_excel', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(res => {
+      input.value = '';
+      if (res.error) { statusEl.textContent = '❌ ' + res.error; return; }
+      const goals = res.goals || {};
+      let count = 0;
+      document.querySelectorAll('.gm-input').forEach(inp => {
+        if (goals[inp.dataset.item] !== undefined) {
+          const v = goals[inp.dataset.item];
+          inp.value = v > 0 ? Math.round(v).toLocaleString('zh-TW') : '';
+          count++;
+        }
+      });
+      statusEl.textContent = `✅ 已帶入 ${count} 項目標值`;
+    })
+    .catch(() => { statusEl.textContent = '❌ 匯入失敗'; input.value = ''; });
 }
 
 function saveGoals() {
