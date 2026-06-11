@@ -1710,12 +1710,16 @@ def import_excel():
 @app.route('/export_pptx')
 @login_required
 def export_pptx():
-    from pptx import Presentation
-    from pptx.util import Inches, Pt, Emu
-    from pptx.dml.color import RGBColor
-    from pptx.enum.text import PP_ALIGN
-    from pptx.oxml.ns import qn
-    import copy
+    import traceback
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt, Emu
+        from pptx.dml.color import RGBColor
+        from pptx.enum.text import PP_ALIGN
+        from pptx.oxml.ns import qn
+        import copy
+    except ImportError as e:
+        return f'<h2>缺少套件</h2><pre>{e}\n\n請在 PythonAnywhere 執行:\npip install python-pptx</pre>', 500
 
     year = request.args.get('year', type=int) or get_current_year()
     thru = request.args.get('thru_month', type=int) or 12
@@ -2207,6 +2211,12 @@ def deploy():
         return jsonify({'error': str(e)}), 500
 
 init_db()  # 無論何種執行方式都先初始化 DB
+
+@app.errorhandler(500)
+def internal_error(e):
+    import traceback
+    tb = traceback.format_exc()
+    return f'<h2>Internal Server Error</h2><pre style="font-size:13px">{tb}</pre>', 500
 
 if __name__ == '__main__':
     import socket
