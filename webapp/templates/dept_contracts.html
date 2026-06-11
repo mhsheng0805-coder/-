@@ -346,12 +346,12 @@ function showContractForm(contract) {
   document.getElementById('cf-client').focus();
   document.getElementById('contract-form').scrollIntoView({behavior:'smooth'});
   // 綁定自動儲存（重複呼叫安全，oninput 直接覆蓋）
+  // 用 addEventListener 而非直接賦值，避免覆蓋現有的 oninput/onchange 處理器
   document.querySelectorAll('#contract-form input:not([type=hidden]):not([type=checkbox]):not([type=radio]), #contract-form select, #contract-form textarea').forEach(el => {
-    el.oninput = scheduleContractAutoSave;
-    if (el.id === 'cf-status') {
-      el.onchange = () => { toggleStatusFields(); scheduleContractAutoSave(); };
-    } else {
-      el.onchange = scheduleContractAutoSave;
+    if (!el._autoSaveBound) {
+      el.addEventListener('input', scheduleContractAutoSave);
+      el.addEventListener('change', scheduleContractAutoSave);
+      el._autoSaveBound = true;
     }
   });
 }
