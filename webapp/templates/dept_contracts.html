@@ -260,7 +260,7 @@ function renderContracts(list) {
   el.innerHTML = `<table>
     <thead><tr>
       <th>客戶/計畫</th><th>主導部門</th><th>組別</th><th>狀態</th>
-      <th>金額</th><th>日期</th>
+      <th>日期</th><th>金額</th>
       <th>跨部門</th><th>付款方式</th><th>延續</th><th>操作</th>
     </tr></thead>
     <tbody>${list.map(c=>{
@@ -291,8 +291,8 @@ function renderContracts(list) {
         <td style="font-size:12px;">${c.lead_dept||''}</td>
         <td style="font-size:12px;">${c.group_name||''}</td>
         <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
-        <td class="text-right">${amtVal || ''}</td>
         <td class="text-center">${dateVal}</td>
+        <td class="text-right">${amtVal || ''}</td>
         <td style="font-size:12px;">${cdStr}</td>
         <td class="text-center" style="font-size:12px;">${payStr}</td>
         <td class="text-center">${(c.carry_next || c.status==='洽談中' || c.status==='預計簽約')?'✅':''}</td>
