@@ -1926,6 +1926,24 @@ def export_excel():
                      download_name=f'{year}年業務收支資料_{datetime.now().strftime("%Y%m%d")}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+DEPLOY_TOKEN = os.environ.get('DEPLOY_TOKEN', '')
+
+@app.route('/deploy', methods=['POST'])
+def deploy():
+    token = request.json.get('token', '') if request.is_json else request.form.get('token', '')
+    if not DEPLOY_TOKEN or token != DEPLOY_TOKEN:
+        return jsonify({'error': 'unauthorized'}), 403
+    import subprocess
+    try:
+        pull = subprocess.run(['git', 'pull'], capture_output=True, text=True,
+                              cwd=os.path.dirname(os.path.abspath(__file__)))
+        wsgi = '/var/www/ttri_pythonanywhere_com_wsgi.py'
+        if os.path.exists(wsgi):
+            import pathlib; pathlib.Path(wsgi).touch()
+        return jsonify({'ok': True, 'output': pull.stdout + pull.stderr})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 init_db()  # 無論何種執行方式都先初始化 DB
 
 if __name__ == '__main__':
