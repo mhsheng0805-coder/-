@@ -85,35 +85,56 @@
             <option value="已簽約">已簽約</option>
           </select>
         </div>
-        <div></div>
-        <div id="status-expected-fields" style="display:none; grid-column:1/-1;">
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div class="form-group">
-              <label>預計簽約金額 (元)</label>
-              <input type="text" id="cf-expected-amount" class="input-num" style="width:100%;" value="0">
-            </div>
-            <div class="form-group">
-              <label>預計簽約日期</label>
-              <input type="date" id="cf-expected-date">
-            </div>
+      </div>
+
+      <!-- 跨部門（移至組別後方） -->
+      <div style="margin:10px 0; padding:12px; background:#e8f5e9; border-radius:6px; border:1px solid #c8e6c9;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer; color:#2e7d32;">
+            <input type="checkbox" id="cf-cross-dept" style="width:auto;" onchange="toggleCrossDept()">
+            跨部門合約
+          </label>
+        </div>
+        <div id="cross-dept-section" style="display:none;">
+          <div style="font-size:13px; color:#555; margin-bottom:8px;">請勾選涉及的部門並填寫各部門金額：</div>
+          <div id="cross-dept-rows" style="display:grid; grid-template-columns:1fr; gap:8px;">
+            <!-- 動態產生 -->
           </div>
         </div>
-        <div id="status-signed-fields" style="display:none; grid-column:1/-1;">
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div class="form-group">
-              <label>簽約金額 (元)</label>
-              <input type="text" id="cf-amount" class="input-num" style="width:100%;" value="0">
-            </div>
-            <div class="form-group">
-              <label>簽約日期</label>
-              <input type="date" id="cf-sign-date">
-            </div>
+      </div>
+
+      <!-- 依狀態顯示的欄位 -->
+      <div id="status-expected-fields" style="display:none;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label>預計簽約金額 (元)</label>
+            <input type="text" id="cf-expected-amount" class="input-num" style="width:100%;"
+                   oninput="fmtOnInput(this)" value="">
+          </div>
+          <div class="form-group">
+            <label>預計簽約日期</label>
+            <input type="date" id="cf-expected-date">
           </div>
         </div>
-        <div class="form-group" style="grid-column:1/-1;">
-          <label>備註</label>
-          <textarea id="cf-note" rows="2"></textarea>
+      </div>
+      <div id="status-signed-fields" style="display:none;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label>簽約金額 (元)</label>
+            <input type="text" id="cf-amount" class="input-num" style="width:100%;"
+                   oninput="fmtOnInput(this)" value="">
+          </div>
+          <div class="form-group">
+            <label>簽約日期</label>
+            <input type="date" id="cf-sign-date">
+          </div>
         </div>
+      </div>
+
+      <!-- 備註 -->
+      <div class="form-group" style="margin-top:8px;">
+        <label>備註</label>
+        <textarea id="cf-note" rows="2"></textarea>
       </div>
 
       <!-- 延續下月 -->
@@ -150,22 +171,6 @@
         </div>
       </div>
 
-      <!-- 跨部門 -->
-      <div style="margin:10px 0; padding:12px; background:#e8f5e9; border-radius:6px; border:1px solid #c8e6c9;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-          <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer; color:#2e7d32;">
-            <input type="checkbox" id="cf-cross-dept" style="width:auto;" onchange="toggleCrossDept()">
-            跨部門合約
-          </label>
-        </div>
-        <div id="cross-dept-section" style="display:none;">
-          <div style="font-size:13px; color:#555; margin-bottom:8px;">請勾選涉及的部門並填寫各部門金額：</div>
-          <div id="cross-dept-rows" style="display:grid; grid-template-columns:1fr; gap:8px;">
-            <!-- 動態產生 -->
-          </div>
-        </div>
-      </div>
-
       <div style="display:flex; gap:8px; margin-top:14px; align-items:center;">
         <button class="btn btn-primary" onclick="saveContract()">💾 儲存</button>
         <button class="btn btn-sm" style="background:#ccc; color:#333;" onclick="hideContractForm()">取消</button>
@@ -188,6 +193,12 @@
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
 const ALL_DEPTS = {{ departments | tojson }};
+
+function fmtOnInput(inp) {
+  const raw = parseFmt(inp.value);
+  if (raw > 0) inp.value = raw.toLocaleString('zh-TW');
+  else inp.value = '';
+}
 
 const statusColors = {
   '洽談中':'badge-yellow','預計簽約':'badge-blue','已簽約':'badge-green',
@@ -287,9 +298,9 @@ function showContractForm(contract) {
   document.getElementById('cf-client').value = contract?.client || '';
   document.getElementById('cf-project').value = contract?.project_name || '';
   document.getElementById('cf-group').value = contract?.group_name || '';
-  document.getElementById('cf-amount').value = fmt(contract?.amount || 0);
+  document.getElementById('cf-amount').value = contract?.amount > 0 ? fmt(contract.amount) : '';
   document.getElementById('cf-sign-date').value = contract?.sign_date || '';
-  document.getElementById('cf-expected-amount').value = fmt(contract?.expected_amount || 0);
+  document.getElementById('cf-expected-amount').value = contract?.expected_amount > 0 ? fmt(contract.expected_amount) : '';
   document.getElementById('cf-expected-date').value = contract?.expected_date || '';
   document.getElementById('cf-status').value = contract?.status || '洽談中';
   toggleStatusFields();

@@ -26,7 +26,7 @@
          {% else %}background:#e8f0fb; color:#1f4e79;{% endif %}">{{ m }}月</a>
       {% endfor %}
     </div>
-    <!-- 填報項目：收支 / 合約 -->
+    <!-- 填報項目：收支 / 合約 / 目標 -->
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px solid #eee;">
       <span style="font-size:13px; color:#555; font-weight:bold;">填報項目：</span>
       <a href="/dept/{{ dept }}?month={{ month }}"
@@ -35,6 +35,9 @@
       <a href="/dept/{{ dept }}/contracts?month={{ month }}"
          style="display:inline-block; padding:7px 22px; border-radius:20px; font-size:14px; font-weight:bold; text-decoration:none;
                 background:#f0e8ff; color:#7b3fa0; border:2px solid #d9c2f0;">合約</a>
+      <a href="javascript:void(0)" onclick="openGoalsModal()"
+         style="display:inline-block; padding:7px 22px; border-radius:20px; font-size:14px; font-weight:bold; text-decoration:none;
+                background:#fff3cd; color:#856404; border:2px solid #ffc107;">🎯 年度目標</a>
     </div>
   </div>
 </div>
