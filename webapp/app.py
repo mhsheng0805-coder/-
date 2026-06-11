@@ -1348,6 +1348,86 @@ def api_summary_data():
         data.setdefault(r['dept'], {}).setdefault(r['month'], {})['unclaim'] = r['total']
     return jsonify(data)
 
+@app.route('/api/full_report')
+@login_required
+def api_full_report():
+    year = request.args.get('year', type=int) or get_current_year()
+    thru = request.args.get('thru_month', type=int) or 12
+    con = get_db()
+    ph = '%s' if is_pg else '?'
+
+    goals_rows = con.execute(
+        f'SELECT item, SUM(goal) as total FROM annual_goals WHERE year={ph} GROUP BY item', (year,)
+    ).fetchall()
+    goals = {r['item']: (r['total'] or 0) for r in goals_rows}
+
+    rev_rows = con.execute(
+        f'SELECT item, month, SUM(amount) as amt, SUM(expected_amount) as exp '
+        f'FROM revenue WHERE year={ph} GROUP BY item, month', (year,)
+    ).fetchall()
+    rev_by_item_month = {}
+    for r in rev_rows:
+        rev_by_item_month.setdefault(r['item'], {})[r['month']] = {
+            'amt': r['amt'] or 0, 'exp': r['exp'] or 0
+        }
+
+    UNCL_MAP = {'業務費(未核銷)':'業務費','旅運費(未核銷)':'旅運費',
+                '材料費(未核銷)':'材料費','維護費(未核銷)':'維護費'}
+    ucl_rows = con.execute(
+        f'SELECT item, month, SUM(amount) as amt FROM unclaimed WHERE year={ph} GROUP BY item, month', (year,)
+    ).fetchall()
+    ucl_by_exp_month = {}
+    for r in ucl_rows:
+        exp_item = UNCL_MAP.get(r['item'])
+        if exp_item:
+            ucl_by_exp_month.setdefault(exp_item, {})[r['month']] = \
+                ucl_by_exp_month.get(exp_item, {}).get(r['month'], 0) + (r['amt'] or 0)
+    con.close()
+
+    INCOME_LABELS = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'}
+
+    def ytd(item_map, m):
+        return sum((item_map.get(mm, {}).get('amt', 0) for mm in range(1, m+1)), 0)
+    def ytd_exp(item_map, m):
+        return sum((item_map.get(mm, {}).get('exp', 0) for mm in range(1, m+1)), 0)
+    def ytd_ucl(ucl_map, m):
+        return sum((ucl_map.get(mm, 0) for mm in range(1, m+1)), 0)
+
+    income = []
+    for item in INCOME_ITEMS:
+        im = rev_by_item_month.get(item, {})
+        g = goals.get(item, 0)
+        signed = ytd(im, thru)
+        expected = ytd_exp(im, thru)
+        monthly = {m: im.get(m, {}).get('amt', 0) for m in range(1,13)}
+        monthly_exp = {m: im.get(m, {}).get('exp', 0) for m in range(1,13)}
+        income.append({
+            'item': item, 'label': INCOME_LABELS.get(item, item),
+            'goal': g, 'signed': signed, 'expected': expected,
+            'subtotal': signed + expected, 'diff': (signed + expected) - g,
+            'monthly': monthly, 'monthly_exp': monthly_exp,
+            'is_total': item == INCOME_TOTAL_ITEM
+        })
+
+    expense = []
+    for item in EXPENSE_ITEMS:
+        im = rev_by_item_month.get(item, {})
+        um = ucl_by_exp_month.get(item, {})
+        g = goals.get(item, 0)
+        actual = ytd(im, thru)
+        unclaimed = ytd_ucl(um, thru)
+        monthly = {m: im.get(m, {}).get('amt', 0) for m in range(1,13)}
+        monthly_ucl = {m: um.get(m, 0) for m in range(1,13)}
+        expense.append({
+            'item': item, 'goal': g, 'actual': actual, 'unclaimed': unclaimed,
+            'subtotal': actual + unclaimed, 'diff': (actual + unclaimed) - g,
+            'monthly': monthly, 'monthly_unclaimed': monthly_ucl,
+            'is_total': item == '其他民間收入支出'
+        })
+
+    return jsonify({'income': income, 'expense': expense,
+                    'year': year, 'thru_month': thru})
+
 @app.template_filter('enumerate')
 def enumerate_filter(iterable, start=0):
     return list(enumerate(iterable, start))
