@@ -458,6 +458,16 @@ function openGoalsModal() {
     // Y值目標
     const yv = goals['財務貢獻(Y值)'] || 0;
     document.getElementById('gm-y-input').value = fmtGoal(yv);
+    // Enter 跳下一行
+    const gmInputs = Array.from(document.querySelectorAll('.gm-input:not([readonly]), #gm-y-input'));
+    gmInputs.forEach((inp, idx) => {
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (idx < gmInputs.length - 1) gmInputs[idx + 1].focus();
+        }
+      });
+    });
   });
   document.getElementById('goals-modal').style.display = 'block';
 }
