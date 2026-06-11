@@ -491,7 +491,7 @@ function openGoalsModal() {
       const label = ITEM_LABELS[item] || item;
       const inputAttrs = isTot
         ? `readonly style="background:#f0f8ff;width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`
-        : `oninput="${onInput || 'fmtOnInput(this)'}" style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`;
+        : `oninput="${onInput || 'fmtOnInput(this)'}" onblur="fmtOnBlur(this)" style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`;
       return `<tr style="background:${isTot?'#d4edda':'#fff'}">
         <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px;${isTot?' font-weight:bold;':''}">${label}</td>
         <td style="padding:4px 8px; border:1px solid #ddd;">
@@ -554,8 +554,20 @@ function gmCalcY() {
 }
 
 function fmtOnInput(inp) {
+  // 輸入中只移除逗號，不重新格式化（避免游標跳位造成數字重複）
+  const pos = inp.selectionStart;
+  const before = inp.value;
+  if (before === '-') return;
+  const stripped = before.replace(/,/g, '');
+  if (stripped !== before) {
+    const removed = before.slice(0, pos).replace(/,/g, '').length;
+    inp.value = stripped;
+    inp.setSelectionRange(removed, removed);
+  }
+}
+function fmtOnBlur(inp) {
   const s = inp.value;
-  if (s === '-') return; // 允許輸入負號過程中不清空
+  if (s === '-') return;
   const raw = parseFmt(s);
   if (raw !== 0) inp.value = Math.round(raw).toLocaleString('zh-TW');
   else inp.value = '';
@@ -784,6 +796,7 @@ function loadAuditLog() {
 const _editableSelector = '.income-amt:not([readonly]),.income-exp:not([readonly]),.expense-amt:not([readonly]),.unclaim-amt';
 document.querySelectorAll(_editableSelector).forEach(inp=>{
   inp.addEventListener('input', ()=>{ if (!_locked) scheduleAutoSave(); });
+  inp.addEventListener('blur', ()=>{ fmtOnBlur(inp); });
   inp.addEventListener('keydown', e=>{
     if (e.key === 'Enter') {
       e.preventDefault();
