@@ -327,13 +327,14 @@ function calcAll() {
   document.querySelectorAll('.expense-amt').forEach(inp => {
     if (inp.dataset.item === EXPENSE_TOTAL_ITEM) return;
     const claimed = parseFmt(inp.value);
-    totalClaimed += claimed;
+    const sign = inp.dataset.item === '轉回專案設備使用費' ? -1 : 1;
+    totalClaimed += sign * claimed;
     const ucItem = UNCLAIM_MAP[inp.dataset.item];
     const ucInp = ucItem ? document.querySelector(`.unclaim-amt[data-item="${ucItem}"]`) : null;
     const ucAmt = ucInp ? parseFmt(ucInp.value) : 0;
     const sub = document.querySelector(`.exp-sub[data-item="${inp.dataset.item}"]`);
-    const subVal = claimed + ucAmt;
-    if (sub) sub.textContent = subVal > 0 ? fmt(subVal) : '—';
+    const subVal = sign * (claimed + ucAmt);
+    if (sub) sub.textContent = subVal !== 0 ? fmt(subVal) : '—';
   });
   document.querySelectorAll('.unclaim-amt').forEach(inp => {
     totalUnclaim += parseFmt(inp.value);
@@ -373,10 +374,9 @@ function calcAll() {
   netEl.style.color = net >= 0 ? '#155724' : '#721c24';
 
   // 財務貢獻 Y值
-  const 轉回 = parseFmt(document.querySelector('.expense-amt[data-item="轉回專案設備使用費"]')?.value || 0);
   const serviceIncome = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入']
     .reduce((s, i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value || 0), 0);
-  const bizSurplus = incTotal - expTotal + 轉回;       // 業務餘絀
+  const bizSurplus = incTotal - expTotal;               // 業務餘絀（expTotal已含轉回負值）
   const mgmtFee    = serviceIncome * 0.115;             // 管理費
   const yVal       = bizSurplus - mgmtFee;              // Y值
 
