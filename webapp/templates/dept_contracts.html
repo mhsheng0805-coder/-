@@ -83,16 +83,16 @@
           </select>
         </div>
         <div class="form-group">
+          <label>組別</label>
+          <input type="text" id="cf-group" placeholder="例：第一組、研發組…">
+        </div>
+        <div class="form-group">
           <label>狀態</label>
           <select id="cf-status" onchange="toggleStatusFields()">
             <option value="洽談中">洽談中</option>
             <option value="預計簽約">預計簽約</option>
             <option value="已簽約">已簽約</option>
           </select>
-        </div>
-        <div class="form-group">
-          <label>組別</label>
-          <input type="text" id="cf-group" placeholder="例：第一組、研發組…">
         </div>
       </div>
 
@@ -263,18 +263,18 @@ function renderContracts(list) {
           return `${d}（${detail}）`;
         }).filter(Boolean).join('<br>') || '✓' : '';
       // 依狀態顯示對應的金額／日期
-      let amtLabel = '', amtVal = '', dateVal = '';
+      let amtVal = '', dateVal = '';
       if (c.status === '預計簽約') {
-        amtLabel = '預計：'; amtVal = fmt(c.expected_amount || 0); dateVal = c.expected_date || '';
+        amtVal = fmt(c.expected_amount || 0); dateVal = c.expected_date || '';
       } else if (c.status === '已簽約') {
-        amtLabel = ''; amtVal = fmt(c.amount || 0); dateVal = c.sign_date || '';
+        amtVal = fmt(c.amount || 0); dateVal = c.sign_date || '';
       }
       return `<tr>
         <td>${c.client||''}${c.project_name ? `<br><span style="font-size:11px;color:#888;">${c.project_name}</span>` : ''}</td>
         <td style="font-size:12px;">${c.group_name||''}</td>
         <td style="font-size:12px;">${c.lead_dept||''}</td>
         <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
-        <td class="text-right">${amtVal ? amtLabel + amtVal : ''}</td>
+        <td class="text-right">${amtVal || ''}</td>
         <td class="text-center">${dateVal}</td>
         <td style="font-size:12px;">${cdStr}</td>
         <td class="text-center" style="font-size:12px;">${payStr}</td>
