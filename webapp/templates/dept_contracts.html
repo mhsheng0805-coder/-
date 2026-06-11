@@ -108,7 +108,7 @@
           <div class="form-group">
             <label>預計簽約金額 (元)</label>
             <input type="text" id="cf-expected-amount" class="input-num" style="width:100%;"
-                   oninput="fmtOnInput(this)" onblur="fmtOnInput(this)" autocomplete="off" value="">
+                   oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)" autocomplete="off" value="">
           </div>
         </div>
       </div>
@@ -121,7 +121,7 @@
           <div class="form-group">
             <label>簽約金額 (元)</label>
             <input type="text" id="cf-amount" class="input-num" style="width:100%;"
-                   oninput="fmtOnInput(this)" onblur="fmtOnInput(this)" autocomplete="off" value="">
+                   oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)" autocomplete="off" value="">
           </div>
         </div>
       </div>
@@ -208,8 +208,19 @@ const ALL_DEPTS = {{ departments | tojson }};
 let _iTimer;
 
 function fmtOnInput(inp) {
+  // 輸入中只移除逗號，不重新格式化（避免游標跳位造成數字重複）
+  const pos = inp.selectionStart;
+  const before = inp.value;
+  const stripped = before.replace(/,/g, '');
+  if (stripped !== before) {
+    const removed = before.slice(0, pos).replace(/,/g, '').length;
+    inp.value = stripped;
+    inp.setSelectionRange(removed, removed);
+  }
+}
+function fmtOnBlur(inp) {
   const s = inp.value;
-  if (s === '-') return; // 允許輸入負號過程中不清空
+  if (s === '-') return;
   const raw = parseFmt(s);
   if (raw !== 0) inp.value = Math.round(raw).toLocaleString('zh-TW');
   else inp.value = '';
@@ -336,7 +347,7 @@ function renderCarryForward(list) {
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">簽約金額 (元)</label>
             <input type="text" class="input-num" id="cu-sign-amt-${idx}" value="${refAmt}"
-                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnInput(this)">
+                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)">
           </div>
         </div>
       </div>
@@ -350,7 +361,7 @@ function renderCarryForward(list) {
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">預計簽約金額 (元)</label>
             <input type="text" class="input-num" id="cu-exp-amt-${idx}" value="${refAmt}"
-                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnInput(this)">
+                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)">
           </div>
         </div>
       </div>
@@ -364,7 +375,7 @@ function renderCarryForward(list) {
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">簽約金額 (元)</label>
             <input type="text" class="input-num" id="cu-signing-amt-${idx}" value="${refAmt}"
-                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnInput(this)">
+                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)">
           </div>
         </div>
       </div>
@@ -510,7 +521,7 @@ function buildInstallmentRows(existing) {
              value="${yr}" style="width:90px; font-size:13px;">
       <input type="text" class="install-amount input-num" placeholder="金額"
              value="${am > 0 ? fmt(am) : ''}"
-             oninput="fmtOnInput(this)" onblur="fmtOnInput(this)"
+             oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)"
              style="flex:1; font-size:13px;">`;
     container.appendChild(row);
   }
@@ -571,7 +582,7 @@ function addCdYearRow(dept, year, amount) {
       <span style="font-size:12px; color:#555; white-space:nowrap;">金額</span>
       <input type="text" class="cd-amount input-num" placeholder="0"
         value="${amount > 0 ? fmt(amount) : ''}"
-        oninput="fmtOnInput(this)" onblur="fmtOnInput(this)"
+        oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)"
         style="flex:1; font-size:13px;">
       <button type="button" class="btn btn-sm" style="background:#dc3545;color:white;"
         onclick="this.parentElement.remove()">✕</button>`;
