@@ -245,7 +245,7 @@ function renderContracts(list) {
     <thead><tr>
       <th>客戶/計畫</th><th>組別</th><th>主導部門</th><th>狀態</th>
       <th>金額</th><th>日期</th>
-      <th>金額方式</th><th>跨部門</th><th>延續</th><th>操作</th>
+      <th>跨部門</th><th>付款方式</th><th>延續</th><th>操作</th>
     </tr></thead>
     <tbody>${list.map(c=>{
       const idata = parseJSON(c.installment_data, []);
@@ -274,8 +274,8 @@ function renderContracts(list) {
         <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
         <td class="text-right">${amtVal ? amtLabel + amtVal : ''}</td>
         <td class="text-center">${dateVal}</td>
-        <td class="text-center" style="font-size:12px;">${payStr}</td>
         <td style="font-size:12px;">${cdStr}</td>
+        <td class="text-center" style="font-size:12px;">${payStr}</td>
         <td class="text-center">${c.carry_next?'✅':''}</td>
         <td class="text-center" style="white-space:nowrap;">
           <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
