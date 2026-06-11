@@ -75,12 +75,12 @@
         </div>
         <div class="form-group">
           <label>簽約主導部門</label>
-          <select id="cf-lead-dept">
-            <option value="">（本部門）</option>
+          <input type="text" id="cf-lead-dept" list="lead-dept-list" placeholder="（本部門）" autocomplete="off">
+          <datalist id="lead-dept-list">
             {% for d in departments %}
-            <option value="{{ d }}">{{ d }}</option>
+            <option value="{{ d }}">
             {% endfor %}
-          </select>
+          </datalist>
         </div>
         <div class="form-group">
           <label>組別</label>
