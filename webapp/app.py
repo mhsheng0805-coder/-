@@ -726,6 +726,12 @@ def get_data(dept, month):
         (year, dept, month)
     ).fetchall()
     data = {r['item']: {'amount': r['amount'], 'goal': r['goal']} for r in rows}
+    # 累計 1..month
+    cumul_rows = con.execute(
+        'SELECT item, SUM(amount) as total FROM revenue WHERE year=? AND dept=? AND month<=? GROUP BY item',
+        (year, dept, month)
+    ).fetchall()
+    cumul_data = {r['item']: r['total'] for r in cumul_rows}
     unclaimed = con.execute(
         'SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
@@ -740,7 +746,7 @@ def get_data(dept, month):
         (year, dept, month - 1)
     ).fetchall()] if month > 1 else []
     con.close()
-    return jsonify({'revenue': data, 'unclaimed': unclaim_data,
+    return jsonify({'revenue': data, 'cumul': cumul_data, 'unclaimed': unclaim_data,
                     'contracts': contracts, 'carry_forward': carry_forward})
 
 def _is_locked(con, year, dept, month):

@@ -56,7 +56,8 @@
       <thead><tr>
         <th style="text-align:left;">項目</th>
         <th>年度目標</th>
-        <th>1–{{ month }}月<br>金額 (元)</th>
+        <th>{{ month }}月<br>本月金額</th>
+        <th>1–{{ month }}月<br>累計金額</th>
         <th>達成率</th>
       </tr></thead>
       <tbody>
@@ -71,6 +72,8 @@
           <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
                {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
                value=""></td>
+          <td class="text-right income-cumul" data-item="{{ item }}"
+              style="font-size:13px;{% if item in income_totals %}font-weight:bold;{% endif %}">-</td>
           <td class="text-center income-rate" data-item="{{ item }}">-</td>
         </tr>
         {% endfor %}
@@ -90,7 +93,8 @@
       <thead><tr>
         <th style="text-align:left;">項目</th>
         <th>年度目標</th>
-        <th>已核銷</th><th>已申請<br>未核銷</th><th>小計</th>
+        <th>{{ month }}月<br>已核銷</th><th>已申請<br>未核銷</th><th>本月小計</th>
+        <th>1–{{ month }}月<br>累計</th>
         <th>達成率</th>
       </tr></thead>
       <tbody>
@@ -113,6 +117,8 @@
             <td class="text-right" id="total-unclaim">0</td>
             <td><input type="text" class="input-num expense-amt" data-item="{{ item }}"
                  readonly style="background:#ffe0e0; font-weight:bold;" value=""></td>
+            <td class="text-right expense-cumul" data-item="{{ item }}"
+                style="font-weight:bold;">-</td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% else %}
             <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
@@ -125,6 +131,7 @@
             <td style="text-align:center; color:#ccc;">—</td>
             {% endif %}
             <td class="text-right exp-sub" data-item="{{ item }}">—</td>
+            <td class="text-right expense-cumul" data-item="{{ item }}" style="font-size:13px;">-</td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% endif %}
         </tr>
@@ -298,6 +305,7 @@ const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
 const EXPENSE_ITEMS = {{ expense_items | tojson }};
 let _annualGoals = {};
+let _cumulData = {};
 const UNCLAIM_MAP = {
   '業務費':'業務費(未核銷)',
   '維護費':'維護費(未核銷)',
@@ -345,21 +353,21 @@ function calcAll() {
   if (clEl) clEl.textContent = totalClaimed > 0 ? fmt(totalClaimed) : '0';
   if (ucEl) ucEl.textContent = totalUnclaim > 0 ? fmt(totalUnclaim) : '0';
 
-  // 達成率（收入）
+  // 達成率（收入）— 用累計金額 vs 年度目標
   document.querySelectorAll('.income-rate').forEach(td => {
     const item = td.dataset.item;
-    const amt  = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
-    const goal = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
-    td.textContent = goal > 0 ? (amt/goal*100).toFixed(1)+'%' : '-';
+    const cumul = _cumulData[item] || parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
+    const goal  = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
+    td.textContent = goal > 0 ? (cumul/goal*100).toFixed(1)+'%' : '-';
+    td.style.color = (goal > 0 && cumul >= goal) ? '#155724' : '';
   });
-  // 達成率（支出）
+  // 達成率（支出）— 用累計金額 vs 年度目標
   document.querySelectorAll('.expense-rate').forEach(td => {
     const item = td.dataset.item;
-    const sub  = item === EXPENSE_TOTAL_ITEM ? expTotal :
-      parseFmt(document.querySelector(`.exp-sub[data-item="${item}"]`)?.textContent||0);
-    const goalInp = document.querySelector(`.expense-goal[data-item="${item}"]`);
-    const goalVal = parseFmt(goalInp?.value||0);
-    td.textContent = goalVal > 0 ? (sub/goalVal*100).toFixed(1)+'%' : '-';
+    const cumul = _cumulData[item] || (item === EXPENSE_TOTAL_ITEM ? expTotal :
+      parseFmt(document.querySelector(`.exp-sub[data-item="${item}"]`)?.textContent||0));
+    const goalVal = parseFmt(document.querySelector(`.expense-goal[data-item="${item}"]`)?.value||0);
+    td.textContent = goalVal > 0 ? (cumul/goalVal*100).toFixed(1)+'%' : '-';
   });
 
   // 摘要
@@ -409,12 +417,17 @@ function loadData() {
   ]).then(([data, goals]) => {
     _annualGoals = goals;
     const rev = data.revenue || {};
+    const cumul = data.cumul || {};
     document.querySelectorAll('.income-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
       inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
     });
     document.querySelectorAll('.income-goal').forEach(inp => {
       inp.value = fmtGoal(goals[inp.dataset.item] || 0);
+    });
+    document.querySelectorAll('.income-cumul').forEach(td => {
+      const v = cumul[td.dataset.item] || 0;
+      td.textContent = v > 0 ? fmt(v) : '-';
     });
     document.querySelectorAll('.expense-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
@@ -423,11 +436,16 @@ function loadData() {
     document.querySelectorAll('.expense-goal').forEach(inp => {
       inp.value = fmtGoal(goals[inp.dataset.item] || 0);
     });
+    document.querySelectorAll('.expense-cumul').forEach(td => {
+      const v = cumul[td.dataset.item] || 0;
+      td.textContent = v > 0 ? fmt(v) : '-';
+    });
     const uc = data.unclaimed || {};
     document.querySelectorAll('.unclaim-amt').forEach(inp => {
       const v = uc[inp.dataset.item] || 0;
       inp.value = v > 0 ? fmt(v) : '';
     });
+    _cumulData = cumul;
     calcAll();
   });
 }
