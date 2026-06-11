@@ -290,7 +290,7 @@
           </td>
         </tr></tbody>
       </table>
-      <p style="font-size:11px;color:#888;margin:4px 0 0 2px;">系統自動計算：(其他民間收入＋配合款-產發署＋其他專案-來自民間) － (人事費＋業務費＋維護費＋旅運費＋產發署案配合款＋其他專案-民間＋轉回設備費) － 其他民間收入×11.5%</p>
+      <p style="font-size:11px;color:#888;margin:4px 0 0 2px;">系統自動計算：(其他民間收入＋配合款-產發署＋其他專案-來自民間) － (人事費＋業務費＋維護費＋旅運費＋材料費＋產發署案配合款＋其他專案-民間＋轉回設備費) － 其他民間收入×11.5%</p>
     </div>
 
     <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center;">
@@ -313,7 +313,7 @@ const INCOME_ITEMS = {{ income_items | tojson }};
 const EXPENSE_ITEMS = {{ expense_items | tojson }};
 // Y值計算用的A、B子項目
 const A_ITEMS = ['其他民間收入','配合款-產發署案收入','其他專案-來自民間'];
-const B_ITEMS = ['人事費','業務費','維護費','旅運費',
+const B_ITEMS = ['人事費','業務費','維護費','旅運費','材料費',
                  '產發署案配合款','其他專案-民間','轉回專案設備使用費'];
 const SVC_ITEMS = ['其他民間收入'];
 let _annualGoals = {};
