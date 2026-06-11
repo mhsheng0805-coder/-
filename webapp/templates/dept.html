@@ -175,7 +175,7 @@
       </div>
       <div class="stat-card" style="border-color:#6f42c1;">
         <div class="value" id="net-biz-surplus" style="color:#6f42c1; font-size:16px;">-</div>
-        <div class="label">業務餘絀<span style="font-size:10px;display:block;color:#aaa;">A－B＋轉回設備費</span></div>
+        <div class="label">業務餘絀<span style="font-size:10px;display:block;color:#aaa;">A－B</span></div>
       </div>
       <div class="stat-card" style="border-color:#6f42c1;">
         <div class="value" id="net-mgmt-fee" style="color:#9b59b6; font-size:16px;">-</div>
@@ -290,7 +290,7 @@
           </td>
         </tr></tbody>
       </table>
-      <p style="font-size:11px;color:#888;margin:4px 0 0 2px;">系統自動計算：(A合計－B合計＋轉回設備費) － (試驗＋技術＋訓練＋其他業務)×11.5%</p>
+      <p style="font-size:11px;color:#888;margin:4px 0 0 2px;">系統自動計算：(其他民間收入＋配合款-產發署＋其他專案-來自民間) － (人事費＋業務費＋維護費＋旅運費＋產發署案配合款＋其他專案-民間＋轉回設備費) － 其他民間收入×11.5%</p>
     </div>
 
     <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center;">
@@ -312,9 +312,9 @@ const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
 const EXPENSE_ITEMS = {{ expense_items | tojson }};
 // Y值計算用的A、B子項目
-const A_ITEMS = ['其他民間收入','配合款-產發署案收入','科專衍生收入','能源署衍生收入','其他專案-來自民間'];
-const B_ITEMS = ['人事費','業務費','維護費','旅運費','材料費',
-                 '產發署案配合款','配合款-其他民間','其他專案-民間'];
+const A_ITEMS = ['其他民間收入','配合款-產發署案收入','其他專案-來自民間'];
+const B_ITEMS = ['人事費','業務費','維護費','旅運費',
+                 '產發署案配合款','其他專案-民間','轉回專案設備使用費'];
 const SVC_ITEMS = ['其他民間收入'];
 let _annualGoals = {};
 let _cumulData = {};
@@ -420,9 +420,8 @@ function calcAll() {
   // 財務貢獻 Y值
   const aTotal = A_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value||0), 0);
   const bTotal = B_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.expense-amt[data-item="${i}"]`)?.value||0), 0);
-  const 轉回 = parseFmt(document.querySelector('.expense-amt[data-item="轉回專案設備使用費"]')?.value || 0);
   const serviceIncome = SVC_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value||0), 0);
-  const bizSurplus = aTotal - bTotal + 轉回;            // 業務餘絀
+  const bizSurplus = aTotal - bTotal;                   // 業務餘絀
   const mgmtFee    = serviceIncome * 0.115;             // 管理費
   const yVal       = bizSurplus - mgmtFee;              // Y值
 
@@ -551,9 +550,8 @@ function gmCalcExpense() {
 function gmCalcY() {
   const aTotal = A_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${i}"]`)?.value||0), 0);
   const bTotal = B_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="${i}"]`)?.value||0), 0);
-  const 轉回 = parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="轉回專案設備使用費"]`)?.value||0);
   const svc = SVC_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${i}"]`)?.value||0), 0);
-  const yVal = (aTotal - bTotal + 轉回) - svc * 0.115;
+  const yVal = (aTotal - bTotal) - svc * 0.115;
   const yInp = document.getElementById('gm-y-input');
   if (yInp) yInp.value = Math.round(yVal).toLocaleString('zh-TW');
 }
