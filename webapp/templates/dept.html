@@ -306,6 +306,7 @@
 <script>
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
+const YEAR = {{ year }};
 const INCOME_TOTAL_ITEM = '來自民間收入';
 const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
@@ -450,8 +451,8 @@ function scheduleAutoSave() {
 
 function loadData() {
   Promise.all([
-    fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()),
-    fetch(`/api/annual_goals/${DEPT}`).then(r=>r.json()),
+    fetch(`/api/data/${DEPT}/${MONTH}?year=${YEAR}`).then(r=>r.json()),
+    fetch(`/api/annual_goals/${DEPT}?year=${YEAR}`).then(r=>r.json()),
   ]).then(([data, goals]) => {
     _annualGoals = goals;
     const rev = data.revenue || {};
@@ -487,7 +488,7 @@ function loadData() {
 // ── 年度目標 Modal ─────────────────────────────────────────
 function openGoalsModal() {
   document.getElementById('gm-dept').textContent = DEPT;
-  fetch(`/api/annual_goals/${DEPT}`).then(r=>r.json()).then(goals => {
+  fetch(`/api/annual_goals/${DEPT}?year=${YEAR}`).then(r=>r.json()).then(goals => {
     const ITEM_LABELS = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'};
     const mkRow = (item, isTot, onInput) => {
       const v = goals[item] || 0;
@@ -601,7 +602,7 @@ function saveGoals() {
   fetch('/api/save_annual_goals', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({dept: DEPT, goals})
+    body: JSON.stringify({dept: DEPT, year: YEAR, goals})
   }).then(r=>r.json()).then(() => {
     closeGoalsModal();
     showToast('✅ 年度目標已儲存');

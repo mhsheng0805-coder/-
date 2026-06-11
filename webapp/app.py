@@ -805,7 +805,7 @@ def dept_view(dept):
 def get_data(dept, month):
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
-    year = get_current_year()
+    year = request.args.get('year', type=int) or get_current_year()
     con = get_db()
     rows = con.execute(
         'SELECT item, amount, expected_amount, goal FROM revenue WHERE year=? AND dept=? AND month=?',
@@ -1001,7 +1001,7 @@ def save_revenue():
 def get_annual_goals(dept):
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
-    year = get_current_year()
+    year = request.args.get('year', type=int) or get_current_year()
     con = get_db()
     rows = con.execute('SELECT item, goal FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
     con.close()
@@ -1083,7 +1083,7 @@ def save_annual_goals():
     dept = d.get('dept', '')
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
-    year = get_current_year()
+    year = int(d.get('year') or get_current_year())
     con = get_db()
     for item, goal in d.get('goals', {}).items():
         g = float(goal or 0)
