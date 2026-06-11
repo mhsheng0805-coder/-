@@ -461,9 +461,8 @@ function openGoalsModal() {
       INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM, 'fmtOnInput(this);gmCalcIncome()')).join('');
     document.getElementById('gm-expense-rows').innerHTML =
       EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM, 'fmtOnInput(this);gmCalcExpense()')).join('');
-    // Y值目標
-    const yv = goals['財務貢獻(Y值)'] || 0;
-    document.getElementById('gm-y-input').value = fmtGoal(yv);
+    // Y值目標（自動計算）
+    gmCalcY();
     // Enter 跳下一行
     const gmInputs = Array.from(document.querySelectorAll('.gm-input:not([readonly]), #gm-y-input'));
     gmInputs.forEach((inp, idx) => {
