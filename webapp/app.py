@@ -306,6 +306,9 @@ _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN project_name TEXT DEFAULT ''",
 ]
 
+_OLD_DERIVE_ITEMS = ['衍生支出-研發成果', '衍生支出-研發成果(能專)', '衍生支出-其他', '衍生支出-成果下放']
+_NEW_DERIVE_ITEM = '計畫衍生支出'
+
 def _migrate(cur, is_pg):
     """升級舊版資料表（新增欄位）"""
     new_tables = _MIGRATE_NEW_TABLES_PG if is_pg else _MIGRATE_NEW_TABLES_SQLITE
@@ -315,6 +318,48 @@ def _migrate(cur, is_pg):
             cur.execute(stmt)
         except Exception:
             pass  # 欄位/表已存在時忽略
+
+    # 合併舊4個衍生支出項目為計畫衍生支出
+    ph = '%s' if is_pg else '?'
+    try:
+        if is_pg:
+            cur.execute("""
+                INSERT INTO revenue (year, dept, month, item, amount)
+                SELECT year, dept, month, %s, SUM(amount)
+                FROM revenue WHERE item = ANY(%s)
+                GROUP BY year, dept, month
+                ON CONFLICT (year, dept, month, item) DO UPDATE SET amount = EXCLUDED.amount
+            """, (_NEW_DERIVE_ITEM, _OLD_DERIVE_ITEMS))
+            cur.execute("DELETE FROM revenue WHERE item = ANY(%s)", (_OLD_DERIVE_ITEMS,))
+        else:
+            placeholders = ','.join(['?' for _ in _OLD_DERIVE_ITEMS])
+            cur.execute(f"""
+                INSERT OR REPLACE INTO revenue (year, dept, month, item, amount)
+                SELECT year, dept, month, ?, SUM(amount)
+                FROM revenue WHERE item IN ({placeholders})
+                GROUP BY year, dept, month
+            """, [_NEW_DERIVE_ITEM] + _OLD_DERIVE_ITEMS)
+            cur.execute(f"DELETE FROM revenue WHERE item IN ({placeholders})", _OLD_DERIVE_ITEMS)
+        # 同樣合併 annual_goals
+        if is_pg:
+            cur.execute("""
+                INSERT INTO annual_goals (year, dept, item, goal)
+                SELECT year, dept, %s, SUM(goal)
+                FROM annual_goals WHERE item = ANY(%s)
+                GROUP BY year, dept
+                ON CONFLICT (year, dept, item) DO UPDATE SET goal = EXCLUDED.goal
+            """, (_NEW_DERIVE_ITEM, _OLD_DERIVE_ITEMS))
+            cur.execute("DELETE FROM annual_goals WHERE item = ANY(%s)", (_OLD_DERIVE_ITEMS,))
+        else:
+            cur.execute(f"""
+                INSERT OR REPLACE INTO annual_goals (year, dept, item, goal)
+                SELECT year, dept, ?, SUM(goal)
+                FROM annual_goals WHERE item IN ({placeholders})
+                GROUP BY year, dept
+            """, [_NEW_DERIVE_ITEM] + _OLD_DERIVE_ITEMS)
+            cur.execute(f"DELETE FROM annual_goals WHERE item IN ({placeholders})", _OLD_DERIVE_ITEMS)
+    except Exception:
+        pass
 
 def init_db():
     if IS_PG:
