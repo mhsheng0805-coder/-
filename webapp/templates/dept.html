@@ -71,13 +71,15 @@
         <tr {% if item in income_totals %}style="background:#c6efce; font-weight:bold;"
             {% else %}style="background:#ebf8ee;"{% endif %}>
           <td>{{ item }}</td>
-          <td><input type="text" class="input-num income-goal" data-item="{{ item }}"
+          <td><input type="text" class="input-num income-goal tbl-inp" data-item="{{ item }}"
                readonly style="background:#f0f8ff; color:#1a5276;"
                value=""></td>
-          <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
+          <td><input type="text" class="input-num income-amt tbl-inp" data-item="{{ item }}"
+               oninput="fmtOnInput(this)"
                {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
                value=""></td>
-          <td><input type="text" class="input-num income-exp" data-item="{{ item }}"
+          <td><input type="text" class="input-num income-exp tbl-inp" data-item="{{ item }}"
+               oninput="fmtOnInput(this)"
                {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
                value=""></td>
           <td class="text-right income-forecast" data-item="{{ item }}" style="font-size:13px;">-</td>
