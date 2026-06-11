@@ -203,8 +203,11 @@ function loadYTD() {
   const m = document.getElementById('thru-month-sel').value;
   document.getElementById('ytd-save-status').textContent = '載入中…';
   fetch(`/api/full_report?year=${YEAR}&thru_month=${m}`)
-    .then(r => r.json()).then(renderYTD)
-    .catch(() => { document.getElementById('ytd-save-status').textContent = '載入失敗'; });
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error(t.slice(0,200)); });
+      return r.json();
+    }).then(renderYTD)
+    .catch(e => { document.getElementById('ytd-save-status').textContent = '載入失敗: ' + e.message; console.error(e); });
 }
 
 function fmtN(n) {
