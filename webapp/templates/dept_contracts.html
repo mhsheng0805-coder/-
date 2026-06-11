@@ -296,7 +296,6 @@ function renderCarryForward(list) {
   if (!list.length) { el.innerHTML = '<em style="color:#999;">無延續合約。</em>'; return; }
   el._carryList = list;
 
-  const radioStyle = 'display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;';
   let html = '<div style="display:flex;flex-direction:column;gap:12px;">';
   list.forEach((c, idx) => {
     const refAmt = c.expected_amount > 0 ? fmt(c.expected_amount) : (c.amount > 0 ? fmt(c.amount) : '');
@@ -313,10 +312,13 @@ function renderCarryForward(list) {
         <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
       </div>
 
-      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:6px;">
-        <label style="${radioStyle}"><input type="radio" name="cu${idx}" value="已簽約" onchange="toggleCarryUpdate(${idx})"> 已簽約</label>
-        <label style="${radioStyle}"><input type="radio" name="cu${idx}" value="仍預計簽約" onchange="toggleCarryUpdate(${idx})"> 仍預計簽約</label>
-        <label style="${radioStyle}"><input type="radio" name="cu${idx}" value="停止" onchange="toggleCarryUpdate(${idx})"> 停止</label>
+      <div style="display:flex;gap:24px;align-items:center;flex-wrap:nowrap;margin-bottom:6px;">
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
+          <input type="radio" name="cu${idx}" value="已簽約" onchange="toggleCarryUpdate(${idx})"><span>已簽約</span></label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
+          <input type="radio" name="cu${idx}" value="仍預計簽約" onchange="toggleCarryUpdate(${idx})"><span>仍預計簽約</span></label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
+          <input type="radio" name="cu${idx}" value="停止" onchange="toggleCarryUpdate(${idx})"><span>停止</span></label>
       </div>
 
       <div id="cu-signed-${idx}" style="display:none;margin-top:8px;">
@@ -353,13 +355,13 @@ function renderCarryForward(list) {
           <input type="text" id="cu-stop-reason-${idx}" placeholder="請說明停止原因" autocomplete="off">
         </div>
       </div>
-
-      <div style="margin-top:10px;">
-        <button class="btn btn-primary btn-sm" onclick="saveCarryUpdate(${idx})">儲存更新</button>
-      </div>
     </div>`;
   });
   html += '</div>';
+  // 單一儲存按鈕
+  html += `<div style="margin-top:14px;">
+    <button class="btn btn-primary" onclick="saveAllCarryUpdates()">💾 全部儲存進度更新</button>
+  </div>`;
   el.innerHTML = html;
 }
 
@@ -370,27 +372,37 @@ function toggleCarryUpdate(idx) {
   document.getElementById(`cu-stop-${idx}`).style.display     = val==='停止'      ? 'block' : 'none';
 }
 
-function saveCarryUpdate(idx) {
-  const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
-  if (!val) { showToast('請選擇進度狀態', 'error'); return; }
+function saveAllCarryUpdates() {
   const el = document.getElementById('carry-list');
-  const c = el._carryList[idx];
-  let patch = {};
-  if (val === '已簽約') {
-    patch = { status:'已簽約', sign_date: document.getElementById(`cu-sign-date-${idx}`).value,
-              amount: parseFmt(document.getElementById(`cu-sign-amt-${idx}`).value), carry_next:0 };
-  } else if (val === '仍預計簽約') {
-    patch = { status:'預計簽約', expected_date: document.getElementById(`cu-exp-date-${idx}`).value,
-              expected_amount: parseFmt(document.getElementById(`cu-exp-amt-${idx}`).value), carry_next:1 };
-  } else {
-    patch = { status:'停止', note: document.getElementById(`cu-stop-reason-${idx}`).value, carry_next:0 };
+  const list = el._carryList || [];
+  const updates = [];
+  for (let idx = 0; idx < list.length; idx++) {
+    const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
+    if (!val) continue; // 未選擇的略過
+    const c = list[idx];
+    let patch = {};
+    if (val === '已簽約') {
+      patch = { status:'已簽約', sign_date: document.getElementById(`cu-sign-date-${idx}`).value,
+                amount: parseFmt(document.getElementById(`cu-sign-amt-${idx}`).value), carry_next:0 };
+    } else if (val === '仍預計簽約') {
+      patch = { status:'預計簽約', expected_date: document.getElementById(`cu-exp-date-${idx}`).value,
+                expected_amount: parseFmt(document.getElementById(`cu-exp-amt-${idx}`).value), carry_next:1 };
+    } else {
+      patch = { status:'停止', note: document.getElementById(`cu-stop-reason-${idx}`).value, carry_next:0 };
+    }
+    updates.push({...c, ...patch, dept: c.dept || DEPT});
   }
-  fetch('/api/save_contract', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({...c, ...patch, dept:c.dept||DEPT})
-  }).then(r=>r.json()).then(d=>{
-    if (d.ok) { showToast('進度已更新'); loadData(); }
-    else showToast(d.error||'儲存失敗','error');
+  if (!updates.length) { showToast('請至少為一筆合約選擇進度', 'error'); return; }
+  Promise.all(updates.map(payload =>
+    fetch('/api/save_contract', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    }).then(r => r.json())
+  )).then(results => {
+    const failed = results.filter(d => !d.ok).length;
+    if (failed) showToast(`${updates.length - failed} 筆成功，${failed} 筆失敗`, 'error');
+    else showToast(`已儲存 ${updates.length} 筆進度更新`);
+    loadData();
   });
 }
 
