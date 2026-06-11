@@ -683,9 +683,18 @@ function loadAuditLog() {
   });
 }
 
-// autosave 已鎖定則跳過
-document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp=>{
+// autosave 已鎖定則跳過；Enter 跳下一個可編輯欄位
+const _editableSelector = '.income-amt:not([readonly]),.expense-amt:not([readonly]),.unclaim-amt';
+document.querySelectorAll(_editableSelector).forEach(inp=>{
   inp.addEventListener('input', ()=>{ if (!_locked) scheduleAutoSave(); });
+  inp.addEventListener('keydown', e=>{
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const all = Array.from(document.querySelectorAll(_editableSelector));
+      const idx = all.indexOf(inp);
+      if (idx >= 0 && idx < all.length - 1) all[idx + 1].focus();
+    }
+  });
 });
 
 loadLockStatus();
