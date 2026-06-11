@@ -117,10 +117,15 @@
 
       <!-- 跨部門（移至簽約欄位後方） -->
       <div style="margin:10px 0; padding:12px; background:#e8f5e9; border-radius:6px; border:1px solid #c8e6c9;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-          <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer; color:#2e7d32;">
-            <input type="checkbox" id="cf-cross-dept" style="width:auto;" onchange="toggleCrossDept()">
-            跨部門合約
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:8px;">
+          <span style="font-weight:bold; color:#2e7d32; font-size:13px;">跨部門合約</span>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:13px;">
+            <input type="radio" name="cf-cross-dept-radio" value="0" id="cf-cross-dept-no"
+                   style="width:auto;" checked onchange="toggleCrossDept()"> 無
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:13px;">
+            <input type="radio" name="cf-cross-dept-radio" value="1" id="cf-cross-dept-yes"
+                   style="width:auto;" onchange="toggleCrossDept()"> 有
           </label>
         </div>
         <div id="cross-dept-section" style="display:none;">
@@ -322,7 +327,8 @@ function showContractForm(contract) {
 
   // 跨部門
   const hasCross = !!contract?.cross_dept;
-  document.getElementById('cf-cross-dept').checked = hasCross;
+  document.getElementById('cf-cross-dept-yes').checked = hasCross;
+  document.getElementById('cf-cross-dept-no').checked = !hasCross;
   toggleCrossDept();
   if (hasCross) {
     const cdData = parseJSON(contract?.cross_dept_data, {});
@@ -373,7 +379,7 @@ function buildInstallmentRows(existing) {
 
 // ── 跨部門邏輯 ──────────────────────────────────────────
 function toggleCrossDept() {
-  const has = document.getElementById('cf-cross-dept').checked;
+  const has = document.getElementById('cf-cross-dept-yes').checked;
   document.getElementById('cross-dept-section').style.display = has ? 'block' : 'none';
   if (has) buildCrossDeptRows();
 }
@@ -471,7 +477,7 @@ function saveContract() {
       }))
     : [];
 
-  const hasCross = document.getElementById('cf-cross-dept').checked;
+  const hasCross = document.getElementById('cf-cross-dept-yes').checked;
   const cross_dept_data = hasCross ? collectCrossDeptData() : {};
 
   const payload = {
@@ -525,7 +531,7 @@ function saveContractSilent(onDone) {
         year: parseInt(r.querySelector('.install-year').value) || null,
         amount: parseFmt(r.querySelector('.install-amount').value),
       })) : [];
-  const hasCross = document.getElementById('cf-cross-dept').checked;
+  const hasCross = document.getElementById('cf-cross-dept-yes').checked;
   const cross_dept_data = hasCross ? collectCrossDeptData() : {};
   const payload = {
     id: document.getElementById('cf-id').value || null,
