@@ -39,7 +39,7 @@
 {% if month > 1 %}
 <div class="card">
   <div class="card-header" style="background:linear-gradient(135deg,#5a4a7b,#8a6faa); font-size:14px;">
-    🔄 上月延續（洽談中／執行中）
+    📋 上月合約進度更新
   </div>
   <div class="card-body">
     <div id="carry-list"><em style="color:#999;">載入中...</em></div>
@@ -92,6 +92,7 @@
             <option value="洽談中">洽談中</option>
             <option value="預計簽約">預計簽約</option>
             <option value="已簽約">已簽約</option>
+            <option value="停止">停止</option>
           </select>
         </div>
       </div>
@@ -212,7 +213,7 @@ function fmtOnInput(inp) {
 
 const statusColors = {
   '洽談中':'badge-yellow','預計簽約':'badge-blue','已簽約':'badge-green',
-  // 相容舊資料
+  '停止':'badge-gray',
   '新增簽約':'badge-blue','已簽約執行中':'badge-green','完成':'badge-gray'
 };
 
@@ -293,16 +294,104 @@ function renderCarryForward(list) {
   const el = document.getElementById('carry-list');
   if (!el) return;
   if (!list.length) { el.innerHTML = '<em style="color:#999;">無延續合約。</em>'; return; }
-  el.innerHTML = `<table>
-    <thead><tr><th>客戶/計畫</th><th>合約金額</th><th>簽約日期</th><th>狀態</th><th>備註</th></tr></thead>
-    <tbody>${list.map(c=>`<tr style="background:#f5eeff;">
-      <td>${c.client||''}${c.project_name ? `<br><span style="font-size:11px;color:#888;">${c.project_name}</span>` : ''}</td>
-      <td class="text-right">${fmt(c.amount)}</td>
-      <td class="text-center">${c.sign_date||''}</td>
-      <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
-      <td>${c.note||''}</td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+  el._carryList = list;
+
+  const radioStyle = 'display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:normal;font-size:13px;';
+  let html = '<div style="display:flex;flex-direction:column;gap:12px;">';
+  list.forEach((c, idx) => {
+    const refAmt = c.expected_amount > 0 ? fmt(c.expected_amount) : (c.amount > 0 ? fmt(c.amount) : '');
+    html += `
+    <div style="border:1px solid #d0b0ef;border-radius:6px;padding:12px;background:#f9f5ff;">
+      <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+        <div style="flex:1;min-width:160px;">
+          <strong>${c.client||''}</strong>
+          ${c.project_name?`<br><span style="font-size:11px;color:#888;">${c.project_name}</span>`:''}
+        </div>
+        <div style="font-size:12px;color:#555;white-space:nowrap;">
+          ${c.expected_amount>0?`預計：${fmt(c.expected_amount)}`:(c.amount>0?`金額：${fmt(c.amount)}`:'')}
+        </div>
+        <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
+      </div>
+
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:6px;">
+        <label style="${radioStyle}"><input type="radio" name="cu${idx}" value="已簽約" onchange="toggleCarryUpdate(${idx})"> 已簽約</label>
+        <label style="${radioStyle}"><input type="radio" name="cu${idx}" value="仍預計簽約" onchange="toggleCarryUpdate(${idx})"> 仍預計簽約</label>
+        <label style="${radioStyle}"><input type="radio" name="cu${idx}" value="停止" onchange="toggleCarryUpdate(${idx})"> 停止</label>
+      </div>
+
+      <div id="cu-signed-${idx}" style="display:none;margin-top:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">簽約日期</label>
+            <input type="date" id="cu-sign-date-${idx}">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">簽約金額 (元)</label>
+            <input type="text" class="input-num" id="cu-sign-amt-${idx}" value="${refAmt}"
+                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnInput(this)">
+          </div>
+        </div>
+      </div>
+
+      <div id="cu-expected-${idx}" style="display:none;margin-top:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">更新預計簽約日期</label>
+            <input type="date" id="cu-exp-date-${idx}" value="${c.expected_date||''}">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">預計簽約金額 (元)</label>
+            <input type="text" class="input-num" id="cu-exp-amt-${idx}" value="${refAmt}"
+                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnInput(this)">
+          </div>
+        </div>
+      </div>
+
+      <div id="cu-stop-${idx}" style="display:none;margin-top:8px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:12px;">停止理由</label>
+          <input type="text" id="cu-stop-reason-${idx}" placeholder="請說明停止原因" autocomplete="off">
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <button class="btn btn-primary btn-sm" onclick="saveCarryUpdate(${idx})">儲存更新</button>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function toggleCarryUpdate(idx) {
+  const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
+  document.getElementById(`cu-signed-${idx}`).style.display   = val==='已簽約'    ? 'block' : 'none';
+  document.getElementById(`cu-expected-${idx}`).style.display = val==='仍預計簽約' ? 'block' : 'none';
+  document.getElementById(`cu-stop-${idx}`).style.display     = val==='停止'      ? 'block' : 'none';
+}
+
+function saveCarryUpdate(idx) {
+  const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
+  if (!val) { showToast('請選擇進度狀態', 'error'); return; }
+  const el = document.getElementById('carry-list');
+  const c = el._carryList[idx];
+  let patch = {};
+  if (val === '已簽約') {
+    patch = { status:'已簽約', sign_date: document.getElementById(`cu-sign-date-${idx}`).value,
+              amount: parseFmt(document.getElementById(`cu-sign-amt-${idx}`).value), carry_next:0 };
+  } else if (val === '仍預計簽約') {
+    patch = { status:'預計簽約', expected_date: document.getElementById(`cu-exp-date-${idx}`).value,
+              expected_amount: parseFmt(document.getElementById(`cu-exp-amt-${idx}`).value), carry_next:1 };
+  } else {
+    patch = { status:'停止', note: document.getElementById(`cu-stop-reason-${idx}`).value, carry_next:0 };
+  }
+  fetch('/api/save_contract', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({...c, ...patch, dept:c.dept||DEPT})
+  }).then(r=>r.json()).then(d=>{
+    if (d.ok) { showToast('進度已更新'); loadData(); }
+    else showToast(d.error||'儲存失敗','error');
+  });
 }
 
 function showContractForm(contract) {
