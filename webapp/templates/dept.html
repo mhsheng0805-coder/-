@@ -271,9 +271,8 @@
         <tbody><tr style="background:#f9f0ff;">
           <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px; font-weight:bold;">財務貢獻(Y值）目標</td>
           <td style="padding:4px 8px; border:1px solid #ddd;">
-            <input type="text" id="gm-y-input" class="input-num"
-              oninput="fmtOnInput(this)"
-              style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;" value="">
+            <input type="text" id="gm-y-input" class="input-num" readonly
+              style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;background:#f0f8ff;color:#1a5276;" value="">
           </td>
         </tr></tbody>
       </table>
@@ -327,14 +326,13 @@ function calcAll() {
   document.querySelectorAll('.expense-amt').forEach(inp => {
     if (inp.dataset.item === EXPENSE_TOTAL_ITEM) return;
     const claimed = parseFmt(inp.value);
-    const sign = inp.dataset.item === '轉回專案設備使用費' ? -1 : 1;
-    totalClaimed += sign * claimed;
+    totalClaimed += claimed;
     const ucItem = UNCLAIM_MAP[inp.dataset.item];
     const ucInp = ucItem ? document.querySelector(`.unclaim-amt[data-item="${ucItem}"]`) : null;
     const ucAmt = ucInp ? parseFmt(ucInp.value) : 0;
     const sub = document.querySelector(`.exp-sub[data-item="${inp.dataset.item}"]`);
-    const subVal = sign * (claimed + ucAmt);
-    if (sub) sub.textContent = subVal !== 0 ? fmt(subVal) : '—';
+    const subVal = claimed + ucAmt;
+    if (sub) sub.textContent = subVal > 0 ? fmt(subVal) : '—';
   });
   document.querySelectorAll('.unclaim-amt').forEach(inp => {
     totalUnclaim += parseFmt(inp.value);
@@ -374,9 +372,10 @@ function calcAll() {
   netEl.style.color = net >= 0 ? '#155724' : '#721c24';
 
   // 財務貢獻 Y值
+  const 轉回 = parseFmt(document.querySelector('.expense-amt[data-item="轉回專案設備使用費"]')?.value || 0);
   const serviceIncome = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入']
     .reduce((s, i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value || 0), 0);
-  const bizSurplus = incTotal - expTotal;               // 業務餘絀（expTotal已含轉回負值）
+  const bizSurplus = incTotal - expTotal + 轉回;        // 業務餘絀
   const mgmtFee    = serviceIncome * 0.115;             // 管理費
   const yVal       = bizSurplus - mgmtFee;              // Y值
 
@@ -483,17 +482,29 @@ function gmCalcIncome() {
   });
   const tot = document.querySelector(`#gm-income-rows .gm-input[data-item="${INCOME_TOTAL_ITEM}"]`);
   if (tot) tot.value = total > 0 ? Math.round(total).toLocaleString('zh-TW') : '';
+  gmCalcY();
 }
 
 function gmCalcExpense() {
   let total = 0;
   document.querySelectorAll('#gm-expense-rows .gm-input').forEach(inp => {
     if (inp.dataset.item === EXPENSE_TOTAL_ITEM) return;
-    const v = parseFmt(inp.value);
-    total += inp.dataset.item === '轉回專案設備使用費' ? -v : v;
+    total += parseFmt(inp.value);
   });
   const tot = document.querySelector(`#gm-expense-rows .gm-input[data-item="${EXPENSE_TOTAL_ITEM}"]`);
-  if (tot) tot.value = total !== 0 ? Math.round(total).toLocaleString('zh-TW') : '';
+  if (tot) tot.value = total > 0 ? Math.round(total).toLocaleString('zh-TW') : '';
+  gmCalcY();
+}
+
+function gmCalcY() {
+  const aTotal = parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${INCOME_TOTAL_ITEM}"]`)?.value || 0);
+  const bTotal = parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="${EXPENSE_TOTAL_ITEM}"]`)?.value || 0);
+  const 轉回 = parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="轉回專案設備使用費"]`)?.value || 0);
+  const svc = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入']
+    .reduce((s,i) => s + parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${i}"]`)?.value || 0), 0);
+  const yVal = (aTotal - bTotal + 轉回) - svc * 0.115;
+  const yInp = document.getElementById('gm-y-input');
+  if (yInp) yInp.value = Math.round(yVal).toLocaleString('zh-TW');
 }
 
 function fmtOnInput(inp) {
