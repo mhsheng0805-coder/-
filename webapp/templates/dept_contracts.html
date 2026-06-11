@@ -136,12 +136,6 @@
         </div>
       </div>
 
-      <!-- 備註 -->
-      <div class="form-group" style="margin-top:8px;">
-        <label>備註</label>
-        <textarea id="cf-note" rows="2"></textarea>
-      </div>
-
       <!-- 延續下月 -->
       <div style="margin:10px 0; padding:10px; background:#ede8ff; border-radius:6px;">
         <label style="display:flex; align-items:center; gap:8px; font-weight:bold; cursor:pointer;">
@@ -166,11 +160,11 @@
         <div id="install-section" style="display:none;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
             <label style="white-space:nowrap; font-size:13px;">共分</label>
-            <input type="number" id="cf-installments" min="2" max="20" value="2" style="width:60px;"
-                   onchange="buildInstallmentRows()" oninput="buildInstallmentRows()">
+            <input type="number" id="cf-installments" min="1" max="20" value="2" style="width:60px;"
+                   onchange="buildInstallmentRows()" oninput="clearTimeout(_iTimer);_iTimer=setTimeout(buildInstallmentRows,300)">
             <label style="white-space:nowrap; font-size:13px;">期</label>
           </div>
-          <div id="installment-rows" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div id="installment-rows" style="display:flex; flex-direction:column; gap:6px;">
             <!-- 動態產生 -->
           </div>
         </div>
@@ -198,6 +192,8 @@
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
 const ALL_DEPTS = {{ departments | tojson }};
+
+let _iTimer;
 
 function fmtOnInput(inp) {
   const raw = parseFmt(inp.value);
@@ -309,7 +305,6 @@ function showContractForm(contract) {
   document.getElementById('cf-expected-date').value = contract?.expected_date || '';
   document.getElementById('cf-status').value = contract?.status || '洽談中';
   toggleStatusFields();
-  document.getElementById('cf-note').value = contract?.note || '';
   document.getElementById('cf-carry').checked = !!contract?.carry_next;
 
   // 金額方式
@@ -491,7 +486,7 @@ function saveContract() {
     expected_amount: parseFmt(document.getElementById('cf-expected-amount').value),
     expected_date: document.getElementById('cf-expected-date').value,
     status: document.getElementById('cf-status').value,
-    note: document.getElementById('cf-note').value,
+    note: '',
     carry_next: document.getElementById('cf-carry').checked ? 1 : 0,
     payment_type: ptype,
     installments: ptype === '分期' ? installments : 1,
@@ -543,7 +538,7 @@ function saveContractSilent(onDone) {
     expected_amount: parseFmt(document.getElementById('cf-expected-amount').value),
     expected_date: document.getElementById('cf-expected-date').value,
     status: document.getElementById('cf-status').value,
-    note: document.getElementById('cf-note').value,
+    note: '',
     carry_next: document.getElementById('cf-carry').checked ? 1 : 0,
     payment_type: ptype,
     installments: ptype === '分期' ? installments : 1,
