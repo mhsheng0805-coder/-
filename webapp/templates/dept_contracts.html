@@ -251,7 +251,9 @@ function renderContracts(list) {
       const idata = parseJSON(c.installment_data, []);
       const cdData = parseJSON(c.cross_dept_data, {});
       const payStr = c.payment_type === '分期'
-        ? `分期(${c.installments}期)` : '當年';
+        ? `分期(${c.installments}期)<br>` + idata.filter(e=>e.amount>0).map((e,i)=>
+            `第${i+1}期${e.year?` ${e.year}年`:''}：${fmt(e.amount)}`).join('<br>')
+        : '當年一次性';
       const cdStr = c.cross_dept ? Object.entries(cdData).map(([d, entries]) => {
           let arr = entries;
           if (typeof arr === 'number') arr = arr > 0 ? [{year:null, amount:arr}] : [];
