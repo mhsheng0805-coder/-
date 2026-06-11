@@ -1400,7 +1400,7 @@ def api_full_report():
     year = request.args.get('year', type=int) or get_current_year()
     thru = request.args.get('thru_month', type=int) or 12
     con = get_db()
-    ph = '%s' if is_pg else '?'
+    ph = '%s' if IS_PG else '?'
 
     goals_rows = con.execute(
         f'SELECT item, SUM(goal) as total FROM annual_goals WHERE year={ph} GROUP BY item', (year,)
@@ -1723,7 +1723,7 @@ def export_pptx():
 
     year = request.args.get('year', type=int) or get_current_year()
     thru = request.args.get('thru_month', type=int) or 12
-    ph = '%s' if is_pg else '?'
+    ph = '%s' if IS_PG else '?'
     con = get_db()
 
     # YTD 收入/支出資料
