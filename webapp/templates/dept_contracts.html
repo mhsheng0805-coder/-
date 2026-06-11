@@ -348,7 +348,11 @@ function showContractForm(contract) {
   // 綁定自動儲存（重複呼叫安全，oninput 直接覆蓋）
   document.querySelectorAll('#contract-form input:not([type=hidden]):not([type=checkbox]):not([type=radio]), #contract-form select, #contract-form textarea').forEach(el => {
     el.oninput = scheduleContractAutoSave;
-    el.onchange = scheduleContractAutoSave;
+    if (el.id === 'cf-status') {
+      el.onchange = () => { toggleStatusFields(); scheduleContractAutoSave(); };
+    } else {
+      el.onchange = scheduleContractAutoSave;
+    }
   });
 }
 function hideContractForm() { document.getElementById('contract-form').style.display = 'none'; }
