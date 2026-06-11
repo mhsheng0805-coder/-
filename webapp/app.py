@@ -1357,7 +1357,7 @@ def api_overview():
         expense  = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='其他民間收入支出'", (year, dept)).fetchone()[0]
         unclaim  = con.execute("SELECT COALESCE(SUM(amount),0) FROM unclaimed WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
         contracts= con.execute("SELECT COUNT(*) FROM contracts WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
-        result.append({'dept': dept, 'income': income, 'expense': expense,
+        result.append({'dept': dept, 'income': income, 'expense': expense + unclaim,
                        'unclaim': unclaim, 'contracts': contracts})
     con.close()
     return jsonify({'depts': result})
