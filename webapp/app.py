@@ -1318,7 +1318,7 @@ def api_overview():
 @app.route('/api/summary_data')
 @login_required
 def api_summary_data():
-    year = get_current_year()
+    year = request.args.get('year', type=int) or get_current_year()
     con = get_db()
     rows = con.execute(
         "SELECT dept, month, item, amount FROM revenue WHERE year=? AND item IN ('來自民間收入','其他民間收入支出')",

@@ -77,6 +77,7 @@
 <script>
 const MONTHS = {{ months|list|tojson }};
 const DEPTS  = {{ departments|tojson }};
+const YEAR = {{ year }};
 const year_text = '{{ year }}年';
 const DEPT_COLORS = ['#2e75b6','#28a745','#e67e22','#c0392b','#8e44ad','#16a085'];
 
@@ -96,7 +97,7 @@ let _sbChart = null;
 let _summaryData = {};
 let _currentSB = 'rate';
 
-fetch('/api/summary_data').then(r=>r.json()).then(data => {
+fetch(`/api/summary_data?year=${YEAR}`).then(r=>r.json()).then(data => {
   _summaryData = data || {};
   showSummaryChart('rate');
 }).catch(()=>{

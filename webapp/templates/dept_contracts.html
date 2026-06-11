@@ -201,6 +201,7 @@
 <script>
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
+const YEAR = {{ year }};
 const ALL_DEPTS = {{ departments | tojson }};
 
 let _iTimer;
@@ -229,7 +230,7 @@ function toggleStatusFields() {
 }
 
 function loadData() {
-  fetch(`/api/data/${DEPT}/${MONTH}`).then(r=>r.json()).then(data => {
+  fetch(`/api/data/${DEPT}/${MONTH}?year=${YEAR}`).then(r=>r.json()).then(data => {
     renderContracts(data.contracts || []);
     renderCarryForward(data.carry_forward || []);
   });
