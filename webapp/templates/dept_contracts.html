@@ -322,6 +322,8 @@ function renderCarryForward(list) {
         <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
           <input type="radio" name="cu${idx}" value="仍預計簽約" onchange="toggleCarryUpdate(${idx})"><span>仍預計簽約</span></label>
         <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
+          <input type="radio" name="cu${idx}" value="仍簽約中/用印中" onchange="toggleCarryUpdate(${idx})"><span>仍簽約中/用印中</span></label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
           <input type="radio" name="cu${idx}" value="停止" onchange="toggleCarryUpdate(${idx})"><span>停止</span></label>
       </div>
 
@@ -353,6 +355,20 @@ function renderCarryForward(list) {
         </div>
       </div>
 
+      <div id="cu-signing-${idx}" style="display:none;margin-top:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">簽約日期</label>
+            <input type="date" id="cu-signing-date-${idx}">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">簽約金額 (元)</label>
+            <input type="text" class="input-num" id="cu-signing-amt-${idx}" value="${refAmt}"
+                   autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnInput(this)">
+          </div>
+        </div>
+      </div>
+
       <div id="cu-stop-${idx}" style="display:none;margin-top:8px;">
         <div class="form-group" style="margin-bottom:0;">
           <label style="font-size:12px;">停止理由</label>
@@ -371,9 +387,10 @@ function renderCarryForward(list) {
 
 function toggleCarryUpdate(idx) {
   const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
-  document.getElementById(`cu-signed-${idx}`).style.display   = val==='已簽約'    ? 'block' : 'none';
-  document.getElementById(`cu-expected-${idx}`).style.display = val==='仍預計簽約' ? 'block' : 'none';
-  document.getElementById(`cu-stop-${idx}`).style.display     = val==='停止'      ? 'block' : 'none';
+  document.getElementById(`cu-signed-${idx}`).style.display   = val==='已簽約'           ? 'block' : 'none';
+  document.getElementById(`cu-expected-${idx}`).style.display = val==='仍預計簽約'        ? 'block' : 'none';
+  document.getElementById(`cu-signing-${idx}`).style.display  = val==='仍簽約中/用印中'  ? 'block' : 'none';
+  document.getElementById(`cu-stop-${idx}`).style.display     = val==='停止'             ? 'block' : 'none';
 }
 
 function saveAllCarryUpdates() {
@@ -391,6 +408,9 @@ function saveAllCarryUpdates() {
     } else if (val === '仍預計簽約') {
       patch = { status:'預計簽約', expected_date: document.getElementById(`cu-exp-date-${idx}`).value,
                 expected_amount: parseFmt(document.getElementById(`cu-exp-amt-${idx}`).value), carry_next:1 };
+    } else if (val === '仍簽約中/用印中') {
+      patch = { status:'簽約中/用印中', sign_date: document.getElementById(`cu-signing-date-${idx}`).value,
+                amount: parseFmt(document.getElementById(`cu-signing-amt-${idx}`).value), carry_next:1 };
     } else {
       patch = { status:'停止', note: document.getElementById(`cu-stop-reason-${idx}`).value, carry_next:0 };
     }
