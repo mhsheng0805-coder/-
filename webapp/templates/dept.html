@@ -67,10 +67,11 @@
       </tr></thead>
       <tbody>
         {% set income_totals = ['來自民間收入'] %}
+        {% set income_labels = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'} %}
         {% for item in income_items %}
         <tr {% if item in income_totals %}style="background:#c6efce; font-weight:bold;"
             {% else %}style="background:#ebf8ee;"{% endif %}>
-          <td>{{ item }}</td>
+          <td>{{ income_labels.get(item, item) }}</td>
           <td><input type="text" class="input-num income-goal tbl-inp" data-item="{{ item }}"
                readonly style="background:#f0f8ff; color:#1a5276;"
                value=""></td>
@@ -487,13 +488,15 @@ function loadData() {
 function openGoalsModal() {
   document.getElementById('gm-dept').textContent = DEPT;
   fetch(`/api/annual_goals/${DEPT}`).then(r=>r.json()).then(goals => {
+    const ITEM_LABELS = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'};
     const mkRow = (item, isTot, onInput) => {
       const v = goals[item] || 0;
+      const label = ITEM_LABELS[item] || item;
       const inputAttrs = isTot
         ? `readonly style="background:#f0f8ff;width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`
         : `oninput="${onInput || 'fmtOnInput(this)'}" style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`;
       return `<tr style="background:${isTot?'#d4edda':'#fff'}">
-        <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px;${isTot?' font-weight:bold;':''}">${item}</td>
+        <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px;${isTot?' font-weight:bold;':''}">${label}</td>
         <td style="padding:4px 8px; border:1px solid #ddd;">
           <input type="text" class="gm-input" data-item="${item}" value="${fmtGoal(v)}" ${inputAttrs}>
         </td>
