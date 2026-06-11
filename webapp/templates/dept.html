@@ -160,7 +160,15 @@
         <div class="label">收支差額（收入－支出小計）</div>
       </div>
       <div class="stat-card" style="border-color:#6f42c1;">
-        <div class="value" id="net-y-val" style="color:#6f42c1;">-</div>
+        <div class="value" id="net-biz-surplus" style="color:#6f42c1; font-size:16px;">-</div>
+        <div class="label">業務餘絀<span style="font-size:10px;display:block;color:#aaa;">A－B＋轉回設備費</span></div>
+      </div>
+      <div class="stat-card" style="border-color:#6f42c1;">
+        <div class="value" id="net-mgmt-fee" style="color:#9b59b6; font-size:16px;">-</div>
+        <div class="label">管理費<span style="font-size:10px;display:block;color:#aaa;">服務收入×11.5%</span></div>
+      </div>
+      <div class="stat-card" style="border-color:#4a235a;">
+        <div class="value" id="net-y-val" style="color:#4a235a;">-</div>
         <div class="label">財務貢獻(Y值）
           <span id="net-y-rate" style="font-size:11px; display:block; color:#888;">達成率：-</span>
         </div>
@@ -363,13 +371,20 @@ function calcAll() {
   netEl.textContent = fmt(net);
   netEl.style.color = net >= 0 ? '#155724' : '#721c24';
 
-  // 財務貢獻 Y值 = (A合計 - B合計 + 轉回專案設備使用費) - (試驗+技術+訓練+其他業務) × 11.5%
+  // 財務貢獻 Y值
   const 轉回 = parseFmt(document.querySelector('.expense-amt[data-item="轉回專案設備使用費"]')?.value || 0);
   const serviceIncome = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入']
     .reduce((s, i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value || 0), 0);
-  const yVal = (incTotal - expTotal + 轉回) - serviceIncome * 0.115;
+  const bizSurplus = incTotal - expTotal + 轉回;       // 業務餘絀
+  const mgmtFee    = serviceIncome * 0.115;             // 管理費
+  const yVal       = bizSurplus - mgmtFee;              // Y值
+
+  const bizEl = document.getElementById('net-biz-surplus');
+  if (bizEl) { bizEl.textContent = fmt(bizSurplus); bizEl.style.color = bizSurplus >= 0 ? '#6f42c1' : '#721c24'; }
+  const mgrEl = document.getElementById('net-mgmt-fee');
+  if (mgrEl) mgrEl.textContent = fmt(mgmtFee);
   const yEl = document.getElementById('net-y-val');
-  if (yEl) { yEl.textContent = fmt(yVal); yEl.style.color = yVal >= 0 ? '#6f42c1' : '#721c24'; }
+  if (yEl) { yEl.textContent = fmt(yVal); yEl.style.color = yVal >= 0 ? '#4a235a' : '#721c24'; }
   const yGoal = _annualGoals['財務貢獻(Y值)'] || 0;
   const yRateEl = document.getElementById('net-y-rate');
   if (yRateEl) yRateEl.textContent = yGoal > 0 ? `達成率：${(yVal/yGoal*100).toFixed(1)}%` : '達成率：-';
@@ -421,21 +436,22 @@ function loadData() {
 function openGoalsModal() {
   document.getElementById('gm-dept').textContent = DEPT;
   fetch(`/api/annual_goals/${DEPT}`).then(r=>r.json()).then(goals => {
-    const mkRow = (item, isTot) => {
+    const mkRow = (item, isTot, onInput) => {
       const v = goals[item] || 0;
+      const inputAttrs = isTot
+        ? `readonly style="background:#f0f8ff;width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`
+        : `oninput="${onInput || 'fmtOnInput(this)'}" style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`;
       return `<tr style="background:${isTot?'#d4edda':'#fff'}">
         <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px;${isTot?' font-weight:bold;':''}">${item}</td>
         <td style="padding:4px 8px; border:1px solid #ddd;">
-          <input type="text" class="gm-input input-num" data-item="${item}"
-            value="${fmtGoal(v)}" ${isTot?'readonly style="background:#f0f8ff;width:100%;text-align:right;"':'style="width:100%;text-align:right;"'}
-            oninput="fmtOnInput(this)" style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;">
+          <input type="text" class="gm-input" data-item="${item}" value="${fmtGoal(v)}" ${inputAttrs}>
         </td>
       </tr>`;
     };
     document.getElementById('gm-income-rows').innerHTML =
-      INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM)).join('');
+      INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM, 'fmtOnInput(this);gmCalcIncome()')).join('');
     document.getElementById('gm-expense-rows').innerHTML =
-      EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM)).join('');
+      EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM, 'fmtOnInput(this);gmCalcExpense()')).join('');
     // Y值目標
     const yv = goals['財務貢獻(Y值)'] || 0;
     document.getElementById('gm-y-input').value = fmtGoal(yv);
@@ -445,6 +461,24 @@ function openGoalsModal() {
 
 function closeGoalsModal() {
   document.getElementById('goals-modal').style.display = 'none';
+}
+
+function gmCalcIncome() {
+  let total = 0;
+  document.querySelectorAll('#gm-income-rows .gm-input').forEach(inp => {
+    if (inp.dataset.item !== INCOME_TOTAL_ITEM) total += parseFmt(inp.value);
+  });
+  const tot = document.querySelector(`#gm-income-rows .gm-input[data-item="${INCOME_TOTAL_ITEM}"]`);
+  if (tot) tot.value = total > 0 ? Math.round(total).toLocaleString('zh-TW') : '';
+}
+
+function gmCalcExpense() {
+  let total = 0;
+  document.querySelectorAll('#gm-expense-rows .gm-input').forEach(inp => {
+    if (inp.dataset.item !== EXPENSE_TOTAL_ITEM) total += parseFmt(inp.value);
+  });
+  const tot = document.querySelector(`#gm-expense-rows .gm-input[data-item="${EXPENSE_TOTAL_ITEM}"]`);
+  if (tot) tot.value = total > 0 ? Math.round(total).toLocaleString('zh-TW') : '';
 }
 
 function fmtOnInput(inp) {
