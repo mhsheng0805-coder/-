@@ -278,7 +278,7 @@ function renderContracts(list) {
         <td class="text-center">${dateVal}</td>
         <td style="font-size:12px;">${cdStr}</td>
         <td class="text-center" style="font-size:12px;">${payStr}</td>
-        <td class="text-center">${c.carry_next?'✅':''}</td>
+        <td class="text-center">${(c.carry_next || c.status==='洽談中' || c.status==='預計簽約')?'✅':''}</td>
         <td class="text-center" style="white-space:nowrap;">
           <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
           <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
@@ -316,8 +316,8 @@ function showContractForm(contract) {
   document.getElementById('cf-expected-date').value = contract?.expected_date || '';
   document.getElementById('cf-status').value = contract?.status || '洽談中';
   document.getElementById('cf-lead-dept').value = contract?.lead_dept || '';
-  toggleStatusFields();
   document.getElementById('cf-carry').checked = !!contract?.carry_next;
+  toggleStatusFields(); // 洽談中/預計簽約 會強制勾選延續
 
   // 金額方式
   const ptype = contract?.payment_type || '當年';
