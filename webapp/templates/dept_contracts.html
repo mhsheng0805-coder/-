@@ -310,7 +310,7 @@ function renderCarryForward(list) {
           ${c.project_name?`<br><span style="font-size:11px;color:#888;">${c.project_name}</span>`:''}
         </div>
         <div style="font-size:12px;color:#555;white-space:nowrap;">
-          ${c.expected_amount>0?`預計：${fmt(c.expected_amount)}`:(c.amount>0?`金額：${fmt(c.amount)}`:'')}
+          ${c.expected_amount>0?`預計簽約金額：${fmt(c.expected_amount)}元`:(c.amount>0?`簽約金額：${fmt(c.amount)}元`:'')}
         </div>
         <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
       </div>
