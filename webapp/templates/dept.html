@@ -293,9 +293,9 @@
       <p style="font-size:11px;color:#888;margin:4px 0 0 2px;">系統自動計算：(A合計－B合計＋轉回設備費) － (試驗＋技術＋訓練＋其他業務)×11.5%</p>
     </div>
 
-    <div style="display:flex; gap:10px; justify-content:flex-end;">
-      <button class="btn" onclick="closeGoalsModal()" style="background:#6c757d;color:white;">取消</button>
-      <button class="btn btn-success" onclick="saveGoals()">💾 儲存年度目標</button>
+    <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center;">
+      <span id="gm-save-status" style="font-size:12px; color:#555; margin-right:auto;"></span>
+      <button class="btn" onclick="closeGoalsModal()" style="background:#6c757d;color:white;">關閉</button>
     </div>
   </div>
 </div>
@@ -312,7 +312,7 @@ const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
 const EXPENSE_ITEMS = {{ expense_items | tojson }};
 // Y值計算用的A、B子項目
-const A_ITEMS = ['其他民間收入','配合款-產發署案收入','科專衍生收入','能源署衍生收入'];
+const A_ITEMS = ['其他民間收入','配合款-產發署案收入','科專衍生收入','能源署衍生收入','其他專案-來自民間'];
 const B_ITEMS = ['人事費','業務費','維護費','旅運費','材料費',
                  '產發署案配合款','配合款-其他民間','其他專案-民間'];
 const SVC_ITEMS = ['其他民間收入'];
@@ -504,9 +504,9 @@ function openGoalsModal() {
       </tr>`;
     };
     document.getElementById('gm-income-rows').innerHTML =
-      INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM, 'fmtOnInput(this);gmCalcIncome()')).join('');
+      INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM, 'fmtOnInput(this);gmCalcIncome();scheduleGoalsSave()')).join('');
     document.getElementById('gm-expense-rows').innerHTML =
-      EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM, 'fmtOnInput(this);gmCalcExpense()')).join('');
+      EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM, 'fmtOnInput(this);gmCalcExpense();scheduleGoalsSave()')).join('');
     // Y值目標（自動計算，延遲確保 DOM 渲染完成）
     setTimeout(gmCalcY, 0);
     // Enter 跳下一行
@@ -593,22 +593,38 @@ function importGoalsExcel(input) {
     .catch(() => { statusEl.textContent = '❌ 匯入失敗'; input.value = ''; });
 }
 
-function saveGoals() {
+let _gmSaveTimer;
+function scheduleGoalsSave() {
+  clearTimeout(_gmSaveTimer);
+  const statusEl = document.getElementById('gm-save-status');
+  if (statusEl) statusEl.textContent = '⏳ 儲存中...';
+  _gmSaveTimer = setTimeout(() => doSaveGoals(true), 1200);
+}
+
+function doSaveGoals(silent = false) {
   const goals = {};
   document.querySelectorAll('.gm-input').forEach(inp => {
     goals[inp.dataset.item] = parseFmt(inp.value);
   });
   const yInp = document.getElementById('gm-y-input');
   if (yInp) goals['財務貢獻(Y值)'] = parseFmt(yInp.value);
+  const statusEl = document.getElementById('gm-save-status');
   fetch('/api/save_annual_goals', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({dept: DEPT, year: YEAR, goals})
-  }).then(r=>r.json()).then(() => {
-    closeGoalsModal();
-    showToast('✅ 年度目標已儲存');
-    loadData();
+  }).then(r=>r.json()).then(d => {
+    if (statusEl) statusEl.textContent = '✅ 已自動儲存';
+    if (!silent) { showToast('✅ 年度目標已儲存'); loadData(); }
+  }).catch(() => {
+    if (statusEl) statusEl.textContent = '❌ 儲存失敗';
   });
+}
+
+function saveGoals() {
+  doSaveGoals(false);
+  closeGoalsModal();
+  loadData();
 }
 
 function saveAll(showMsg = true) {
