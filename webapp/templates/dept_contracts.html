@@ -283,7 +283,7 @@ function renderContracts(list) {
       let amtVal = '', dateVal = '';
       if (c.status === '預計簽約') {
         amtVal = fmt(c.expected_amount || 0); dateVal = c.expected_date || '';
-      } else if (c.status === '已簽約') {
+      } else if (c.status === '已簽約' || c.status === '簽約中/用印中') {
         amtVal = fmt(c.amount || 0); dateVal = c.sign_date || '';
       }
       return `<tr>
