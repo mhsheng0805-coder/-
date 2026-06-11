@@ -207,8 +207,10 @@ const ALL_DEPTS = {{ departments | tojson }};
 let _iTimer;
 
 function fmtOnInput(inp) {
-  const raw = parseFmt(inp.value);
-  if (raw > 0) inp.value = raw.toLocaleString('zh-TW');
+  const s = inp.value;
+  if (s === '-') return; // 允許輸入負號過程中不清空
+  const raw = parseFmt(s);
+  if (raw !== 0) inp.value = Math.round(raw).toLocaleString('zh-TW');
   else inp.value = '';
 }
 
