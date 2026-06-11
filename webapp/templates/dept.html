@@ -461,8 +461,8 @@ function openGoalsModal() {
       INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM, 'fmtOnInput(this);gmCalcIncome()')).join('');
     document.getElementById('gm-expense-rows').innerHTML =
       EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM, 'fmtOnInput(this);gmCalcExpense()')).join('');
-    // Y值目標（自動計算）
-    gmCalcY();
+    // Y值目標（自動計算，延遲確保 DOM 渲染完成）
+    setTimeout(gmCalcY, 0);
     // Enter 跳下一行
     const gmInputs = Array.from(document.querySelectorAll('.gm-input:not([readonly]), #gm-y-input'));
     gmInputs.forEach((inp, idx) => {
