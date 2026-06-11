@@ -488,10 +488,12 @@ function gmCalcIncome() {
 function gmCalcExpense() {
   let total = 0;
   document.querySelectorAll('#gm-expense-rows .gm-input').forEach(inp => {
-    if (inp.dataset.item !== EXPENSE_TOTAL_ITEM) total += parseFmt(inp.value);
+    if (inp.dataset.item === EXPENSE_TOTAL_ITEM) return;
+    const v = parseFmt(inp.value);
+    total += inp.dataset.item === '轉回專案設備使用費' ? -v : v;
   });
   const tot = document.querySelector(`#gm-expense-rows .gm-input[data-item="${EXPENSE_TOTAL_ITEM}"]`);
-  if (tot) tot.value = total > 0 ? Math.round(total).toLocaleString('zh-TW') : '';
+  if (tot) tot.value = total !== 0 ? Math.round(total).toLocaleString('zh-TW') : '';
 }
 
 function fmtOnInput(inp) {
