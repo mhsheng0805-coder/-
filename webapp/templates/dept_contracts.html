@@ -51,8 +51,13 @@
 <div class="card">
   <div class="card-header" style="background:linear-gradient(135deg,#4a1a7b,#7b3fa0);">
     📄 {{ month }}月 合約
+    {% if can_write %}
     <button class="btn btn-sm" style="margin-left:auto; background:rgba(255,255,255,0.2); color:white;"
             onclick="showContractForm()">＋ 新增合約</button>
+    {% else %}
+    <span style="margin-left:auto; background:rgba(255,243,205,0.9); color:#856404;
+                 border-radius:5px; padding:3px 10px; font-size:12px; font-weight:bold;">👁 檢視模式</span>
+    {% endif %}
   </div>
   <div class="card-body">
     <div id="contract-list"><em style="color:#999;">載入中...</em></div>
@@ -204,6 +209,7 @@ const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
 const YEAR = {{ year }};
 const ALL_DEPTS = {{ departments | tojson }};
+const CAN_WRITE = {{ 'true' if can_write else 'false' }};
 
 let _iTimer;
 
@@ -297,8 +303,10 @@ function renderContracts(list) {
         <td class="text-center" style="font-size:12px;">${payStr}</td>
         <td class="text-center">${(c.carry_next || c.status==='洽談中' || c.status==='預計簽約')?'✅':''}</td>
         <td class="text-center" style="white-space:nowrap;">
+          ${CAN_WRITE ? `
           <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
           <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
+          ` : '<span style="color:#aaa;font-size:11px;">—</span>'}
         </td>
       </tr>`;
     }).join('')}</tbody>
@@ -389,10 +397,12 @@ function renderCarryForward(list) {
     </div>`;
   });
   html += '</div>';
-  // 單一儲存按鈕
-  html += `<div style="margin-top:14px;">
-    <button class="btn btn-primary" onclick="saveAllCarryUpdates()">💾 全部儲存進度更新</button>
-  </div>`;
+  // 單一儲存按鈕（僅 editor/admin 可見）
+  if (CAN_WRITE) {
+    html += `<div style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="saveAllCarryUpdates()">💾 全部儲存進度更新</button>
+    </div>`;
+  }
   el.innerHTML = html;
 }
 

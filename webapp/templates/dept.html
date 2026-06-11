@@ -186,10 +186,15 @@
       </div>
     </div>
     <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+      {% if can_write %}
       <button class="btn btn-success" onclick="saveAll(true)">💾 儲存收支資料</button>
       <button class="btn" style="background:#1a5276;color:white;" onclick="openGoalsModal()">🎯 設定年度目標</button>
-      <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
       <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
+      {% else %}
+      <span style="background:#fff3cd; color:#856404; border:1px solid #ffc107; border-radius:5px;
+                   padding:6px 14px; font-size:13px; font-weight:bold;">👁 檢視模式（唯讀）</span>
+      {% endif %}
+      <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
       <span id="autosave-status" style="font-size:12px; color:#888; margin-left:4px;"></span>
     </div>
   </div>
@@ -304,6 +309,7 @@
 const DEPT = '{{ dept }}';
 const MONTH = {{ month }};
 const YEAR = {{ year }};
+const CAN_WRITE = {{ 'true' if can_write else 'false' }};
 const INCOME_TOTAL_ITEM = '來自民間收入';
 const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
@@ -683,9 +689,15 @@ let _locked = false;
 
 function loadLockStatus() {
   fetch(`/api/lock_status/${DEPT}/${MONTH}`).then(r=>r.json()).then(d=>{
-    _locked = d.locked;
-    renderLockBar(d);
-    setFieldsLocked(d.locked);
+    _locked = d.locked || !CAN_WRITE;
+    if (!CAN_WRITE) {
+      // 檢視者：隱藏鎖定列，所有欄位唯讀
+      document.getElementById('lock-bar').style.display = 'none';
+      setFieldsLocked(true);
+    } else {
+      renderLockBar(d);
+      setFieldsLocked(d.locked);
+    }
     document.getElementById('audit-card').style.display = 'block';
     loadAuditLog();
   });

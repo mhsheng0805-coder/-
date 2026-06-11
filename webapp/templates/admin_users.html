@@ -62,8 +62,9 @@
         <div class="form-group" style="margin:0;">
           <label>權限</label>
           <select id="new-role">
-            <option value="user">一般使用者</option>
-            <option value="admin">管理員</option>
+            <option value="editor">編輯者（可輸入資料）</option>
+            <option value="viewer">檢視者（唯讀）</option>
+            <option value="admin">管理者（全部功能）</option>
           </select>
         </div>
       </div>
@@ -94,9 +95,13 @@
           </td>
           <td class="text-center">
             {% if u.role == 'admin' %}
-              <span class="badge badge-green">管理員</span>
+              <span class="badge badge-green">管理者</span>
+            {% elif u.role == 'editor' %}
+              <span class="badge badge-blue">編輯者</span>
+            {% elif u.role == 'viewer' %}
+              <span class="badge badge-gray">檢視者</span>
             {% else %}
-              <span class="badge badge-gray">一般使用者</span>
+              <span class="badge badge-gray">{{ u.role }}</span>
             {% endif %}
           </td>
           <td class="text-center" id="status-{{ u.id }}">
@@ -158,8 +163,12 @@
       </div>
     </div>
 
-    <div style="margin-top:16px; padding:12px; background:#fff9c4; border-radius:6px; font-size:13px; color:#7a6000;">
-      💡 <strong>提示：</strong>新帳號建立後，請通知使用者登入並立即修改密碼（右上角「修改密碼」）。停用的帳號將無法登入，但資料保留。
+    <div style="margin-top:16px; padding:12px; background:#fff9c4; border-radius:6px; font-size:13px; color:#7a6000; line-height:1.8;">
+      💡 <strong>提示：</strong>新帳號建立後，請通知使用者登入並立即修改密碼（右上角「修改密碼」）。停用的帳號將無法登入，但資料保留。<br>
+      📋 <strong>權限說明：</strong>
+      <span class="badge badge-green" style="margin:0 4px;">管理者</span> 可使用全部功能、管理帳號
+      <span class="badge badge-blue" style="margin:0 4px;">編輯者</span> 可輸入/修改資料，限自己部門
+      <span class="badge badge-gray" style="margin:0 4px;">檢視者</span> 唯讀，只能查看自己部門資料，無法修改
     </div>
   </div>
 </div>
