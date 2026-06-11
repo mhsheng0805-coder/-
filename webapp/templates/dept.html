@@ -613,6 +613,14 @@ function doSaveGoals(silent = false) {
     body: JSON.stringify({dept: DEPT, year: YEAR, goals})
   }).then(r=>r.json()).then(d => {
     if (statusEl) statusEl.textContent = '✅ 已自動儲存';
+    // 同步更新主表年度目標欄位
+    document.querySelectorAll('.income-goal').forEach(inp => {
+      inp.value = fmtGoal(goals[inp.dataset.item] || 0);
+    });
+    document.querySelectorAll('.expense-goal').forEach(inp => {
+      inp.value = fmtGoal(goals[inp.dataset.item] || 0);
+    });
+    calcAll();
     if (!silent) { showToast('✅ 年度目標已儲存'); loadData(); }
   }).catch(() => {
     if (statusEl) statusEl.textContent = '❌ 儲存失敗';
