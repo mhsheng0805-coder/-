@@ -56,8 +56,7 @@
       <thead><tr>
         <th style="text-align:left;">項目</th>
         <th>年度目標</th>
-        <th>{{ month }}月<br>本月金額</th>
-        <th>1–{{ month }}月<br>累計金額</th>
+        <th>1–{{ month }}月<br>本月止累計</th>
         <th>達成率</th>
       </tr></thead>
       <tbody>
@@ -72,8 +71,6 @@
           <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
                {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
                value=""></td>
-          <td class="text-right income-cumul" data-item="{{ item }}"
-              style="font-size:13px;{% if item in income_totals %}font-weight:bold;{% endif %}">-</td>
           <td class="text-center income-rate" data-item="{{ item }}">-</td>
         </tr>
         {% endfor %}
@@ -93,8 +90,7 @@
       <thead><tr>
         <th style="text-align:left;">項目</th>
         <th>年度目標</th>
-        <th>{{ month }}月<br>已核銷</th><th>已申請<br>未核銷</th><th>本月小計</th>
-        <th>1–{{ month }}月<br>累計</th>
+        <th>1–{{ month }}月<br>已核銷</th><th>已申請<br>未核銷</th><th>本月止累計</th>
         <th>達成率</th>
       </tr></thead>
       <tbody>
@@ -117,8 +113,6 @@
             <td class="text-right" id="total-unclaim">0</td>
             <td><input type="text" class="input-num expense-amt" data-item="{{ item }}"
                  readonly style="background:#ffe0e0; font-weight:bold;" value=""></td>
-            <td class="text-right expense-cumul" data-item="{{ item }}"
-                style="font-weight:bold;">-</td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% else %}
             <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
@@ -131,7 +125,6 @@
             <td style="text-align:center; color:#ccc;">—</td>
             {% endif %}
             <td class="text-right exp-sub" data-item="{{ item }}">—</td>
-            <td class="text-right expense-cumul" data-item="{{ item }}" style="font-size:13px;">-</td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% endif %}
         </tr>
@@ -425,20 +418,12 @@ function loadData() {
     document.querySelectorAll('.income-goal').forEach(inp => {
       inp.value = fmtGoal(goals[inp.dataset.item] || 0);
     });
-    document.querySelectorAll('.income-cumul').forEach(td => {
-      const v = cumul[td.dataset.item] || 0;
-      td.textContent = v > 0 ? fmt(v) : '-';
-    });
     document.querySelectorAll('.expense-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
       inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
     });
     document.querySelectorAll('.expense-goal').forEach(inp => {
       inp.value = fmtGoal(goals[inp.dataset.item] || 0);
-    });
-    document.querySelectorAll('.expense-cumul').forEach(td => {
-      const v = cumul[td.dataset.item] || 0;
-      td.textContent = v > 0 ? fmt(v) : '-';
     });
     const uc = data.unclaimed || {};
     document.querySelectorAll('.unclaim-amt').forEach(inp => {

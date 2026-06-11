@@ -726,12 +726,7 @@ def get_data(dept, month):
         (year, dept, month)
     ).fetchall()
     data = {r['item']: {'amount': r['amount'], 'goal': r['goal']} for r in rows}
-    # 累計 1..month
-    cumul_rows = con.execute(
-        'SELECT item, SUM(amount) as total FROM revenue WHERE year=? AND dept=? AND month<=? GROUP BY item',
-        (year, dept, month)
-    ).fetchall()
-    cumul_data = {r['item']: r['total'] for r in cumul_rows}
+    cumul_data = {r['item']: r['amount'] for r in rows}  # 月份值本身即為累計值
     unclaimed = con.execute(
         'SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
