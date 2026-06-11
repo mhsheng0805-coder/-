@@ -296,6 +296,12 @@ const INCOME_TOTAL_ITEM = '來自民間收入';
 const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
 const EXPENSE_ITEMS = {{ expense_items | tojson }};
+// Y值計算用的A、B子項目
+const A_ITEMS = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入',
+                 '配合款-產發署案收入','配合款-其他民間收入','其他專案-來自民間'];
+const B_ITEMS = ['人事費','業務費','維護費','旅運費','材料費',
+                 '產發署案配合款','配合款-其他民間','其他專案-民間','轉回專案設備使用費'];
+const SVC_ITEMS = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入'];
 let _annualGoals = {};
 let _cumulData = {};
 const UNCLAIM_MAP = {
@@ -372,10 +378,11 @@ function calcAll() {
   netEl.style.color = net >= 0 ? '#155724' : '#721c24';
 
   // 財務貢獻 Y值
+  const aTotal = A_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value||0), 0);
+  const bTotal = B_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.expense-amt[data-item="${i}"]`)?.value||0), 0);
   const 轉回 = parseFmt(document.querySelector('.expense-amt[data-item="轉回專案設備使用費"]')?.value || 0);
-  const serviceIncome = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入']
-    .reduce((s, i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value || 0), 0);
-  const bizSurplus = incTotal - expTotal + 轉回;        // 業務餘絀
+  const serviceIncome = SVC_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value||0), 0);
+  const bizSurplus = aTotal - bTotal + 轉回;            // 業務餘絀
   const mgmtFee    = serviceIncome * 0.115;             // 管理費
   const yVal       = bizSurplus - mgmtFee;              // Y值
 
@@ -497,11 +504,10 @@ function gmCalcExpense() {
 }
 
 function gmCalcY() {
-  const aTotal = parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${INCOME_TOTAL_ITEM}"]`)?.value || 0);
-  const bTotal = parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="${EXPENSE_TOTAL_ITEM}"]`)?.value || 0);
-  const 轉回 = parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="轉回專案設備使用費"]`)?.value || 0);
-  const svc = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入']
-    .reduce((s,i) => s + parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${i}"]`)?.value || 0), 0);
+  const aTotal = A_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${i}"]`)?.value||0), 0);
+  const bTotal = B_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="${i}"]`)?.value||0), 0);
+  const 轉回 = parseFmt(document.querySelector(`#gm-expense-rows .gm-input[data-item="轉回專案設備使用費"]`)?.value||0);
+  const svc = SVC_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${i}"]`)?.value||0), 0);
   const yVal = (aTotal - bTotal + 轉回) - svc * 0.115;
   const yInp = document.getElementById('gm-y-input');
   if (yInp) yInp.value = Math.round(yVal).toLocaleString('zh-TW');
