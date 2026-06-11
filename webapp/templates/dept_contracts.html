@@ -367,7 +367,9 @@ function buildInstallmentRows(existing) {
       <input type="number" class="install-year" placeholder="年度(民國)" min="100" max="200"
              value="${yr}" style="width:90px; font-size:13px;">
       <input type="text" class="install-amount input-num" placeholder="金額"
-             value="${fmt(am)}" style="flex:1; font-size:13px;">`;
+             value="${am > 0 ? fmt(am) : ''}"
+             oninput="fmtOnInput(this)" onblur="fmtOnInput(this)"
+             style="flex:1; font-size:13px;">`;
     container.appendChild(row);
   }
 }
