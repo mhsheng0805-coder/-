@@ -302,6 +302,7 @@ _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN expected_amount REAL DEFAULT 0",
     "ALTER TABLE contracts ADD COLUMN expected_date TEXT DEFAULT ''",
     "ALTER TABLE contracts ADD COLUMN project_name TEXT DEFAULT ''",
+    "ALTER TABLE contracts ADD COLUMN lead_dept TEXT DEFAULT ''",
 ]
 
 _OLD_DERIVE_ITEMS = ['衍生支出-研發成果', '衍生支出-研發成果(能專)', '衍生支出-其他', '衍生支出-成果下放']
@@ -1138,19 +1139,20 @@ def save_contract():
     expected_amount = d.get('expected_amount', 0)
     expected_date = d.get('expected_date', '')
     project_name = d.get('project_name', '')
+    lead_dept = d.get('lead_dept', '')
     if d.get('id'):
         con.execute('''UPDATE contracts SET client=?, project_name=?, amount=?, sign_date=?,
             status=?, group_name=?, note=?, carry_next=?,
             cross_dept=?, cross_dept_data=?,
             payment_type=?, installments=?, installment_data=?,
-            expected_amount=?, expected_date=?,
+            expected_amount=?, expected_date=?, lead_dept=?,
             updated_at=CURRENT_TIMESTAMP
             WHERE id=?''',
             (d['client'], project_name, d['amount'], d.get('sign_date',''),
              d['status'], d.get('group_name',''), d.get('note',''), d.get('carry_next',0),
              1 if d.get('cross_dept') else 0, cross_dept_data,
              d.get('payment_type','當年'), d.get('installments',1), installment_data,
-             expected_amount, expected_date,
+             expected_amount, expected_date, lead_dept,
              d['id']))
     else:
         con.execute('''INSERT INTO contracts
@@ -1158,14 +1160,14 @@ def save_contract():
              status, group_name, note, carry_next,
              cross_dept, cross_dept_data,
              payment_type, installments, installment_data,
-             expected_amount, expected_date)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+             expected_amount, expected_date, lead_dept)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (year, d['dept'], d['month'], d['client'], project_name, d['amount'],
              d.get('sign_date',''), d['status'],
              d.get('group_name',''), d.get('note',''), d.get('carry_next',0),
              1 if d.get('cross_dept') else 0, cross_dept_data,
              d.get('payment_type','當年'), d.get('installments',1), installment_data,
-             expected_amount, expected_date))
+             expected_amount, expected_date, lead_dept))
     con.commit()
     if not d.get('id'):
         new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0] if not IS_PG else \

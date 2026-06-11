@@ -85,6 +85,15 @@
             <option value="已簽約">已簽約</option>
           </select>
         </div>
+        <div class="form-group">
+          <label>簽約主導部門</label>
+          <select id="cf-lead-dept">
+            <option value="">（本部門）</option>
+            {% for d in departments %}
+            <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
 
       <!-- 依狀態顯示的欄位 -->
@@ -234,9 +243,9 @@ function renderContracts(list) {
   }
   el.innerHTML = `<table>
     <thead><tr>
-      <th>客戶/計畫</th><th>組別</th><th>狀態</th>
+      <th>客戶/計畫</th><th>組別</th><th>主導部門</th><th>狀態</th>
       <th>金額</th><th>日期</th>
-      <th>金額方式</th><th>跨部門</th><th>延續</th><th>備註</th><th>操作</th>
+      <th>金額方式</th><th>跨部門</th><th>延續</th><th>操作</th>
     </tr></thead>
     <tbody>${list.map(c=>{
       const idata = parseJSON(c.installment_data, []);
@@ -261,13 +270,13 @@ function renderContracts(list) {
       return `<tr>
         <td>${c.client||''}${c.project_name ? `<br><span style="font-size:11px;color:#888;">${c.project_name}</span>` : ''}</td>
         <td style="font-size:12px;">${c.group_name||''}</td>
+        <td style="font-size:12px;">${c.lead_dept||''}</td>
         <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
         <td class="text-right">${amtVal ? amtLabel + amtVal : ''}</td>
         <td class="text-center">${dateVal}</td>
         <td class="text-center" style="font-size:12px;">${payStr}</td>
         <td style="font-size:12px;">${cdStr}</td>
         <td class="text-center">${c.carry_next?'✅':''}</td>
-        <td style="font-size:12px;">${c.note||''}</td>
         <td class="text-center" style="white-space:nowrap;">
           <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
           <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
@@ -304,6 +313,7 @@ function showContractForm(contract) {
   document.getElementById('cf-expected-amount').value = contract?.expected_amount > 0 ? fmt(contract.expected_amount) : '';
   document.getElementById('cf-expected-date').value = contract?.expected_date || '';
   document.getElementById('cf-status').value = contract?.status || '洽談中';
+  document.getElementById('cf-lead-dept').value = contract?.lead_dept || '';
   toggleStatusFields();
   document.getElementById('cf-carry').checked = !!contract?.carry_next;
 
@@ -486,6 +496,7 @@ function saveContract() {
     client,
     project_name: document.getElementById('cf-project').value.trim(),
     group_name: document.getElementById('cf-group').value.trim(),
+    lead_dept: document.getElementById('cf-lead-dept').value,
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
     expected_amount: parseFmt(document.getElementById('cf-expected-amount').value),
@@ -538,6 +549,7 @@ function saveContractSilent(onDone) {
     dept: DEPT, month: MONTH, client,
     project_name: document.getElementById('cf-project').value.trim(),
     group_name: document.getElementById('cf-group').value.trim(),
+    lead_dept: document.getElementById('cf-lead-dept').value,
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
     expected_amount: parseFmt(document.getElementById('cf-expected-amount').value),
