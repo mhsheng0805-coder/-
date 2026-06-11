@@ -55,13 +55,15 @@
     <table>
       <thead><tr>
         <th style="text-align:left;">項目</th>
-        <th>年度目標</th>
-        <th>1–{{ month }}月<br>本月止累計</th>
+        <th>年度預算(A)</th>
+        <th>1–{{ month }}月<br>已簽約</th>
+        <th>1–{{ month }}月<br>預計簽約</th>
+        <th>預估<br>(已+預)</th>
+        <th>差異<br>(預估-A)</th>
         <th>達成率</th>
       </tr></thead>
       <tbody>
         {% set income_totals = ['來自民間收入'] %}
-        {% set svc_items = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入'] %}
         {% for item in income_items %}
         <tr {% if item in income_totals %}style="background:#c6efce; font-weight:bold;"
             {% else %}style="background:#ebf8ee;"{% endif %}>
@@ -72,18 +74,13 @@
           <td><input type="text" class="input-num income-amt" data-item="{{ item }}"
                {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
                value=""></td>
+          <td><input type="text" class="input-num income-exp" data-item="{{ item }}"
+               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
+               value=""></td>
+          <td class="text-right income-forecast" data-item="{{ item }}" style="font-size:13px;">-</td>
+          <td class="text-right income-diff" data-item="{{ item }}" style="font-size:13px;">-</td>
           <td class="text-center income-rate" data-item="{{ item }}">-</td>
         </tr>
-        {% if item == '其他業務收入' %}
-        <tr style="background:#d5e8c4; font-style:italic;">
-          <td style="padding-left:18px; font-size:13px; color:#2d6a4f;">↳ 其他民間收入小計</td>
-          <td><input type="text" class="input-num income-goal" data-item="其他民間收入"
-               readonly style="background:#eaf4e0; color:#1a5276; font-style:normal;" value=""></td>
-          <td><input type="text" class="input-num income-amt" data-item="其他民間收入"
-               readonly style="background:#eaf4e0; font-style:normal;" value=""></td>
-          <td class="text-center income-rate" data-item="其他民間收入">-</td>
-        </tr>
-        {% endif %}
         {% endfor %}
       </tbody>
     </table>
@@ -308,11 +305,10 @@ const EXPENSE_TOTAL_ITEM = '其他民間收入支出';
 const INCOME_ITEMS = {{ income_items | tojson }};
 const EXPENSE_ITEMS = {{ expense_items | tojson }};
 // Y值計算用的A、B子項目
-const A_ITEMS = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入',
-                 '配合款-產發署案收入','配合款-其他民間收入','其他專案-來自民間'];
+const A_ITEMS = ['其他民間收入','配合款-產發署案收入','科專衍生收入','能源署衍生收入'];
 const B_ITEMS = ['人事費','業務費','維護費','旅運費','材料費',
                  '產發署案配合款','配合款-其他民間','其他專案-民間'];
-const SVC_ITEMS = ['試驗服務收入','技術服務收入','訓練服務收入','其他業務收入'];
+const SVC_ITEMS = ['其他民間收入'];
 let _annualGoals = {};
 let _cumulData = {};
 const UNCLAIM_MAP = {
@@ -330,20 +326,39 @@ function fmtGoal(v) {
 }
 
 function calcAll() {
-  // 收入合計
-  let incTotal = 0;
+  // 收入合計（來自民間收入 = 各項已簽約加總）
+  let incTotalAmt = 0, incTotalExp = 0;
   document.querySelectorAll('.income-amt').forEach(inp => {
-    if (inp.dataset.item !== INCOME_TOTAL_ITEM && inp.dataset.item !== '其他民間收入') incTotal += parseFmt(inp.value);
+    if (inp.dataset.item !== INCOME_TOTAL_ITEM) incTotalAmt += parseFmt(inp.value);
+  });
+  document.querySelectorAll('.income-exp').forEach(inp => {
+    if (inp.dataset.item !== INCOME_TOTAL_ITEM) incTotalExp += parseFmt(inp.value);
   });
   const incInp = document.querySelector(`.income-amt[data-item="${INCOME_TOTAL_ITEM}"]`);
-  if (incInp) incInp.value = incTotal > 0 ? fmt(incTotal) : '';
-  // 其他民間收入小計 = SVC_ITEMS 加總
-  const svcAmt = SVC_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.income-amt[data-item="${i}"]`)?.value||0), 0);
-  const svcAmtInp = document.querySelector('.income-amt[data-item="其他民間收入"]');
-  if (svcAmtInp) svcAmtInp.value = svcAmt > 0 ? fmt(svcAmt) : '';
-  const svcGoal = SVC_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`.income-goal[data-item="${i}"]`)?.value||0), 0);
-  const svcGoalInp = document.querySelector('.income-goal[data-item="其他民間收入"]');
-  if (svcGoalInp) svcGoalInp.value = svcGoal > 0 ? fmt(svcGoal) : '';
+  if (incInp) incInp.value = incTotalAmt > 0 ? fmt(incTotalAmt) : '';
+  const incExpInp = document.querySelector(`.income-exp[data-item="${INCOME_TOTAL_ITEM}"]`);
+  if (incExpInp) incExpInp.value = incTotalExp > 0 ? fmt(incTotalExp) : '';
+  // 各行：預估 = 已+預，差異 = 預估-A，達成率 = 已簽約/A
+  document.querySelectorAll('.income-forecast').forEach(td => {
+    const item = td.dataset.item;
+    const amt = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
+    const exp = parseFmt(document.querySelector(`.income-exp[data-item="${item}"]`)?.value||0);
+    const forecast = (item === INCOME_TOTAL_ITEM) ? (incTotalAmt + incTotalExp) : (amt + exp);
+    td.textContent = forecast > 0 ? fmt(forecast) : '-';
+  });
+  document.querySelectorAll('.income-diff').forEach(td => {
+    const item = td.dataset.item;
+    const goal = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
+    const amt = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
+    const exp = parseFmt(document.querySelector(`.income-exp[data-item="${item}"]`)?.value||0);
+    const forecast = (item === INCOME_TOTAL_ITEM) ? (incTotalAmt + incTotalExp) : (amt + exp);
+    if (goal > 0) {
+      const diff = forecast - goal;
+      td.textContent = fmt(diff);
+      td.style.color = diff >= 0 ? '#155724' : '#721c24';
+    } else { td.textContent = '-'; td.style.color = ''; }
+  });
+  const incTotal = incTotalAmt; // 摘要用已簽約
 
   // 支出：每行小計
   let totalClaimed = 0, totalUnclaim = 0;
@@ -369,13 +384,13 @@ function calcAll() {
   if (clEl) clEl.textContent = totalClaimed > 0 ? fmt(totalClaimed) : '0';
   if (ucEl) ucEl.textContent = totalUnclaim > 0 ? fmt(totalUnclaim) : '0';
 
-  // 達成率（收入）— 用累計金額 vs 年度目標
+  // 達成率（收入）= 已簽約 / 年度預算(A)
   document.querySelectorAll('.income-rate').forEach(td => {
     const item = td.dataset.item;
-    const cumul = _cumulData[item] || parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
-    const goal  = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
-    td.textContent = goal > 0 ? (cumul/goal*100).toFixed(1)+'%' : '-';
-    td.style.color = (goal > 0 && cumul >= goal) ? '#155724' : '';
+    const amt  = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
+    const goal = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
+    td.textContent = goal > 0 ? (amt/goal*100).toFixed(1)+'%' : '-';
+    td.style.color = (goal > 0 && amt >= goal) ? '#155724' : '';
   });
   // 達成率（支出）— 用累計金額 vs 年度目標
   document.querySelectorAll('.expense-rate').forEach(td => {
@@ -439,6 +454,10 @@ function loadData() {
       const d = rev[inp.dataset.item];
       inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
     });
+    document.querySelectorAll('.income-exp').forEach(inp => {
+      const d = rev[inp.dataset.item];
+      inp.value = (d && d.expected_amount > 0) ? fmt(d.expected_amount) : '';
+    });
     document.querySelectorAll('.income-goal').forEach(inp => {
       inp.value = fmtGoal(goals[inp.dataset.item] || 0);
     });
@@ -476,20 +495,7 @@ function openGoalsModal() {
       </tr>`;
     };
     document.getElementById('gm-income-rows').innerHTML =
-      INCOME_ITEMS.map(i => {
-        const rows = [mkRow(i, i===INCOME_TOTAL_ITEM, 'fmtOnInput(this);gmCalcIncome()')];
-        if (i === '其他業務收入') {
-          const svcGoal = SVC_ITEMS.reduce((s,k) => s + (goals[k]||0), 0);
-          rows.push(`<tr style="background:#d5e8c4;">
-            <td style="padding:6px 10px;border:1px solid #ddd;font-size:13px;color:#2d6a4f;font-style:italic;padding-left:18px;">↳ 其他民間收入小計</td>
-            <td style="padding:4px 8px;border:1px solid #ddd;">
-              <input type="text" class="gm-input" id="gm-svc-subtotal" data-item="其他民間收入" readonly
-                style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;background:#eaf4e0;color:#1a5276;"
-                value="${svcGoal > 0 ? Math.round(svcGoal).toLocaleString('zh-TW') : ''}">
-            </td></tr>`);
-        }
-        return rows.join('');
-      }).join('');
+      INCOME_ITEMS.map(i => mkRow(i, i===INCOME_TOTAL_ITEM, 'fmtOnInput(this);gmCalcIncome()')).join('');
     document.getElementById('gm-expense-rows').innerHTML =
       EXPENSE_ITEMS.map(i => mkRow(i, i===EXPENSE_TOTAL_ITEM, 'fmtOnInput(this);gmCalcExpense()')).join('');
     // Y值目標（自動計算，延遲確保 DOM 渲染完成）
@@ -515,13 +521,10 @@ function closeGoalsModal() {
 function gmCalcIncome() {
   let total = 0;
   document.querySelectorAll('#gm-income-rows .gm-input').forEach(inp => {
-    if (inp.dataset.item !== INCOME_TOTAL_ITEM && inp.dataset.item !== '其他民間收入') total += parseFmt(inp.value);
+    if (inp.dataset.item !== INCOME_TOTAL_ITEM) total += parseFmt(inp.value);
   });
   const tot = document.querySelector(`#gm-income-rows .gm-input[data-item="${INCOME_TOTAL_ITEM}"]`);
   if (tot) tot.value = total > 0 ? Math.round(total).toLocaleString('zh-TW') : '';
-  const svcGoal = SVC_ITEMS.reduce((s,i) => s + parseFmt(document.querySelector(`#gm-income-rows .gm-input[data-item="${i}"]`)?.value||0), 0);
-  const sub = document.getElementById('gm-svc-subtotal');
-  if (sub) sub.value = svcGoal > 0 ? Math.round(svcGoal).toLocaleString('zh-TW') : '';
   gmCalcY();
 }
 
@@ -601,10 +604,13 @@ function saveGoals() {
 function saveAll(showMsg = true) {
   const items = {};
   document.querySelectorAll('.income-amt').forEach(inp => {
-    const goalInp = document.querySelector(`.income-goal[data-item="${inp.dataset.item}"]`);
-    items[inp.dataset.item] = {
-      amount: parseFmt(inp.value),
-      goal:   parseFmt(goalInp?.value||0)
+    const item = inp.dataset.item;
+    const goalInp = document.querySelector(`.income-goal[data-item="${item}"]`);
+    const expInp  = document.querySelector(`.income-exp[data-item="${item}"]`);
+    items[item] = {
+      amount:          parseFmt(inp.value),
+      expected_amount: parseFmt(expInp?.value||0),
+      goal:            parseFmt(goalInp?.value||0)
     };
   });
   document.querySelectorAll('.expense-amt').forEach(inp => {
@@ -672,7 +678,7 @@ function renderLockBar(d) {
 }
 
 function setFieldsLocked(locked) {
-  document.querySelectorAll('.income-amt:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp => {
+  document.querySelectorAll('.income-amt:not([readonly]),.income-exp:not([readonly]),.income-goal:not([readonly]),.expense-amt:not([readonly]),.expense-goal:not([readonly]),.unclaim-amt').forEach(inp => {
     inp.disabled = locked;
     inp.style.background = locked ? '#f5f5f5' : '';
     inp.style.cursor = locked ? 'not-allowed' : '';
@@ -746,7 +752,7 @@ function loadAuditLog() {
 }
 
 // autosave 已鎖定則跳過；Enter 跳下一個可編輯欄位
-const _editableSelector = '.income-amt:not([readonly]),.expense-amt:not([readonly]),.unclaim-amt';
+const _editableSelector = '.income-amt:not([readonly]),.income-exp:not([readonly]),.expense-amt:not([readonly]),.unclaim-amt';
 document.querySelectorAll(_editableSelector).forEach(inp=>{
   inp.addEventListener('input', ()=>{ if (!_locked && /\d/.test(inp.value)) scheduleAutoSave(); });
   inp.addEventListener('keydown', e=>{

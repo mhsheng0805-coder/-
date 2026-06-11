@@ -72,14 +72,8 @@ DEPARTMENTS = ['原料部', '產品部', '檢驗部', '製程部', '雲分部', 
 MONTHS = list(range(1, 13))
 
 INCOME_ITEMS = [
-    '試驗服務收入',
-    '技術服務收入',
-    '訓練服務收入',
-    '其他業務收入',
+    '其他民間收入',
     '配合款-產發署案收入',
-    '配合款-其他政府收入',
-    '配合款-其他民間收入',
-    '其他專案-來自民間',
     '科專衍生收入',
     '能源署衍生收入',
     '來自民間收入',
@@ -294,6 +288,10 @@ _MIGRATE_ANNUAL_GOALS_PG = [
         UNIQUE(year, dept, item))""",
 ]
 
+_MIGRATE_REVENUE = [
+    "ALTER TABLE revenue ADD COLUMN expected_amount REAL DEFAULT 0",
+]
+
 _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN cross_dept INTEGER DEFAULT 0",
     "ALTER TABLE contracts ADD COLUMN cross_dept_data TEXT DEFAULT '{}'",
@@ -309,11 +307,15 @@ _MIGRATE_CONTRACTS = [
 _OLD_DERIVE_ITEMS = ['衍生支出-研發成果', '衍生支出-研發成果(能專)', '衍生支出-其他', '衍生支出-成果下放']
 _NEW_DERIVE_ITEM = '計畫衍生支出'
 
+_OLD_SVC_INCOME = ['試驗服務收入', '技術服務收入', '訓練服務收入', '其他業務收入']
+_OLD_INCOME_REMOVE = ['配合款-其他政府收入', '配合款-其他民間收入', '其他專案-來自民間']
+_NEW_SVC_INCOME = '其他民間收入'
+
 def _migrate(cur, is_pg):
     """升級舊版資料表（新增欄位）"""
     new_tables = _MIGRATE_NEW_TABLES_PG if is_pg else _MIGRATE_NEW_TABLES_SQLITE
     goal_tables = _MIGRATE_ANNUAL_GOALS_PG if is_pg else _MIGRATE_ANNUAL_GOALS_SQLITE
-    for stmt in _MIGRATE_USERS + _MIGRATE_CONTRACTS + new_tables + goal_tables:
+    for stmt in _MIGRATE_USERS + _MIGRATE_REVENUE + _MIGRATE_CONTRACTS + new_tables + goal_tables:
         try:
             cur.execute(stmt)
         except Exception:
@@ -358,6 +360,47 @@ def _migrate(cur, is_pg):
                 GROUP BY year, dept
             """, [_NEW_DERIVE_ITEM] + _OLD_DERIVE_ITEMS)
             cur.execute(f"DELETE FROM annual_goals WHERE item IN ({placeholders})", _OLD_DERIVE_ITEMS)
+    except Exception:
+        pass
+
+    # 合併舊4個服務收入項目為其他民間收入
+    try:
+        all_old = _OLD_SVC_INCOME + _OLD_INCOME_REMOVE
+        ph_list = ','.join(['%s' if is_pg else '?' for _ in _OLD_SVC_INCOME])
+        all_ph = ','.join(['%s' if is_pg else '?' for _ in all_old])
+        if is_pg:
+            cur.execute(f"""
+                INSERT INTO revenue (year, dept, month, item, amount)
+                SELECT year, dept, month, %s, SUM(amount)
+                FROM revenue WHERE item = ANY(%s)
+                GROUP BY year, dept, month
+                ON CONFLICT (year, dept, month, item) DO UPDATE SET amount = EXCLUDED.amount
+            """, (_NEW_SVC_INCOME, _OLD_SVC_INCOME))
+            cur.execute("DELETE FROM revenue WHERE item = ANY(%s)", (all_old,))
+            cur.execute("""
+                INSERT INTO annual_goals (year, dept, item, goal)
+                SELECT year, dept, %s, SUM(goal)
+                FROM annual_goals WHERE item = ANY(%s)
+                GROUP BY year, dept
+                ON CONFLICT (year, dept, item) DO UPDATE SET goal = EXCLUDED.goal
+            """, (_NEW_SVC_INCOME, _OLD_SVC_INCOME))
+            cur.execute("DELETE FROM annual_goals WHERE item = ANY(%s)", (all_old,))
+        else:
+            svc_ph = ','.join(['?' for _ in _OLD_SVC_INCOME])
+            cur.execute(f"""
+                INSERT OR REPLACE INTO revenue (year, dept, month, item, amount)
+                SELECT year, dept, month, ?, SUM(amount)
+                FROM revenue WHERE item IN ({svc_ph})
+                GROUP BY year, dept, month
+            """, [_NEW_SVC_INCOME] + _OLD_SVC_INCOME)
+            cur.execute(f"DELETE FROM revenue WHERE item IN ({all_ph})", all_old)
+            cur.execute(f"""
+                INSERT OR REPLACE INTO annual_goals (year, dept, item, goal)
+                SELECT year, dept, ?, SUM(goal)
+                FROM annual_goals WHERE item IN ({svc_ph})
+                GROUP BY year, dept
+            """, [_NEW_SVC_INCOME] + _OLD_SVC_INCOME)
+            cur.execute(f"DELETE FROM annual_goals WHERE item IN ({all_ph})", all_old)
     except Exception:
         pass
 
@@ -764,11 +807,11 @@ def get_data(dept, month):
     year = get_current_year()
     con = get_db()
     rows = con.execute(
-        'SELECT item, amount, goal FROM revenue WHERE year=? AND dept=? AND month=?',
+        'SELECT item, amount, expected_amount, goal FROM revenue WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
     ).fetchall()
-    data = {r['item']: {'amount': r['amount'], 'goal': r['goal']} for r in rows}
-    cumul_data = {r['item']: r['amount'] for r in rows}  # 月份值本身即為累計值
+    data = {r['item']: {'amount': r['amount'], 'expected_amount': r['expected_amount'] or 0, 'goal': r['goal']} for r in rows}
+    cumul_data = {r['item']: r['amount'] for r in rows}
     unclaimed = con.execute(
         'SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
@@ -933,18 +976,21 @@ def save_revenue():
         con.close()
         return jsonify({'error': 'locked'}), 423
     for item, vals in d['items'].items():
-        old = con.execute('SELECT amount,goal FROM revenue WHERE year=? AND dept=? AND month=? AND item=?',
+        old = con.execute('SELECT amount,expected_amount,goal FROM revenue WHERE year=? AND dept=? AND month=? AND item=?',
                           (year,dept,month,item)).fetchone()
-        new_amt, new_goal = vals.get('amount',0), vals.get('goal',0)
+        new_amt = vals.get('amount', 0)
+        new_exp = vals.get('expected_amount', 0)
+        new_goal = vals.get('goal', 0)
         if old and (old['amount'] != new_amt or old['goal'] != new_goal):
             _log(con, year, dept, month, 'edit', 'revenue', item,
                  f"金額:{old['amount']},目標:{old['goal']}",
                  f"金額:{new_amt},目標:{new_goal}")
-        con.execute('''INSERT INTO revenue (year, dept, month, item, amount, goal)
-            VALUES (?,?,?,?,?,?)
+        con.execute('''INSERT INTO revenue (year, dept, month, item, amount, expected_amount, goal)
+            VALUES (?,?,?,?,?,?,?)
             ON CONFLICT(year, dept, month, item) DO UPDATE
-            SET amount=excluded.amount, goal=excluded.goal, updated_at=CURRENT_TIMESTAMP''',
-            (year, dept, month, item, new_amt, new_goal))
+            SET amount=excluded.amount, expected_amount=excluded.expected_amount,
+                goal=excluded.goal, updated_at=CURRENT_TIMESTAMP''',
+            (year, dept, month, item, new_amt, new_exp, new_goal))
     con.commit()
     con.close()
     return jsonify({'status': 'ok'})
