@@ -174,6 +174,31 @@ function parseFmt(s) {
 })();
 {% endif %}
 
+// 關閉所有欄位的瀏覽器記憶/自動填入
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('input, textarea, select').forEach(function(el) {
+    if (!el.getAttribute('autocomplete')) el.setAttribute('autocomplete', 'off');
+  });
+});
+// 動態產生的元素也需要處理（MutationObserver）
+(function() {
+  const obs = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType !== 1) return;
+        node.querySelectorAll('input, textarea, select').forEach(function(el) {
+          if (!el.getAttribute('autocomplete')) el.setAttribute('autocomplete', 'off');
+        });
+        if ((node.tagName==='INPUT'||node.tagName==='TEXTAREA'||node.tagName==='SELECT') && !node.getAttribute('autocomplete'))
+          node.setAttribute('autocomplete', 'off');
+      });
+    });
+  });
+  document.addEventListener('DOMContentLoaded', function() {
+    obs.observe(document.body, { childList: true, subtree: true });
+  });
+})();
+
 function switchYear(year) {
   fetch('/api/switch_year', {
     method: 'POST',
