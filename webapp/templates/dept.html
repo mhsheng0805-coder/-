@@ -156,8 +156,10 @@
   {% else %}
   <span style="background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:5px;padding:6px 14px;font-size:13px;font-weight:bold;">👁 檢視模式（唯讀）</span>
   {% endif %}
+  {% if session.get('role') != 'viewer' %}
   <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
   <a href="/api/export_dept_year_excel/{{ dept }}" class="btn" style="background:#0d5c37;color:white;">⬇ 匯出全年 Excel</a>
+  {% endif %}
   <span id="autosave-status" style="font-size:12px;color:#888;margin-left:4px;"></span>
 </div>
 

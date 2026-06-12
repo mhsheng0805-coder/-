@@ -200,7 +200,9 @@
 <!-- 返回收支 -->
 <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
   <a href="/dept/{{ dept }}?month={{ month }}" class="btn btn-primary">← 返回收支填寫</a>
+  {% if session.get('role') != 'viewer' %}
   <a href="/api/export_contracts_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月合約 Excel</a>
+  {% endif %}
   <a href="/import" class="btn" style="background:#6c757d; color:white;">📥 匯入 Excel</a>
 </div>
 

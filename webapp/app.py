@@ -504,6 +504,10 @@ def can_write():
     """admin 或 editor 才能寫入。"""
     return get_user_role() in ('admin', 'editor')
 
+def can_export():
+    """admin 或 editor 才能匯出/下載檔案。"""
+    return get_user_role() in ('admin', 'editor')
+
 def get_allowed_depts():
     """依使用者角色/部門傳回可存取（可看）的部門清單。"""
     if is_admin():
@@ -1368,6 +1372,8 @@ def save_contract():
 @app.route('/api/export_dept_excel/<dept>/<int:month>')
 @login_required
 def export_dept_excel(dept, month):
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
     year = get_current_year()
@@ -1570,6 +1576,8 @@ def export_dept_excel(dept, month):
 @app.route('/api/export_dept_year_excel/<dept>')
 @login_required
 def export_dept_year_excel(dept):
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
     year = get_current_year()
@@ -1686,6 +1694,8 @@ def export_dept_year_excel(dept):
 @app.route('/api/export_contracts_excel/<dept>/<int:month>')
 @login_required
 def export_contracts_excel(dept, month):
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
     if not can_access_dept(dept):
         return jsonify({'error': 'forbidden'}), 403
     import json as _json
@@ -1963,6 +1973,8 @@ def import_view():
 @app.route('/download_import_template')
 @login_required
 def download_import_template():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
     year = get_current_year()
     wb = openpyxl.Workbook()
     thin   = Side(style='thin')
@@ -2127,6 +2139,8 @@ def import_excel():
 @app.route('/export_pptx')
 @login_required
 def export_pptx():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
     import traceback
     try:
         from pptx import Presentation
@@ -2564,6 +2578,8 @@ def export_pptx():
 @app.route('/export_excel')
 @login_required
 def export_excel():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
     year = get_current_year()
     con = get_db()
     rev_rows      = con.execute('SELECT * FROM revenue WHERE year=? ORDER BY dept, month, item', (year,)).fetchall()
