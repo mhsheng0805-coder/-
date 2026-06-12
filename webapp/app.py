@@ -1626,10 +1626,16 @@ def summary():
         FROM revenue WHERE year=? AND item IN ('來自民間業務收入合計', '支出合計')
         GROUP BY dept, month, item
     ''', (year,)).fetchall()
+    ucl_rows = con.execute(
+        "SELECT dept, month, SUM(amount) as total FROM unclaimed WHERE year=? GROUP BY dept, month",
+        (year,)
+    ).fetchall()
     con.close()
     data = {}
     for r in rows:
         data.setdefault(r['dept'], {}).setdefault(r['month'], {})[r['item']] = r['total']
+    for r in ucl_rows:
+        data.setdefault(r['dept'], {}).setdefault(r['month'], {})['unclaim'] = r['total']
     allowed = get_allowed_depts()
     return render_template('summary.html', departments=allowed, months=MONTHS,
                            year=year, all_years=all_years, data=data)
@@ -1961,7 +1967,7 @@ def export_pptx():
             tcPr = tc.get_or_add_tcPr()
             solidFill = tc.makeelement(qn('a:solidFill'))
             srgbClr = tc.makeelement(qn('a:srgbClr'))
-            srgbClr.set('val', f'{bg.red:02X}{bg.green:02X}{bg.blue:02X}')
+            srgbClr.set('val', f'{int(bg):06X}')
             solidFill.append(srgbClr)
             tcPr.append(solidFill)
 

@@ -125,9 +125,11 @@
             {% for m in months %}
               {% set dept_data = data.get(dept, {}) %}
               {% set month_data = dept_data.get(m, {}) %}
-              {% if row_item == 'net' %}
+              {% if row_item == '支出合計' %}
+                {% set val = (month_data.get('支出合計', 0) or 0) + (month_data.get('unclaim', 0) or 0) %}
+              {% elif row_item == 'net' %}
                 {% set inc = month_data.get('來自民間業務收入合計', 0) or 0 %}
-                {% set exp = month_data.get('支出合計', 0) or 0 %}
+                {% set exp = (month_data.get('支出合計', 0) or 0) + (month_data.get('unclaim', 0) or 0) %}
                 {% set val = inc - exp %}
               {% elif row_item == 'unclaim' %}
                 {% set val = month_data.get('unclaim', 0) or 0 %}
