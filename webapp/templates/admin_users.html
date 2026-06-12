@@ -5,7 +5,7 @@
   <div class="card-header">
     👥 使用者管理
     <div style="margin-left:auto; display:flex; gap:8px;">
-      <a href="/admin/export_users" class="btn btn-success btn-sm">⬇ 匯出 Excel</a>
+      <button class="btn btn-success btn-sm" onclick="openUsersExcelModal()">⬇ 匯出 Excel</button>
       <button class="btn btn-success btn-sm" onclick="showAddForm()">＋ 新增帳號</button>
     </div>
   </div>
@@ -414,5 +414,49 @@ function deleteUser(id, username) {
       showToast('已刪除帳號：' + username, 'error');
     });
 }
+
+// ── 部門勾選 Modal ──
+const ALL_DEPTS = ['原料部','產品部','檢驗部','製程部','雲分部','產服部'];
+function openUsersExcelModal() {
+  document.getElementById('users-excel-modal').style.display = 'flex';
+}
+function closeUsersExcelModal() {
+  document.getElementById('users-excel-modal').style.display = 'none';
+}
+function toggleAllUsersDepts() {
+  const cbs = document.querySelectorAll('.users-dept-cb');
+  const allChecked = [...cbs].every(c => c.checked);
+  cbs.forEach(c => c.checked = !allChecked);
+}
+function doExportUsersExcel() {
+  const checked = [...document.querySelectorAll('.users-dept-cb:checked')].map(c => c.value);
+  if (checked.length === 0) { alert('請至少勾選一個部門'); return; }
+  const url = '/admin/export_users?depts=' + encodeURIComponent(checked.join(','));
+  window.location.href = url;
+  closeUsersExcelModal();
+}
 </script>
+
+<!-- 部門勾選 Modal -->
+<div id="users-excel-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:10px; padding:24px; width:340px; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <h4 style="margin:0 0 16px; color:#1f4e79;">選擇匯出部門</h4>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+      {% for dept in ['原料部','產品部','檢驗部','製程部','雲分部','產服部'] %}
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" class="users-dept-cb" value="{{ dept }}" checked> {{ dept }}
+      </label>
+      {% endfor %}
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#555;">
+        <input type="checkbox" id="users-all-cb" onclick="toggleAllUsersDepts()" checked> 全選／取消全選
+      </label>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button onclick="closeUsersExcelModal()" style="padding:6px 16px; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer;">取消</button>
+      <button onclick="doExportUsersExcel()" style="padding:6px 18px; border:none; border-radius:4px; background:#1e7e34; color:#fff; cursor:pointer; font-weight:bold;">⬇ 匯出</button>
+    </div>
+  </div>
+</div>
 {% endblock %}

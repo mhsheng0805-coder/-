@@ -796,10 +796,19 @@ def toggle_user(uid):
 def export_users():
     if session.get('role') != 'admin':
         return redirect(url_for('index'))
+    depts_param = request.args.get('depts', '')
+    selected_depts = [d.strip() for d in depts_param.split(',') if d.strip()] if depts_param else []
     con = get_db()
-    users = [dict(r) for r in con.execute(
-        "SELECT username, display_name, dept, role, disabled, created_at FROM users ORDER BY id"
-    ).fetchall()]
+    if selected_depts:
+        placeholders = ','.join('?' * len(selected_depts))
+        users = [dict(r) for r in con.execute(
+            f"SELECT username, display_name, dept, role, disabled, created_at FROM users WHERE dept IN ({placeholders}) OR role='admin' ORDER BY id",
+            selected_depts
+        ).fetchall()]
+    else:
+        users = [dict(r) for r in con.execute(
+            "SELECT username, display_name, dept, role, disabled, created_at FROM users ORDER BY id"
+        ).fetchall()]
     con.close()
 
     wb = openpyxl.Workbook()
