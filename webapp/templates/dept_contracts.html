@@ -592,7 +592,7 @@ function addCdYearRow(dept, year, amount) {
   row.className = 'cd-year-row';
   row.style.cssText = 'display:flex; gap:6px; align-items:center;';
   row.innerHTML = `<input type="number" class="cd-year" placeholder="年度(民國)" min="100" max="200"
-        value="${year ?? ''}" style="width:90px; font-size:13px;">
+        value="${year ?? YEAR}" style="width:90px; font-size:13px;">
       <span style="font-size:12px; color:#555; white-space:nowrap;">金額</span>
       <input type="text" class="cd-amount input-num" placeholder="0"
         value="${amount > 0 ? fmt(amount) : ''}"
