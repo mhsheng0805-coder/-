@@ -929,7 +929,7 @@ def api_delete_dept_group(gid):
     con.close()
     return jsonify({'status': 'ok'})
 
-@app.route('/api/dept_groups/<int:gid>', methods=['PUT'])
+@app.route('/api/dept_groups/<int:gid>/update', methods=['POST'])
 @login_required
 def api_update_dept_group(gid):
     if session.get('role') != 'admin':

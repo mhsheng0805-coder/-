@@ -190,16 +190,20 @@ function saveEdit(id) {
   const name = row.querySelector('.g-name-input').value.trim();
   const sort = parseInt(row.querySelector('.g-sort-input').value) || 0;
   if (!name) { alert('組別名稱不可為空'); return; }
-  fetch(`/api/dept_groups/${id}`, {
-    method: 'PUT',
+  fetch(`/api/dept_groups/${id}/update`, {
+    method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({group_name: name, sort_order: sort})
-  }).then(r => r.json()).then(data => {
+  }).then(r => {
+    if (!r.ok) return r.text().then(t => { throw new Error(t.slice(0,200)); });
+    return r.json();
+  }).then(data => {
     if (data.error) { alert(data.error); return; }
     row.querySelector('.g-name').textContent = name;
     row.querySelector('.g-sort').textContent = sort;
     cancelEdit(id);
-  });
+    if (typeof showToast === 'function') showToast('✅ 已儲存');
+  }).catch(e => { alert('儲存失敗：' + e.message); });
 }
 
 function deleteGroup(id, dept, name) {
