@@ -1713,13 +1713,13 @@ def export_contracts_excel(dept, month):
         cell.alignment=ctr; cell.border=border
         ws.column_dimensions[get_column_letter(c)].width=w
     for ri,r in enumerate(rows,3):
-        cd = _json.loads(r.get('cross_dept_data') or '{}')
+        cd = _json.loads(r['cross_dept_data'] or '{}') if r['cross_dept_data'] else {}
         def _cd_entries(v):
             if isinstance(v, (int, float)):
                 return [{'year': None, 'amount': v}] if v else []
             return v if isinstance(v, list) else []
         cd_str = ''
-        if r.get('cross_dept'):
+        if r['cross_dept']:
             parts = []
             for k, v in cd.items():
                 entries = [e for e in _cd_entries(v) if e.get('amount')]
@@ -1731,11 +1731,11 @@ def export_contracts_excel(dept, month):
                 )
                 parts.append(f"{k}（{detail}）")
             cd_str = '；'.join(parts)
-        vals = [r.get('client',''), r.get('project_name',''), r.get('group_name',''), r.get('status',''),
-                r.get('expected_amount',0) or '', r.get('expected_date',''),
-                r.get('amount',0) or '', r.get('sign_date',''),
-                r.get('payment_type','當年'), r.get('installments',1) if r.get('payment_type')=='分期' else '',
-                cd_str, '是' if r.get('carry_next') else '', r.get('note','')]
+        vals = [r['client'] or '', r['project_name'] or '', r['group_name'] or '', r['status'] or '',
+                r['expected_amount'] or '', r['expected_date'] or '',
+                r['amount'] or '', r['sign_date'] or '',
+                r['payment_type'] or '當年', r['installments'] if r['payment_type']=='分期' else '',
+                cd_str, '是' if r['carry_next'] else '', r['note'] or '']
         for c,v in enumerate(vals,1):
             ws.cell(ri,c,v).border=border
 
@@ -2600,8 +2600,10 @@ def export_excel():
     ws3 = wb.create_sheet(f'{year}年合約追蹤')
     make_sheet(ws3, ['年度','部門','月份','客戶/計畫','合約金額','簽約日期','預計完成','狀態','實收金額','備註','延續下月'],
                [8,10,6,25,12,12,12,12,12,20,8],
-               [(r['year'],r['dept'],r['month'],r['client'],r['amount'],r['sign_date'],r.get('expected_date',''),
-                 r['status'],r.get('expected_amount',''),r['note'] or '','是' if r['carry_next'] else '') for r in contract_rows])
+               [(r['year'],r['dept'],r['month'],r['client'],r['amount'],r['sign_date'],
+                 r['expected_date'] if r['expected_date'] else '',
+                 r['status'],r['expected_amount'] if r['expected_amount'] else '',
+                 r['note'] or '','是' if r['carry_next'] else '') for r in contract_rows])
 
     output = io.BytesIO()
     wb.save(output); output.seek(0)
