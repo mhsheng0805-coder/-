@@ -1271,6 +1271,8 @@ def import_goals_excel():
 @app.route('/api/save_annual_goals', methods=['POST'])
 @login_required
 def save_annual_goals():
+    if not is_admin():
+        return jsonify({'error': '僅管理者可設定年度目標'}), 403
     d = request.json
     dept = d.get('dept', '')
     if not can_write_dept(dept):

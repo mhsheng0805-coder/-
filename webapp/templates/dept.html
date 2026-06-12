@@ -151,7 +151,9 @@
 <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
   {% if can_write %}
   <button class="btn btn-success" onclick="saveAll(true)">💾 儲存收支資料</button>
+  {% if session.get('role') == 'admin' %}
   <button class="btn" style="background:#1a5276;color:white;" onclick="openGoalsModal()">🎯 設定年度目標</button>
+  {% endif %}
   <a href="/import" class="btn" style="background:#6c757d;color:white;">📥 匯入 Excel</a>
   {% else %}
   <span style="background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:5px;padding:6px 14px;font-size:13px;font-weight:bold;">👁 檢視模式（唯讀）</span>
