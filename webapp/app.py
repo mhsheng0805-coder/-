@@ -667,6 +667,8 @@ def reset_password(token):
 @app.route('/change_password', methods=['GET', 'POST'])
 @login_required
 def change_password():
+    if not is_admin():
+        return redirect(url_for('index'))
     error = None
     success = False
     if request.method == 'POST':

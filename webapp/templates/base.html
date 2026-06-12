@@ -137,7 +137,7 @@ tr:hover { background: #eef4fb; }
        font-size:10px; line-height:16px; text-align:center;"></span>
   </a>
   {% endif %}
-  <a href="/change_password" title="修改密碼">🔑</a>
+  {% if session.get('role') == 'admin' %}<a href="/change_password" title="修改密碼">🔑</a>{% endif %}
   <a href="/logout" style="background:#e74c3c;color:#fff;padding:4px 12px;border-radius:4px;font-weight:bold;font-size:13px;"
      onclick="return confirm('確定要登出？')">登出</a>
   {% endif %}
