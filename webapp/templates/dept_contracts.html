@@ -617,11 +617,13 @@ function collectCrossDeptData() {
     const dept = block.dataset.dept;
     const cb = block.querySelector('.cd-check');
     if (!cb.checked) return;
+    // 只要勾選就保留，金額可為 0（尚未確定）
     const entries = Array.from(block.querySelectorAll('.cd-year-row')).map(r => ({
       year: parseInt(r.querySelector('.cd-year').value) || null,
       amount: parseFmt(r.querySelector('.cd-amount').value),
-    })).filter(e => e.amount > 0 || e.year);
-    if (entries.length) data[dept] = entries;
+    }));
+    // 至少保留一筆（即使空的），代表此部門已勾選
+    data[dept] = entries.length ? entries : [{ year: null, amount: 0 }];
   });
   return data;
 }
