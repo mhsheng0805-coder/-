@@ -293,11 +293,22 @@ function doExportExcel() {
 document.getElementById('excel-modal').addEventListener('click', function(e){
   if (e.target === this) closeExcelModal();
 });
+// 點任何站內連結／按鈕時記錄，避免觸發離開警告
+var _internalNav = false;
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('a, button');
+  if (!el) return;
+  var href = el.getAttribute('href');
+  if (!href || href.startsWith('/') || href.startsWith('#')) {
+    _internalNav = true;
+  }
+});
 window.addEventListener('beforeunload', function(e) {
-  if (!_logoutClicked) {
+  if (!_logoutClicked && !_internalNav) {
     e.preventDefault();
     e.returnValue = '離開前請務必按「登出」按鈕，以保護您的帳號安全。';
   }
+  _internalNav = false;
 });
 </script>
 {% block scripts %}{% endblock %}
