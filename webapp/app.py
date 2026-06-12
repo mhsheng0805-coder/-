@@ -1372,8 +1372,10 @@ def export_dept_excel(dept, month):
         return jsonify({'error': 'forbidden'}), 403
     year = get_current_year()
     con = get_db()
+    # 累計1~month月資料
     rev_rows = con.execute(
-        'SELECT item, amount, expected_amount FROM revenue WHERE year=? AND dept=? AND month=?',
+        'SELECT item, SUM(amount) as amount, SUM(expected_amount) as expected_amount '
+        'FROM revenue WHERE year=? AND dept=? AND month<=? GROUP BY item',
         (year, dept, month)
     ).fetchall()
     goal_rows = con.execute(
@@ -1381,18 +1383,15 @@ def export_dept_excel(dept, month):
         (year, dept)
     ).fetchall()
     unclaim_rows = con.execute(
-        'SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?',
+        'SELECT item, SUM(amount) as amount FROM unclaimed WHERE year=? AND dept=? AND month<=? GROUP BY item',
         (year, dept, month)
     ).fetchall()
     con.close()
 
     rev_map   = {r['item']: {'actual': r['amount'] or 0, 'exp': r['expected_amount'] or 0} for r in rev_rows}
     goal_map  = {r['item']: r['goal'] or 0 for r in goal_rows}
-    ucl_map   = {}
-    for r in unclaim_rows:
-        ucl_map[r['item']] = r['amount'] or 0
+    ucl_map   = {r['item']: r['amount'] or 0 for r in unclaim_rows}
 
-    # 未核銷對應支出項目
     UNCL_EXPENSE_MAP = {'業務費(未核銷)':'業務費','旅運費(未核銷)':'旅運費',
                         '材料費(未核銷)':'材料費','維護費(未核銷)':'維護費'}
     exp_ucl = {}
@@ -1401,120 +1400,106 @@ def export_dept_excel(dept, month):
         if ek:
             exp_ucl[ek] = exp_ucl.get(ek, 0) + uv
 
-    # 顯示名稱對照
     INCOME_LABELS = {
-        '其他民間收入':       '其他民間收入(試驗/技術/訓練/其他)',
-        '來自民間收入':       '來自民間收入合計(X值)',
+        '其他民間收入':  '其他民間收入(試驗/技術/訓練/其他)',
+        '來自民間收入':  '來自民間收入合計(X值)',
     }
     EXPENSE_LABELS = {
-        '人事費':             '人事費用',
-        '業務費':             '業務費用',
-        '維護費':             '維護費用',
-        '旅運費':             '旅運費用',
-        '材料費':             '材料費用',
-        '產發署案配合款':     '配合款-產發署案支出',
-        '配合款-其他民間':    '配合款-其他民間支出',
-        '其他專案-民間':      '其他計劃(來自民間)支出',
+        '人事費':        '人事費用',
+        '業務費':        '業務費用',
+        '維護費':        '維護費用',
+        '旅運費':        '旅運費用',
+        '材料費':        '材料費用',
+        '產發署案配合款':'配合款-產發署案支出',
+        '配合款-其他民間':'配合款-其他民間支出',
+        '其他專案-民間': '其他計劃(來自民間)支出',
     }
 
-    # ── openpyxl 樣式 ──────────────────────────────────
     wb = openpyxl.Workbook()
     thin  = Side(style='thin')
     bdr   = Border(left=thin, right=thin, top=thin, bottom=thin)
-    thick = Border(left=thin, right=thin, top=Side(style='medium'), bottom=Side(style='medium'))
-    H_FILL  = PatternFill('solid', start_color='1F3864', fgColor='1F3864')  # 深藍標題
-    SH_FILL = PatternFill('solid', start_color='BDD7EE', fgColor='BDD7EE')  # 淺藍表頭
-    INC_FILL = PatternFill('solid', start_color='E2EFDA', fgColor='E2EFDA') # 收入綠
-    EXP_FILL = PatternFill('solid', start_color='FCE4D6', fgColor='FCE4D6') # 支出橙
-    TOT_FILL = PatternFill('solid', start_color='C6EFCE', fgColor='C6EFCE') # 合計
-    SUM_FILL = PatternFill('solid', start_color='FFF2CC', fgColor='FFF2CC') # 摘要黃
-    RATE_FILL = PatternFill('solid', start_color='DDEBF7', fgColor='DDEBF7')
+    H_FILL   = PatternFill('solid', start_color='1F3864', fgColor='1F3864')
+    SH_FILL  = PatternFill('solid', start_color='BDD7EE', fgColor='BDD7EE')
+    INC_FILL = PatternFill('solid', start_color='E2EFDA', fgColor='E2EFDA')
+    EXP_FILL = PatternFill('solid', start_color='FCE4D6', fgColor='FCE4D6')
+    TOT_FILL = PatternFill('solid', start_color='C6EFCE', fgColor='C6EFCE')
+    SUM_FILL = PatternFill('solid', start_color='FFF2CC', fgColor='FFF2CC')
+    RATE_FILL= PatternFill('solid', start_color='DDEBF7', fgColor='DDEBF7')
+    DIAG_FILL= PatternFill(patternType='lightDown', fgColor='AAAAAA', bgColor='FCE4D6')
     hfont = Font(name='微軟正黑體', size=10, bold=True)
     dfont = Font(name='微軟正黑體', size=10)
-    wfont = Font(name='微軟正黑體', size=10, color='FFFFFF', bold=True)
     ctr = Alignment(horizontal='center', vertical='center', wrap_text=True)
     lft = Alignment(horizontal='left',   vertical='center')
     rgt = Alignment(horizontal='right',  vertical='center')
     num_fmt = '#,##0;[Red]-#,##0;"-"'
     pct_fmt = '0.0%'
+    period  = f'1-{month}月' if month > 1 else f'1月'
 
     ws = wb.active
     ws.title = f'{month}月收支預估'
 
-    # ── 第1列：大標題 ──
+    # 第1列：標題
     ws.merge_cells('A1:F1')
     tc = ws['A1']
-    tc.value = f'業務部門{year}年 {dept} {month}月 收支預估表'
+    tc.value = f'業務部門{year}年收支預估表'
     tc.font = Font(name='微軟正黑體', size=13, bold=True, color='FFFFFF')
     tc.fill = H_FILL; tc.alignment = ctr
     ws.row_dimensions[1].height = 24
 
-    # ── 第2-3列：雙行表頭 ──
-    headers_r2 = ['項     目', '年度預算\n(A)', f'{month}月', None, '預估', '差異\n=(已核銷+預計)-A']
-    headers_r3 = [None,        None,            '已核銷',     '預計核銷', None, None]
-    col_widths  = [30,          14,               14,           14,        14,   18]
+    # 第2-3列：雙行表頭
+    headers_r2 = ['項     目', '年度預算\n(A)', period, None, '預估', f'差異\n=(已簽約+預計)-A']
+    headers_r3 = [None, None, '已簽約', '預計簽約', None, None]
+    col_widths  = [30, 14, 14, 14, 14, 20]
     for ci, (h, w) in enumerate(zip(headers_r2, col_widths), 1):
         c = ws.cell(2, ci)
-        if h is not None:
-            c.value = h
+        if h is not None: c.value = h
         c.font = hfont; c.fill = SH_FILL; c.alignment = ctr; c.border = bdr
         ws.column_dimensions[get_column_letter(ci)].width = w
     for ci, h in enumerate(headers_r3, 1):
         c = ws.cell(3, ci)
-        if h is not None:
-            c.value = h
+        if h is not None: c.value = h
         c.font = hfont; c.fill = SH_FILL; c.alignment = ctr; c.border = bdr
-    # 合併表頭欄
-    for merge_range in ['A2:A3', 'B2:B3', 'E2:E3', 'F2:F3']:
-        ws.merge_cells(merge_range)
+    for mr in ['A2:A3', 'B2:B3', 'E2:E3', 'F2:F3']:
+        ws.merge_cells(mr)
     ws.merge_cells('C2:D2')
     ws.row_dimensions[2].height = 20; ws.row_dimensions[3].height = 16
 
-    def write_row(ri, label, budget, actual, expected, fill, bold=False, is_rate=False):
-        total  = actual + expected
-        diff   = total - budget
-        fnt    = Font(name='微軟正黑體', size=10, bold=bold)
-        cells  = [
-            (1, label,    lft,  None,    fill),
-            (2, budget,   rgt,  num_fmt, fill),
-            (3, actual,   rgt,  num_fmt, fill),
-            (4, expected, rgt,  num_fmt, fill),
-            (5, total,    rgt,  num_fmt, fill),
-            (6, diff,     rgt,  num_fmt, fill),
-        ]
-        if is_rate:
-            rate_val = actual / budget if budget else None
-            cells = [
-                (1, label,    lft,  None,    fill),
-                (2, None,     rgt,  None,    fill),
-                (3, rate_val, rgt,  pct_fmt, fill),
-                (4, None,     rgt,  None,    fill),
-                (5, rate_val, rgt,  pct_fmt, fill),
-                (6, None,     rgt,  None,    fill),
-            ]
-        for ci, val, aln, fmt, fl in cells:
+    def write_row(ri, label, budget, actual, expected, fill, bold=False, exp_diag=False):
+        total = actual + expected
+        diff  = total - budget
+        fnt   = Font(name='微軟正黑體', size=10, bold=bold)
+        data  = [(1, label, lft, None, fill, False),
+                 (2, budget, rgt, num_fmt, fill, False),
+                 (3, actual, rgt, num_fmt, fill, False),
+                 (4, expected, rgt, num_fmt, fill, False),
+                 (5, total, rgt, num_fmt, fill, False),
+                 (6, diff, rgt, num_fmt, fill, False)]
+        if exp_diag:
+            data[2] = (3, None, rgt, None, DIAG_FILL, True)
+            data[3] = (4, None, rgt, None, DIAG_FILL, True)
+            data[4] = (5, budget, rgt, num_fmt, fill, False)
+            data[5] = (6, 0 - budget, rgt, num_fmt, fill, False)
+        for ci, val, aln, fmt, fl, diag in data:
             c = ws.cell(ri, ci)
-            c.value = val if val != 0 or fmt is None else None
-            if val == 0 and fmt == num_fmt:
-                c.value = None
+            c.value = val if not (val == 0 and fmt == num_fmt) else None
             c.font = fnt; c.alignment = aln; c.border = bdr
-            if fmt: c.number_format = fmt
-            if fl:  c.fill = fl
+            if fmt and not diag: c.number_format = fmt
+            if fl: c.fill = fl
         ws.row_dimensions[ri].height = 16
 
     ri = 4
-    # ── 收入區塊 ──
-    inc_total_actual = 0; inc_total_exp = 0; inc_total_budget = 0
+    # 收入區塊
+    inc_total_actual = 0; inc_total_budget = 0
     for item in INCOME_ITEMS:
-        label  = INCOME_LABELS.get(item, item)
-        budget = goal_map.get(item, 0)
-        actual = rev_map.get(item, {}).get('actual', 0)
-        exp    = rev_map.get(item, {}).get('exp', 0)
+        label    = INCOME_LABELS.get(item, item)
+        budget   = goal_map.get(item, 0)
+        actual   = rev_map.get(item, {}).get('actual', 0)
+        exp      = rev_map.get(item, {}).get('exp', 0)
         is_total = (item == INCOME_TOTAL_ITEM)
-        fill   = TOT_FILL if is_total else INC_FILL
+        fill     = TOT_FILL if is_total else INC_FILL
         write_row(ri, label, budget, actual, exp, fill, bold=is_total)
         if is_total:
-            inc_total_actual = actual; inc_total_exp = exp; inc_total_budget = budget
+            inc_total_actual = actual; inc_total_budget = budget
         ri += 1
     # X值達成率
     c = ws.cell(ri, 1, 'X值達成率')
@@ -1522,40 +1507,44 @@ def export_dept_excel(dept, month):
     rate_val = inc_total_actual / inc_total_budget if inc_total_budget else None
     for ci in range(2, 7):
         cc = ws.cell(ri, ci)
-        if ci == 3 or ci == 5:
-            cc.value = rate_val
-            cc.number_format = pct_fmt
+        if ci in (3, 5):
+            cc.value = rate_val; cc.number_format = pct_fmt
         cc.fill = RATE_FILL; cc.border = bdr; cc.alignment = rgt; cc.font = dfont
     ws.row_dimensions[ri].height = 16
     ri += 1
 
-    # ── 支出區塊 ──
+    # 支出區塊（C、D欄加斜線填色）
     exp_total_actual = 0; exp_total_budget = 0
     for item in EXPENSE_ITEMS:
-        label  = EXPENSE_LABELS.get(item, item)
-        budget = goal_map.get(item, 0)
-        actual = rev_map.get(item, {}).get('actual', 0)
-        uncl   = exp_ucl.get(item, 0)
+        label    = EXPENSE_LABELS.get(item, item)
+        budget   = goal_map.get(item, 0)
+        actual   = rev_map.get(item, {}).get('actual', 0)
+        uncl     = exp_ucl.get(item, 0)
         is_total = (item == '其他民間收入支出')
-        fill   = TOT_FILL if is_total else EXP_FILL
-        write_row(ri, label, budget, actual, uncl, fill, bold=is_total)
+        fill     = TOT_FILL if is_total else EXP_FILL
+        write_row(ri, label, budget, actual, uncl, fill, bold=is_total, exp_diag=(not is_total))
         if is_total:
             exp_total_actual = actual + uncl; exp_total_budget = budget
         ri += 1
 
-    # ── 摘要區塊 ──
-    svc_income   = rev_map.get('其他民間收入', {}).get('actual', 0)
+    # 摘要區塊
+    svc_income    = rev_map.get('其他民間收入', {}).get('actual', 0)
     biz_surplus_a = inc_total_actual - exp_total_actual
     mgmt_fee_a    = svc_income * 0.115
     y_val_a       = biz_surplus_a - mgmt_fee_a
     y_goal        = goal_map.get('財務貢獻Y值', 0)
+    biz_budget    = inc_total_budget - exp_total_budget
+    mgmt_budget   = goal_map.get('管理費', svc_income * 0.115 if not goal_map.get('管理費') else 0)
 
     summary_rows = [
-        ('業務餘絀',       inc_total_budget - exp_total_budget, biz_surplus_a, 0),
-        ('管理費',         goal_map.get('管理費', 0),            mgmt_fee_a,   0),
-        ('財務貢獻Y值',    y_goal,                               y_val_a,      0),
+        ('業務餘絀',    biz_budget,  biz_surplus_a, 0),
+        ('管理費',      mgmt_budget, mgmt_fee_a,    0),
+        ('財務貢獻Y值', y_goal,      y_val_a,       0),
     ]
-    for label, budget, actual, exp in summary_rows:
+    for i, (label, budget, actual, exp) in enumerate(summary_rows):
+        is_y = (label == '財務貢獻Y值')
+        fnt = Font(name='微軟正黑體', size=10, bold=True,
+                   color='FF0000' if is_y and actual < 0 else '000000')
         write_row(ri, label, budget, actual, exp, SUM_FILL, bold=True)
         ri += 1
     # Y值達成率
@@ -1565,9 +1554,8 @@ def export_dept_excel(dept, month):
     y_rate = y_val_a / y_goal if y_goal else None
     for ci in range(2, 7):
         cc = ws.cell(ri, ci)
-        if ci == 3 or ci == 5:
-            cc.value = y_rate
-            cc.number_format = pct_fmt
+        if ci == 5:
+            cc.value = y_rate; cc.number_format = pct_fmt
         cc.fill = SUM_FILL; cc.border = bdr; cc.alignment = rgt
         cc.font = Font(name='微軟正黑體', size=10, bold=True)
     ws.row_dimensions[ri].height = 16
@@ -1576,7 +1564,7 @@ def export_dept_excel(dept, month):
 
     output = io.BytesIO(); wb.save(output); output.seek(0)
     return send_file(output, as_attachment=True,
-                     download_name=f'{year}年{dept}{month}月收支預估表.xlsx',
+                     download_name=f'{year}年{dept}1-{month}月收支預估表.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/api/export_dept_year_excel/<dept>')
