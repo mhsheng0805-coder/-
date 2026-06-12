@@ -109,7 +109,7 @@ tr:hover { background: #eef4fb; }
   {% if session.get('role') == 'admin' %}
   <a href="/summary" {% if '/summary' in request.path %}class="active"{% endif %}>📈 彙整</a>
   <a href="/contracts" {% if '/contracts' in request.path %}class="active"{% endif %}>合約</a>
-  <a href="/export_excel" class="btn btn-success btn-sm" style="margin-left:4px;" title="匯出本年度 Excel">⬇ Excel</a>
+  <button onclick="openExcelModal()" class="btn btn-success btn-sm" style="margin-left:4px;">⬇ Excel</button>
   {% endif %}
 
   {% if all_years is defined and all_years %}
@@ -129,15 +129,17 @@ tr:hover { background: #eef4fb; }
   {% if session.get('user') %}
   <span class="user-info">👤 {{ session.get('display_name', session.get('user')) }}{% if session.get('dept') and session.get('dept') in ['原料部','產品部','檢驗部','製程部','雲分部','產服部'] %} ／ {{ session.get('dept') }}{% endif %}</span>
   {% if session.get('role') == 'admin' %}
-  <a href="/admin/users" {% if request.path == '/admin/users' %}class="active"{% endif %} title="使用者管理">👥</a>
-  <a href="/admin/dept_groups" {% if request.path == '/admin/dept_groups' %}class="active"{% endif %} title="部門組別管理">🏢</a>
-  <a href="/admin/unlock_requests_page" title="解鎖申請" style="position:relative;">
-    🔓<span id="unlock-badge" style="display:none; position:absolute; top:-4px; right:-4px;
+  <a href="/admin/users" {% if request.path == '/admin/users' %}class="active"{% endif %}
+     style="font-size:12px; padding:3px 9px; border:1px solid rgba(255,255,255,0.4); border-radius:4px;">帳號管理</a>
+  <a href="/admin/dept_groups" {% if request.path == '/admin/dept_groups' %}class="active"{% endif %}
+     style="font-size:12px; padding:3px 9px; border:1px solid rgba(255,255,255,0.4); border-radius:4px;">組別管理</a>
+  <a href="/admin/unlock_requests_page" style="font-size:12px; padding:3px 9px; border:1px solid rgba(255,255,255,0.4); border-radius:4px; position:relative;">
+    解鎖申請<span id="unlock-badge" style="display:none; position:absolute; top:-4px; right:-4px;
        background:#dc3545; color:white; border-radius:50%; width:16px; height:16px;
        font-size:10px; line-height:16px; text-align:center;"></span>
   </a>
+  <a href="/change_password" style="font-size:12px; padding:3px 9px; border:1px solid rgba(255,255,255,0.4); border-radius:4px;">改密碼</a>
   {% endif %}
-  {% if session.get('role') == 'admin' %}<a href="/change_password" title="修改密碼">🔑</a>{% endif %}
   <span style="font-size:13px;font-weight:bold;color:#ffe08a;margin-right:4px;letter-spacing:0.5px;">⚠ 離開前請登出</span>
   <a href="/logout" style="background:#e74c3c;color:#fff;padding:4px 12px;border-radius:4px;font-weight:bold;font-size:13px;"
      onclick="_logoutClicked=true; return confirm('確定要登出？')">登出</a>
@@ -145,6 +147,31 @@ tr:hover { background: #eef4fb; }
 </nav>
 
 <div id="toast"></div>
+
+<!-- 部門選擇匯出彈窗 -->
+<div id="excel-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:8px; padding:24px 28px; min-width:320px; max-width:420px; box-shadow:0 4px 24px rgba(0,0,0,0.25);">
+    <div style="font-size:16px; font-weight:bold; color:#1F3864; margin-bottom:16px;">⬇ 選擇匯出部門</div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:13px; cursor:pointer;">
+        <input type="checkbox" id="excel-chk-all" onchange="toggleAllDepts(this.checked)" checked style="margin-right:6px;">
+        <strong>全選</strong>
+      </label>
+    </div>
+    <div id="excel-dept-list" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:20px;">
+      {% for d in ['原料部','產品部','檢驗部','製程部','雲分部','產服部'] %}
+      <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" class="excel-dept-chk" value="{{ d }}" checked>{{ d }}
+      </label>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button onclick="closeExcelModal()" style="padding:6px 18px; border:1px solid #ccc; border-radius:4px; background:#f5f5f5; cursor:pointer; font-size:13px;">取消</button>
+      <button onclick="doExportExcel()" style="padding:6px 18px; border:none; border-radius:4px; background:#1e7e34; color:#fff; cursor:pointer; font-size:13px; font-weight:bold;">⬇ 匯出</button>
+    </div>
+  </div>
+</div>
+
 <div class="container">
 {% block content %}{% endblock %}
 </div>
@@ -243,6 +270,29 @@ function switchYear(year) {
 }
 
 var _logoutClicked = false;
+
+function openExcelModal() {
+  var m = document.getElementById('excel-modal');
+  m.style.display = 'flex';
+}
+function closeExcelModal() {
+  document.getElementById('excel-modal').style.display = 'none';
+}
+function toggleAllDepts(checked) {
+  document.querySelectorAll('.excel-dept-chk').forEach(function(c){ c.checked = checked; });
+}
+function doExportExcel() {
+  var chks = document.querySelectorAll('.excel-dept-chk:checked');
+  if (chks.length === 0) { alert('請至少勾選一個部門'); return; }
+  var depts = Array.from(chks).map(function(c){ return c.value; }).join(',');
+  _logoutClicked = true;
+  window.location.href = '/export_excel?depts=' + encodeURIComponent(depts);
+  setTimeout(function(){ _logoutClicked = false; }, 3000);
+  closeExcelModal();
+}
+document.getElementById('excel-modal').addEventListener('click', function(e){
+  if (e.target === this) closeExcelModal();
+});
 window.addEventListener('beforeunload', function(e) {
   if (!_logoutClicked) {
     e.preventDefault();

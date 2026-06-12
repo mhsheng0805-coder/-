@@ -2607,10 +2607,14 @@ def export_excel():
     if not can_export():
         return jsonify({'error': '檢視者無法下載檔案'}), 403
     year = get_current_year()
+    # 支援 ?depts=原料部,產品部 篩選部門
+    depts_param = request.args.get('depts', '')
+    selected_depts = [d.strip() for d in depts_param.split(',') if d.strip() in DEPARTMENTS] if depts_param else DEPARTMENTS
+    ph = ','.join(['?' for _ in selected_depts])
     con = get_db()
-    rev_rows      = con.execute('SELECT * FROM revenue WHERE year=? ORDER BY dept, month, item', (year,)).fetchall()
-    unclaim_rows  = con.execute('SELECT * FROM unclaimed WHERE year=? ORDER BY dept, month, item', (year,)).fetchall()
-    contract_rows = con.execute('SELECT * FROM contracts WHERE year=? ORDER BY dept, month', (year,)).fetchall()
+    rev_rows      = con.execute(f'SELECT * FROM revenue WHERE year=? AND dept IN ({ph}) ORDER BY dept, month, item', [year]+selected_depts).fetchall()
+    unclaim_rows  = con.execute(f'SELECT * FROM unclaimed WHERE year=? AND dept IN ({ph}) ORDER BY dept, month, item', [year]+selected_depts).fetchall()
+    contract_rows = con.execute(f'SELECT * FROM contracts WHERE year=? AND dept IN ({ph}) ORDER BY dept, month', [year]+selected_depts).fetchall()
     con.close()
 
     wb = openpyxl.Workbook()
