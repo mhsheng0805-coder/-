@@ -75,6 +75,16 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if not session.get('user'):
             return redirect(url_for('login', next=request.path))
+        # 驗證伺服器端 session token（防止關閉瀏覽器後 cookie 被還原）
+        tok = session.get('session_token')
+        if tok:
+            con = get_db()
+            row = con.execute('SELECT session_token FROM users WHERE username=?',
+                              (session['user'],)).fetchone()
+            con.close()
+            if not row or row['session_token'] != tok:
+                session.clear()
+                return redirect(url_for('login', next=request.path))
         return f(*args, **kwargs)
     return decorated
 
@@ -266,6 +276,7 @@ CREATE TABLE IF NOT EXISTS dept_groups (
 _MIGRATE_USERS = [
     "ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN disabled INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN session_token TEXT DEFAULT NULL",
 ]
 _MIGRATE_NEW_TABLES_SQLITE = [
     """CREATE TABLE IF NOT EXISTS locks (
@@ -591,6 +602,12 @@ def login():
             session['display_name'] = user['display_name'] or user['username']
             session['role'] = user['role']
             session['dept'] = user['dept'] or ''
+            # 產生伺服器端 session token，防止瀏覽器還原舊 cookie
+            tok = secrets.token_hex(16)
+            session['session_token'] = tok
+            con3 = get_db()
+            con3.execute('UPDATE users SET session_token=? WHERE username=?', (tok, user['username']))
+            con3.commit(); con3.close()
             # 預設使用 DB 設定年度
             con2 = get_db()
             row = con2.execute("SELECT value FROM settings WHERE key='current_year'").fetchone()
@@ -602,6 +619,11 @@ def login():
 
 @app.route('/logout')
 def logout():
+    username = session.get('user')
+    if username:
+        con = get_db()
+        con.execute('UPDATE users SET session_token=NULL WHERE username=?', (username,))
+        con.commit(); con.close()
     session.clear()
     return redirect(url_for('login'))
 
