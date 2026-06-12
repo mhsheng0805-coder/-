@@ -77,14 +77,17 @@ def login_required(f):
             return redirect(url_for('login', next=request.path))
         # 驗證伺服器端 session token（防止關閉瀏覽器後 cookie 被還原）
         tok = session.get('session_token')
-        if tok:
-            con = get_db()
-            row = con.execute('SELECT session_token FROM users WHERE username=?',
-                              (session['user'],)).fetchone()
-            con.close()
-            if not row or row['session_token'] != tok:
-                session.clear()
-                return redirect(url_for('login', next=request.path))
+        if not tok:
+            # 無 token 的舊 session 一律強制重新登入
+            session.clear()
+            return redirect(url_for('login', next=request.path))
+        con = get_db()
+        row = con.execute('SELECT session_token FROM users WHERE username=?',
+                          (session['user'],)).fetchone()
+        con.close()
+        if not row or row['session_token'] != tok:
+            session.clear()
+            return redirect(url_for('login', next=request.path))
         return f(*args, **kwargs)
     return decorated
 
