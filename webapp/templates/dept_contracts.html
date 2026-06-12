@@ -528,7 +528,7 @@ function buildInstallmentRows(existing) {
     const row = document.createElement('div');
     row.className = 'install-row';
     row.style.cssText = 'display:flex; gap:8px; align-items:center; background:#fff8e1; padding:6px 8px; border-radius:4px;';
-    const yr = prev[i]?.year || '';
+    const yr = prev[i]?.year || YEAR;
     const am = prev[i]?.amount !== undefined ? prev[i].amount : 0;
     row.innerHTML = `<span style="font-size:12px; white-space:nowrap; color:#5d4037;">第${i+1}期</span>
       <input type="number" class="install-year" placeholder="年度(民國)" min="100" max="200"
