@@ -75,13 +75,19 @@
       </div>
     </div>
 
-    <table>
+    <table id="users-table">
       <thead>
         <tr>
-          <th>帳號</th><th>姓名</th><th>部門</th><th>權限</th><th>狀態</th><th>建立時間</th><th>操作</th>
+          <th onclick="sortTable(0)" style="cursor:pointer;user-select:none;">帳號 <span class="sort-icon" data-col="0">⇅</span></th>
+          <th onclick="sortTable(1)" style="cursor:pointer;user-select:none;">姓名 <span class="sort-icon" data-col="1">⇅</span></th>
+          <th onclick="sortTable(2)" style="cursor:pointer;user-select:none;">部門 <span class="sort-icon" data-col="2">⇅</span></th>
+          <th onclick="sortTable(3)" style="cursor:pointer;user-select:none;">權限 <span class="sort-icon" data-col="3">⇅</span></th>
+          <th onclick="sortTable(4)" style="cursor:pointer;user-select:none;">狀態 <span class="sort-icon" data-col="4">⇅</span></th>
+          <th onclick="sortTable(5)" style="cursor:pointer;user-select:none;">建立時間 <span class="sort-icon" data-col="5">⇅</span></th>
+          <th>操作</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="users-tbody">
         {% for u in users %}
         <tr id="user-row-{{ u.id }}" {% if u.disabled %}style="opacity:.5;"{% endif %}>
           <td><strong>{{ u.username }}</strong></td>
@@ -299,6 +305,23 @@ function toggleUser(id, username) {
       showToast(d.disabled ? '帳號已停用' : '✅ 帳號已啟用', d.disabled ? 'error' : 'success');
     });
 }
+let _sortCol = -1, _sortAsc = true;
+function sortTable(col) {
+  const tbody = document.getElementById('users-tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (_sortCol === col) { _sortAsc = !_sortAsc; } else { _sortCol = col; _sortAsc = true; }
+  // 更新排序圖示
+  document.querySelectorAll('.sort-icon').forEach(el => {
+    el.textContent = parseInt(el.dataset.col) === col ? (_sortAsc ? '↑' : '↓') : '⇅';
+  });
+  rows.sort((a, b) => {
+    const ta = a.cells[col]?.textContent.trim() || '';
+    const tb = b.cells[col]?.textContent.trim() || '';
+    return _sortAsc ? ta.localeCompare(tb, 'zh-TW') : tb.localeCompare(ta, 'zh-TW');
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
 const ROLE_LABELS = {admin:'管理者', editor:'編輯者', viewer:'檢視者'};
 const ROLE_BADGES = {admin:'badge-green', editor:'badge-blue', viewer:'badge-gray'};
 
