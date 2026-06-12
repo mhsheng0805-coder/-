@@ -269,6 +269,18 @@ function switchYear(year) {
   });
 }
 
+// ── sessionStorage 防止關閉瀏覽器後 cookie 被還原重入系統 ──
+(function() {
+  var isLoggedIn = {% if session.get('user') %}true{% else %}false{% endif %};
+  if (isLoggedIn) {
+    if (!sessionStorage.getItem('auth_ok')) {
+      // sessionStorage 空白 → 瀏覽器關閉後被還原，強制清除 server session
+      fetch('/api/invalidate_session', {method:'POST'})
+        .finally(function(){ window.location.href = '/login'; });
+    }
+  }
+})();
+
 var _logoutClicked = false;
 
 function openExcelModal() {

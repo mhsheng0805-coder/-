@@ -630,6 +630,17 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+@app.route('/api/invalidate_session', methods=['POST'])
+def invalidate_session():
+    """前端 sessionStorage 消失時（瀏覽器被關閉後還原），強制清除 session token"""
+    username = session.get('user')
+    if username:
+        con = get_db()
+        con.execute('UPDATE users SET session_token=NULL WHERE username=?', (username,))
+        con.commit(); con.close()
+    session.clear()
+    return jsonify({'ok': True})
+
 @app.route('/api/switch_year', methods=['POST'])
 @login_required
 def switch_year():

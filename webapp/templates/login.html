@@ -109,6 +109,10 @@ function togglePw() {
   inp.type = inp.type === 'password' ? 'text' : 'password';
   eye.style.opacity = inp.type === 'text' ? '1' : '0.5';
 }
+// 登入前先設 sessionStorage，讓 base.html 的驗證能通過
+document.querySelector('form').addEventListener('submit', function() {
+  sessionStorage.setItem('auth_ok', '1');
+});
 </script>
 </body>
 </html>
