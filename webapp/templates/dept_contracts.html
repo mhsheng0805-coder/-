@@ -351,6 +351,8 @@ function renderCarryForward(list) {
         <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
           <input type="radio" name="cu${idx}" value="仍簽約中/用印中" onchange="toggleCarryUpdate(${idx})"><span>仍簽約中/用印中</span></label>
         <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
+          <input type="radio" name="cu${idx}" value="仍在洽談中" onchange="toggleCarryUpdate(${idx})"><span>仍在洽談中</span></label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
           <input type="radio" name="cu${idx}" value="停止" onchange="toggleCarryUpdate(${idx})"><span>停止</span></label>
       </div>
 
@@ -420,6 +422,7 @@ function toggleCarryUpdate(idx) {
   document.getElementById(`cu-expected-${idx}`).style.display = val==='仍預計簽約'        ? 'block' : 'none';
   document.getElementById(`cu-signing-${idx}`).style.display  = val==='仍簽約中/用印中'  ? 'block' : 'none';
   document.getElementById(`cu-stop-${idx}`).style.display     = val==='停止'             ? 'block' : 'none';
+  // 仍在洽談中：無需額外欄位
 }
 
 function saveAllCarryUpdates() {
@@ -440,6 +443,8 @@ function saveAllCarryUpdates() {
     } else if (val === '仍簽約中/用印中') {
       patch = { status:'簽約中/用印中', sign_date: document.getElementById(`cu-signing-date-${idx}`).value,
                 amount: parseFmt(document.getElementById(`cu-signing-amt-${idx}`).value), carry_next:1 };
+    } else if (val === '仍在洽談中') {
+      patch = { status:'洽談中', carry_next:1 };
     } else {
       patch = { status:'停止', note: document.getElementById(`cu-stop-reason-${idx}`).value, carry_next:0 };
     }
