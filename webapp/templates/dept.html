@@ -147,22 +147,24 @@
 
 </div>
 
-<!-- 收支摘要 + 按鈕 -->
+<!-- 操作按鈕列 -->
+<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+  {% if can_write %}
+  <button class="btn btn-success" onclick="saveAll(true)">💾 儲存收支資料</button>
+  <button class="btn" style="background:#1a5276;color:white;" onclick="openGoalsModal()">🎯 設定年度目標</button>
+  <a href="/import" class="btn" style="background:#6c757d;color:white;">📥 匯入 Excel</a>
+  {% else %}
+  <span style="background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:5px;padding:6px 14px;font-size:13px;font-weight:bold;">👁 檢視模式（唯讀）</span>
+  {% endif %}
+  <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月收支 Excel</a>
+  <a href="/api/export_dept_year_excel/{{ dept }}" class="btn" style="background:#0d5c37;color:white;">⬇ 匯出全年 Excel</a>
+  <span id="autosave-status" style="font-size:12px;color:#888;margin-left:4px;"></span>
+</div>
+
+<!-- 收支摘要 -->
 <div class="card">
-  <div class="card-header" style="background:linear-gradient(135deg,#7b5c00,#b8860b); display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
-    <span>⚖️ {{ month }}月 收支摘要</span>
-    <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-      {% if can_write %}
-      <button class="btn btn-success btn-sm" onclick="saveAll(true)">💾 儲存收支資料</button>
-      <button class="btn btn-sm" style="background:#1a5276;color:white;" onclick="openGoalsModal()">🎯 設定年度目標</button>
-      <a href="/import" class="btn btn-sm" style="background:#6c757d;color:white;">📥 匯入 Excel</a>
-      {% else %}
-      <span style="background:rgba(255,243,205,.85);color:#856404;border-radius:5px;padding:4px 10px;font-size:12px;font-weight:bold;">👁 唯讀</span>
-      {% endif %}
-      <a href="/api/export_dept_excel/{{ dept }}/{{ month }}" class="btn btn-sm" style="background:#217346;color:white;">⬇ 匯出本月 Excel</a>
-      <a href="/api/export_dept_year_excel/{{ dept }}" class="btn btn-sm" style="background:#0d5c37;color:white;">⬇ 匯出全年 Excel</a>
-      <span id="autosave-status" style="font-size:12px;color:rgba(255,255,200,.9);margin-left:2px;"></span>
-    </div>
+  <div class="card-header" style="background:linear-gradient(135deg,#7b5c00,#b8860b);">
+    ⚖️ {{ month }}月 收支摘要
   </div>
   <div class="card-body">
     <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
