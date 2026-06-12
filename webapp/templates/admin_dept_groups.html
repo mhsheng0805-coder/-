@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% block title %}部門組別管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    🏢 部門組別管理
+    <span style="font-size:13px; font-weight:normal; color:#666; margin-left:12px;">設定各部門底下的組別，供合約填寫時選擇</span>
+  </div>
+  <div class="card-body">
+
+    <!-- 新增組別表單 -->
+    <div style="background:#f0f8ff; border:1px solid #bdd7ee; border-radius:8px; padding:16px; margin-bottom:20px;">
+      <h4 style="margin:0 0 12px; color:#1f4e79;">＋ 新增組別</h4>
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0; min-width:140px;">
+          <label style="font-size:13px;">部門 *</label>
+          <select id="add-dept" style="width:100%;">
+            <option value="">— 請選擇 —</option>
+            {% for d in departments %}
+            <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0; flex:1; min-width:180px;">
+          <label style="font-size:13px;">組別名稱 *</label>
+          <input type="text" id="add-name" placeholder="例：第一組、研發組、品管組" style="width:100%;">
+        </div>
+        <div class="form-group" style="margin:0; width:80px;">
+          <label style="font-size:13px;">排序</label>
+          <input type="number" id="add-sort" value="0" min="0" style="width:100%;">
+        </div>
+        <button class="btn btn-success" onclick="addGroup()" style="white-space:nowrap;">新增</button>
+      </div>
+      <div id="add-msg" style="margin-top:8px; font-size:13px; color:#c00; display:none;"></div>
+    </div>
+
+    <!-- 各部門組別列表 -->
+    {% for dept in departments %}
+    <div class="dept-section" style="margin-bottom:16px; border:1px solid #dee2e6; border-radius:8px; overflow:hidden;">
+      <div style="background:#f8f9fa; padding:10px 16px; font-weight:bold; font-size:14px; border-bottom:1px solid #dee2e6; display:flex; align-items:center; gap:8px;">
+        <span>{{ dept }}</span>
+        <span id="count-{{ dept }}" style="background:#6c757d; color:#fff; border-radius:10px; padding:2px 8px; font-size:12px; font-weight:normal;">
+          {{ by_dept[dept]|length }} 組
+        </span>
+      </div>
+      <div id="list-{{ dept }}" style="padding:12px 16px;">
+        {% if by_dept[dept] %}
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="font-size:12px; color:#666; border-bottom:1px solid #eee;">
+              <th style="padding:4px 8px; text-align:left;">組別名稱</th>
+              <th style="padding:4px 8px; text-align:center; width:80px;">排序</th>
+              <th style="padding:4px 8px; text-align:center; width:100px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in by_dept[dept] %}
+            <tr id="row-{{ g.id }}" style="border-bottom:1px solid #f5f5f5;">
+              <td style="padding:6px 8px;">
+                <span class="g-name" style="font-size:14px;">{{ g.group_name }}</span>
+                <input class="g-name-input" type="text" value="{{ g.group_name }}"
+                       style="display:none; font-size:14px; width:200px;">
+              </td>
+              <td style="padding:6px 8px; text-align:center;">
+                <span class="g-sort">{{ g.sort_order }}</span>
+                <input class="g-sort-input" type="number" value="{{ g.sort_order }}"
+                       style="display:none; width:60px; text-align:center;">
+              </td>
+              <td style="padding:6px 8px; text-align:center;">
+                <button class="btn btn-primary btn-sm g-edit-btn" onclick="startEdit({{ g.id }})">編輯</button>
+                <button class="btn btn-success btn-sm g-save-btn" onclick="saveEdit({{ g.id }})" style="display:none;">儲存</button>
+                <button class="btn btn-warning btn-sm g-cancel-btn" onclick="cancelEdit({{ g.id }})" style="display:none;">取消</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteGroup({{ g.id }}, '{{ dept }}', '{{ g.group_name }}')">刪除</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p id="empty-{{ dept }}" style="color:#999; font-size:13px; margin:0;">尚未設定任何組別</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+<script>
+const DEPARTMENTS = {{ departments | tojson }};
+
+function addGroup() {
+  const dept = document.getElementById('add-dept').value;
+  const name = document.getElementById('add-name').value.trim();
+  const sort = parseInt(document.getElementById('add-sort').value) || 0;
+  const msg = document.getElementById('add-msg');
+  if (!dept) { showMsg('請選擇部門'); return; }
+  if (!name) { showMsg('請填寫組別名稱'); return; }
+
+  fetch('/api/dept_groups', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({dept, group_name: name, sort_order: sort})
+  }).then(r => r.json()).then(data => {
+    if (data.error) { showMsg(data.error); return; }
+    msg.style.display = 'none';
+    document.getElementById('add-name').value = '';
+    document.getElementById('add-sort').value = 0;
+    appendGroupRow(dept, data);
+    updateCount(dept, 1);
+  });
+}
+
+function showMsg(txt) {
+  const msg = document.getElementById('add-msg');
+  msg.textContent = txt;
+  msg.style.display = 'block';
+}
+
+function appendGroupRow(dept, g) {
+  // 移除空白提示
+  const empty = document.getElementById('empty-' + dept);
+  if (empty) empty.remove();
+
+  let container = document.querySelector('#list-' + dept + ' tbody');
+  if (!container) {
+    document.getElementById('list-' + dept).innerHTML =
+      `<table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="font-size:12px;color:#666;border-bottom:1px solid #eee;">
+          <th style="padding:4px 8px;text-align:left;">組別名稱</th>
+          <th style="padding:4px 8px;text-align:center;width:80px;">排序</th>
+          <th style="padding:4px 8px;text-align:center;width:100px;">操作</th>
+        </tr></thead><tbody></tbody></table>`;
+    container = document.querySelector('#list-' + dept + ' tbody');
+  }
+  const tr = document.createElement('tr');
+  tr.id = 'row-' + g.id;
+  tr.style.borderBottom = '1px solid #f5f5f5';
+  tr.innerHTML = `
+    <td style="padding:6px 8px;">
+      <span class="g-name" style="font-size:14px;">${g.group_name}</span>
+      <input class="g-name-input" type="text" value="${g.group_name}" style="display:none;font-size:14px;width:200px;">
+    </td>
+    <td style="padding:6px 8px;text-align:center;">
+      <span class="g-sort">${g.sort_order}</span>
+      <input class="g-sort-input" type="number" value="${g.sort_order}" style="display:none;width:60px;text-align:center;">
+    </td>
+    <td style="padding:6px 8px;text-align:center;">
+      <button class="btn btn-primary btn-sm g-edit-btn" onclick="startEdit(${g.id})">編輯</button>
+      <button class="btn btn-success btn-sm g-save-btn" onclick="saveEdit(${g.id})" style="display:none;">儲存</button>
+      <button class="btn btn-warning btn-sm g-cancel-btn" onclick="cancelEdit(${g.id})" style="display:none;">取消</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteGroup(${g.id},'${dept}','${g.group_name}')">刪除</button>
+    </td>`;
+  container.appendChild(tr);
+}
+
+function updateCount(dept, delta) {
+  const el = document.getElementById('count-' + dept);
+  const m = el.textContent.match(/\d+/);
+  const n = (m ? parseInt(m[0]) : 0) + delta;
+  el.textContent = n + ' 組';
+}
+
+function startEdit(id) {
+  const row = document.getElementById('row-' + id);
+  row.querySelector('.g-name').style.display = 'none';
+  row.querySelector('.g-name-input').style.display = '';
+  row.querySelector('.g-sort').style.display = 'none';
+  row.querySelector('.g-sort-input').style.display = '';
+  row.querySelector('.g-edit-btn').style.display = 'none';
+  row.querySelector('.g-save-btn').style.display = '';
+  row.querySelector('.g-cancel-btn').style.display = '';
+}
+
+function cancelEdit(id) {
+  const row = document.getElementById('row-' + id);
+  row.querySelector('.g-name-input').value = row.querySelector('.g-name').textContent;
+  row.querySelector('.g-sort-input').value = row.querySelector('.g-sort').textContent;
+  row.querySelector('.g-name').style.display = '';
+  row.querySelector('.g-name-input').style.display = 'none';
+  row.querySelector('.g-sort').style.display = '';
+  row.querySelector('.g-sort-input').style.display = 'none';
+  row.querySelector('.g-edit-btn').style.display = '';
+  row.querySelector('.g-save-btn').style.display = 'none';
+  row.querySelector('.g-cancel-btn').style.display = 'none';
+}
+
+function saveEdit(id) {
+  const row = document.getElementById('row-' + id);
+  const name = row.querySelector('.g-name-input').value.trim();
+  const sort = parseInt(row.querySelector('.g-sort-input').value) || 0;
+  if (!name) { alert('組別名稱不可為空'); return; }
+  fetch(`/api/dept_groups/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({group_name: name, sort_order: sort})
+  }).then(r => r.json()).then(data => {
+    if (data.error) { alert(data.error); return; }
+    row.querySelector('.g-name').textContent = name;
+    row.querySelector('.g-sort').textContent = sort;
+    cancelEdit(id);
+  });
+}
+
+function deleteGroup(id, dept, name) {
+  if (!confirm(`確定刪除「${dept} / ${name}」？`)) return;
+  fetch(`/api/dept_groups/${id}`, {method:'DELETE'})
+    .then(r => r.json()).then(data => {
+      if (data.error) { alert(data.error); return; }
+      document.getElementById('row-' + id).remove();
+      updateCount(dept, -1);
+    });
+}
+</script>
+{% endblock %}

@@ -128,6 +128,7 @@ tr:hover { background: #eef4fb; }
   <span class="user-info">👤 {{ session.get('display_name', session.get('user')) }}{% if session.get('dept') and session.get('dept') in ['原料部','產品部','檢驗部','製程部','雲分部','產服部'] %} ／ {{ session.get('dept') }}{% endif %}</span>
   {% if session.get('role') == 'admin' %}
   <a href="/admin/users" {% if request.path == '/admin/users' %}class="active"{% endif %} title="使用者管理">👥</a>
+  <a href="/admin/dept_groups" {% if request.path == '/admin/dept_groups' %}class="active"{% endif %} title="部門組別管理">🏢</a>
   <a href="/admin/unlock_requests_page" title="解鎖申請" style="position:relative;">
     🔓<span id="unlock-badge" style="display:none; position:absolute; top:-4px; right:-4px;
        background:#dc3545; color:white; border-radius:50%; width:16px; height:16px;

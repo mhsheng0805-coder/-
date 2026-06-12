@@ -185,6 +185,13 @@ CREATE TABLE IF NOT EXISTS annual_goals (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, item)
 );
+CREATE TABLE IF NOT EXISTS dept_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dept TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    sort_order INTEGER DEFAULT 0,
+    UNIQUE(dept, group_name)
+);
 '''
 
 _SCHEMA_PG = '''
@@ -247,6 +254,13 @@ CREATE TABLE IF NOT EXISTS annual_goals (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, item)
 );
+CREATE TABLE IF NOT EXISTS dept_groups (
+    id SERIAL PRIMARY KEY,
+    dept TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    sort_order INTEGER DEFAULT 0,
+    UNIQUE(dept, group_name)
+);
 '''
 
 _MIGRATE_USERS = [
@@ -305,6 +319,19 @@ _MIGRATE_REVENUE = [
     "ALTER TABLE revenue ADD COLUMN expected_amount REAL DEFAULT 0",
 ]
 
+_MIGRATE_DEPT_GROUPS_SQLITE = [
+    """CREATE TABLE IF NOT EXISTS dept_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dept TEXT NOT NULL, group_name TEXT NOT NULL, sort_order INTEGER DEFAULT 0,
+        UNIQUE(dept, group_name))""",
+]
+_MIGRATE_DEPT_GROUPS_PG = [
+    """CREATE TABLE IF NOT EXISTS dept_groups (
+        id SERIAL PRIMARY KEY,
+        dept TEXT NOT NULL, group_name TEXT NOT NULL, sort_order INTEGER DEFAULT 0,
+        UNIQUE(dept, group_name))""",
+]
+
 _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN cross_dept INTEGER DEFAULT 0",
     "ALTER TABLE contracts ADD COLUMN cross_dept_data TEXT DEFAULT '{}'",
@@ -329,7 +356,8 @@ def _migrate(cur, is_pg):
     """升級舊版資料表（新增欄位）"""
     new_tables = _MIGRATE_NEW_TABLES_PG if is_pg else _MIGRATE_NEW_TABLES_SQLITE
     goal_tables = _MIGRATE_ANNUAL_GOALS_PG if is_pg else _MIGRATE_ANNUAL_GOALS_SQLITE
-    for stmt in _MIGRATE_USERS + _MIGRATE_REVENUE + _MIGRATE_CONTRACTS + new_tables + goal_tables:
+    dg_tables = _MIGRATE_DEPT_GROUPS_PG if is_pg else _MIGRATE_DEPT_GROUPS_SQLITE
+    for stmt in _MIGRATE_USERS + _MIGRATE_REVENUE + _MIGRATE_CONTRACTS + new_tables + goal_tables + dg_tables:
         try:
             cur.execute(stmt)
         except Exception:
@@ -806,6 +834,99 @@ def delete_user(uid):
         con.close()
         return jsonify({'error': '不可刪除 admin 帳號'}), 400
     con.execute("DELETE FROM users WHERE id=?", (uid,))
+    con.commit()
+    con.close()
+    return jsonify({'status': 'ok'})
+
+# ── 部門組別管理 ────────────────────────────────────────
+@app.route('/admin/dept_groups')
+@login_required
+def admin_dept_groups():
+    if session.get('role') != 'admin':
+        return redirect(url_for('index'))
+    con = get_db()
+    rows = [dict(r) for r in con.execute(
+        "SELECT * FROM dept_groups ORDER BY dept, sort_order, group_name"
+    ).fetchall()]
+    con.close()
+    # 整理成 {dept: [groups]}
+    by_dept = {d: [] for d in DEPARTMENTS}
+    for r in rows:
+        if r['dept'] in by_dept:
+            by_dept[r['dept']].append(r)
+    return render_template('admin_dept_groups.html',
+                           departments=DEPARTMENTS, by_dept=by_dept, year=get_current_year())
+
+@app.route('/api/dept_groups', methods=['GET'])
+@login_required
+def api_get_dept_groups():
+    dept = request.args.get('dept', '')
+    con = get_db()
+    if dept:
+        rows = [dict(r) for r in con.execute(
+            "SELECT id, group_name, sort_order FROM dept_groups WHERE dept=? ORDER BY sort_order, group_name",
+            (dept,)
+        ).fetchall()]
+    else:
+        rows = [dict(r) for r in con.execute(
+            "SELECT * FROM dept_groups ORDER BY dept, sort_order, group_name"
+        ).fetchall()]
+    con.close()
+    return jsonify(rows)
+
+@app.route('/api/dept_groups', methods=['POST'])
+@login_required
+def api_add_dept_group():
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    d = request.json
+    dept = d.get('dept', '').strip()
+    group_name = d.get('group_name', '').strip()
+    sort_order = d.get('sort_order', 0)
+    if not dept or not group_name:
+        return jsonify({'error': '部門和組別名稱必填'}), 400
+    if dept not in DEPARTMENTS:
+        return jsonify({'error': '無效的部門'}), 400
+    con = get_db()
+    ph = '%s' if IS_PG else '?'
+    try:
+        con.execute(f"INSERT INTO dept_groups (dept, group_name, sort_order) VALUES ({ph},{ph},{ph})",
+                    (dept, group_name, sort_order))
+        con.commit()
+        row = con.execute(f"SELECT * FROM dept_groups WHERE dept={ph} AND group_name={ph}",
+                          (dept, group_name)).fetchone()
+        con.close()
+        return jsonify(dict(row))
+    except Exception as e:
+        con.close()
+        return jsonify({'error': '組別已存在或發生錯誤: ' + str(e)}), 400
+
+@app.route('/api/dept_groups/<int:gid>', methods=['DELETE'])
+@login_required
+def api_delete_dept_group(gid):
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    ph = '%s' if IS_PG else '?'
+    con = get_db()
+    con.execute(f"DELETE FROM dept_groups WHERE id={ph}", (gid,))
+    con.commit()
+    con.close()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/dept_groups/<int:gid>', methods=['PUT'])
+@login_required
+def api_update_dept_group(gid):
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    d = request.json
+    group_name = d.get('group_name', '').strip()
+    sort_order = d.get('sort_order', 0)
+    if not group_name:
+        return jsonify({'error': '組別名稱必填'}), 400
+    ph = '%s' if IS_PG else '?'
+    con = get_db()
+    con.execute(f"UPDATE dept_groups SET group_name={ph}, sort_order={ph} WHERE id={ph}",
+                (group_name, sort_order, gid))
     con.commit()
     con.close()
     return jsonify({'status': 'ok'})

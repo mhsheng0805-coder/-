@@ -89,7 +89,9 @@
         </div>
         <div class="form-group">
           <label>組別</label>
-          <input type="text" id="cf-group" placeholder="例：第一組、研發組…">
+          <select id="cf-group" style="width:100%;">
+            <option value="">— 請選擇 —</option>
+          </select>
         </div>
         <div class="form-group">
           <label>狀態</label>
@@ -455,12 +457,35 @@ function saveAllCarryUpdates() {
   });
 }
 
+function loadGroupOptions(dept, selectedValue, callback) {
+  const sel = document.getElementById('cf-group');
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  if (!dept) { if (callback) callback(); return; }
+  fetch(`/api/dept_groups?dept=${encodeURIComponent(dept)}`)
+    .then(r => r.json()).then(groups => {
+      groups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.group_name;
+        opt.textContent = g.group_name;
+        if (g.group_name === selectedValue) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      // 若原有值不在清單中（舊資料），仍顯示
+      if (selectedValue && !groups.find(g => g.group_name === selectedValue)) {
+        const opt = document.createElement('option');
+        opt.value = selectedValue; opt.textContent = selectedValue; opt.selected = true;
+        sel.appendChild(opt);
+      }
+      if (callback) callback();
+    });
+}
+
 function showContractForm(contract) {
   document.getElementById('contract-form').style.display = 'block';
   document.getElementById('cf-id').value = contract?.id || '';
   document.getElementById('cf-client').value = contract?.client || '';
   document.getElementById('cf-project').value = contract?.project_name || '';
-  document.getElementById('cf-group').value = contract?.group_name || '';
+  loadGroupOptions(DEPT, contract?.group_name || '');
   document.getElementById('cf-amount').value = contract?.amount > 0 ? fmt(contract.amount) : '';
   document.getElementById('cf-sign-date').value = contract?.sign_date || '';
   document.getElementById('cf-expected-amount').value = contract?.expected_amount > 0 ? fmt(contract.expected_amount) : '';
