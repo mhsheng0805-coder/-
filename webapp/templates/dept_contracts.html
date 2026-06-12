@@ -279,12 +279,16 @@ function renderContracts(list) {
         : '當年一次性';
       const cdStr = c.cross_dept ? Object.entries(cdData).map(([d, entries]) => {
           let arr = entries;
-          if (typeof arr === 'number') arr = arr > 0 ? [{year:null, amount:arr}] : [];
-          arr = (Array.isArray(arr) ? arr : []).filter(e => e.amount > 0);
-          if (!arr.length) return null;
-          const detail = arr.map(e => e.year ? `${e.year}年:${fmt(e.amount)}` : fmt(e.amount)).join('、');
-          return `${d}（${detail}）`;
-        }).filter(Boolean).join('<br>') || '✓' : '';
+          if (typeof arr === 'number') arr = [{year:null, amount:arr}];
+          arr = Array.isArray(arr) ? arr : [];
+          // 有金額的顯示金額；無金額（待確定）只顯示部門名
+          const withAmt = arr.filter(e => e.amount > 0);
+          if (withAmt.length) {
+            const detail = withAmt.map(e => e.year ? `${e.year}年:${fmt(e.amount)}` : fmt(e.amount)).join('、');
+            return `${d}（${detail}）`;
+          }
+          return `${d}（待確定）`;
+        }).join('<br>') || '✓' : '';
       // 依狀態顯示對應的金額／日期
       let amtVal = '', dateVal = '';
       if (c.status === '預計簽約') {
