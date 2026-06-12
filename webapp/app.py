@@ -838,7 +838,7 @@ def export_users():
         c.font = hfont; c.fill = hfill; c.alignment = ctr; c.border = border
         ws.column_dimensions[get_column_letter(col)].width = w
 
-    role_map = {'admin': '管理員', 'user': '一般使用者'}
+    role_map = {'admin': '管理者', 'editor': '編輯者', 'viewer': '檢視者', 'user': '一般使用者'}
     for ri, u in enumerate(users, 2):
         vals = [
             u['username'],
