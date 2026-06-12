@@ -138,8 +138,9 @@ tr:hover { background: #eef4fb; }
   </a>
   {% endif %}
   {% if session.get('role') == 'admin' %}<a href="/change_password" title="修改密碼">🔑</a>{% endif %}
+  <span style="font-size:11px;color:rgba(255,220,220,0.9);margin-right:2px;">離開前請登出 ↘</span>
   <a href="/logout" style="background:#e74c3c;color:#fff;padding:4px 12px;border-radius:4px;font-weight:bold;font-size:13px;"
-     onclick="return confirm('確定要登出？')">登出</a>
+     onclick="_logoutClicked=true; return confirm('確定要登出？')">登出</a>
   {% endif %}
 </nav>
 
@@ -240,6 +241,14 @@ function switchYear(year) {
     location.reload();
   });
 }
+
+var _logoutClicked = false;
+window.addEventListener('beforeunload', function(e) {
+  if (!_logoutClicked) {
+    e.preventDefault();
+    e.returnValue = '離開前請務必按「登出」按鈕，以保護您的帳號安全。';
+  }
+});
 </script>
 {% block scripts %}{% endblock %}
 </body>
