@@ -134,7 +134,11 @@
          border-radius:8px; padding:16px; margin-top:16px;">
       <h4 style="margin-bottom:12px; color:#155724;">✏️ 編輯帳號：<span id="edit-user-username"></span></h4>
       <input type="hidden" id="edit-user-id">
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; align-items:end;">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; align-items:end;">
+        <div class="form-group" style="margin:0;">
+          <label>帳號 <span style="font-size:11px;color:#888;">（登入用）</span></label>
+          <input type="text" id="edit-username-val" autocomplete="off" placeholder="登入帳號">
+        </div>
         <div class="form-group" style="margin:0;">
           <label>姓名</label>
           <input type="text" id="edit-display" autocomplete="off" placeholder="真實姓名">
@@ -301,6 +305,7 @@ const ROLE_BADGES = {admin:'badge-green', editor:'badge-blue', viewer:'badge-gra
 function showEditUser(id, username, display, dept, role) {
   document.getElementById('edit-user-id').value = id;
   document.getElementById('edit-user-username').textContent = username;
+  document.getElementById('edit-username-val').value = username;
   document.getElementById('edit-display').value = display;
   // 部門下拉：若不在清單中則動態加入
   const sel = document.getElementById('edit-dept-sel');
@@ -321,18 +326,21 @@ function showEditUser(id, username, display, dept, role) {
 
 function doEditUser() {
   const id = document.getElementById('edit-user-id').value;
+  const username = document.getElementById('edit-username-val').value.trim();
   const display_name = document.getElementById('edit-display').value.trim();
   const dept = document.getElementById('edit-dept').value || document.getElementById('edit-dept-sel').value;
   const role = document.getElementById('edit-role').value;
   const msg = document.getElementById('edit-user-msg');
+  if (!username) { msg.textContent = '帳號不可為空'; return; }
   fetch(`/admin/update_user/${id}`, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({display_name, dept, role})
+    body: JSON.stringify({username, display_name, dept, role})
   }).then(r => r.json()).then(d => {
     if (d.error) { msg.textContent = '錯誤：' + d.error; return; }
     // 更新列上的顯示
     const row = document.getElementById('user-row-' + id);
+    row.cells[0].innerHTML = `<strong>${d.username}</strong>`;
     row.cells[1].textContent = display_name || '-';
     row.cells[2].innerHTML = dept
       ? `<span class="badge badge-blue">${dept}</span>`

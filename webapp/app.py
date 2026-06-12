@@ -829,15 +829,23 @@ def update_user(uid):
     if session.get('role') != 'admin':
         return jsonify({'error': 'forbidden'}), 403
     d = request.json
+    username = d.get('username', '').strip()
     display_name = d.get('display_name', '').strip()
     dept = d.get('dept', '').strip()
     role = d.get('role', 'editor')
+    if not username:
+        return jsonify({'error': '帳號不可為空'}), 400
     con = get_db()
-    con.execute("UPDATE users SET display_name=?, dept=?, role=? WHERE id=?",
-                (display_name, dept, role, uid))
+    # 檢查帳號是否與其他人重複
+    existing = con.execute("SELECT id FROM users WHERE username=? AND id!=?", (username, uid)).fetchone()
+    if existing:
+        con.close()
+        return jsonify({'error': f'帳號「{username}」已被使用'}), 400
+    con.execute("UPDATE users SET username=?, display_name=?, dept=?, role=? WHERE id=?",
+                (username, display_name, dept, role, uid))
     con.commit()
     con.close()
-    return jsonify({'status': 'ok', 'display_name': display_name, 'dept': dept, 'role': role})
+    return jsonify({'status': 'ok', 'username': username, 'display_name': display_name, 'dept': dept, 'role': role})
 
 @app.route('/admin/delete_user/<int:uid>', methods=['DELETE'])
 @login_required
