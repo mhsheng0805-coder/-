@@ -1417,6 +1417,122 @@ def export_dept_excel(dept, month):
                      download_name=f'{year}年{dept}{month}月收支.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@app.route('/api/export_dept_year_excel/<dept>')
+@login_required
+def export_dept_year_excel(dept):
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    year = get_current_year()
+    con = get_db()
+    rev_rows = con.execute(
+        'SELECT item, month, amount, goal FROM revenue WHERE year=? AND dept=? ORDER BY item, month',
+        (year, dept)
+    ).fetchall()
+    ucl_rows = con.execute(
+        'SELECT item, month, amount FROM unclaimed WHERE year=? AND dept=? ORDER BY item, month',
+        (year, dept)
+    ).fetchall()
+    con.close()
+
+    # 整理資料
+    rev = {}  # {item: {month: amount}}
+    goal_map = {}  # {item: goal}
+    for r in rev_rows:
+        rev.setdefault(r['item'], {})[r['month']] = r['amount'] or 0
+        goal_map[r['item']] = r['goal'] or 0
+    ucl = {}
+    for r in ucl_rows:
+        ucl.setdefault(r['item'], {})[r['month']] = r['amount'] or 0
+
+    wb = openpyxl.Workbook()
+    thin = Side(style='thin'); border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hfill = PatternFill('solid', start_color='BDD7EE', fgColor='BDD7EE')
+    gfill = PatternFill('solid', start_color='C6EFCE', fgColor='C6EFCE')
+    rfill = PatternFill('solid', start_color='FFC7CE', fgColor='FFC7CE')
+    yfill = PatternFill('solid', start_color='FFF2CC', fgColor='FFF2CC')
+    hfont = Font(name='微軟正黑體', size=10, bold=True)
+    ctr = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    lctr = Alignment(horizontal='left', vertical='center')
+
+    ws = wb.active
+    ws.title = f'{year}年{dept}全年收支'
+
+    # 標題列
+    ws.merge_cells('A1:P1')
+    t = ws.cell(1, 1, f'{year}年 {dept} 來自民間業務收支全年報表')
+    t.font = Font(name='微軟正黑體', size=13, bold=True)
+    t.alignment = ctr
+    ws.row_dimensions[1].height = 22
+
+    # 表頭
+    months_hdr = [f'{m}月' for m in range(1, 13)]
+    headers = ['項目', '年度目標'] + months_hdr + ['合計', '達成率']
+    col_widths = [22, 12] + [9]*12 + [11, 9]
+    for ci, (h, w) in enumerate(zip(headers, col_widths), 1):
+        c = ws.cell(2, ci, h)
+        c.font = hfont; c.fill = hfill; c.alignment = ctr; c.border = border
+        ws.column_dimensions[get_column_letter(ci)].width = w
+    ws.row_dimensions[2].height = 18
+
+    def write_items(items, fill, label_prefix=''):
+        ri = ws.max_row + 1
+        for item in items:
+            monthly = rev.get(item, {})
+            g = goal_map.get(item, 0)
+            total = sum(monthly.get(m, 0) for m in range(1, 13))
+            rate = f'{total/g*100:.1f}%' if g else '-'
+            ws.cell(ri, 1, label_prefix + item).border = border
+            ws.cell(ri, 1).font = Font(name='微軟正黑體', size=10)
+            ws.cell(ri, 1).fill = fill
+            ws.cell(ri, 1).alignment = lctr
+            ws.cell(ri, 2, g).border = border; ws.cell(ri, 2).fill = fill; ws.cell(ri, 2).alignment = ctr
+            for m in range(1, 13):
+                c = ws.cell(ri, m+2, monthly.get(m, 0) or None)
+                c.border = border; c.fill = fill; c.alignment = ctr
+            ws.cell(ri, 15, total or None).border = border
+            ws.cell(ri, 15).font = Font(name='微軟正黑體', size=10, bold=True)
+            ws.cell(ri, 15).fill = fill; ws.cell(ri, 15).alignment = ctr
+            ws.cell(ri, 16, rate).border = border; ws.cell(ri, 16).fill = fill; ws.cell(ri, 16).alignment = ctr
+            ri += 1
+
+    # 收入區塊標題
+    ri = 3
+    ws.cell(ri, 1, '【收入項目】').font = Font(name='微軟正黑體', size=10, bold=True, color='1F4E79')
+    ri += 1
+    write_items(INCOME_ITEMS, gfill)
+
+    # 支出區塊標題
+    ri = ws.max_row + 1
+    ws.cell(ri, 1, '【支出項目】').font = Font(name='微軟正黑體', size=10, bold=True, color='C00000')
+    ri += 1
+    write_items(EXPENSE_ITEMS, rfill)
+
+    # 未核銷區塊
+    if any(ucl.values()):
+        ri = ws.max_row + 1
+        ws.cell(ri, 1, '【已申請未核銷】').font = Font(name='微軟正黑體', size=10, bold=True, color='E67E22')
+        ri += 1
+        for item, monthly in ucl.items():
+            total = sum(monthly.values())
+            ws.cell(ri, 1, item).border = border; ws.cell(ri, 1).fill = yfill; ws.cell(ri, 1).alignment = lctr
+            ws.cell(ri, 1).font = Font(name='微軟正黑體', size=10)
+            ws.cell(ri, 2, '').border = border; ws.cell(ri, 2).fill = yfill
+            for m in range(1, 13):
+                c = ws.cell(ri, m+2, monthly.get(m, 0) or None)
+                c.border = border; c.fill = yfill; c.alignment = ctr
+            ws.cell(ri, 15, total or None).border = border
+            ws.cell(ri, 15).font = Font(name='微軟正黑體', size=10, bold=True)
+            ws.cell(ri, 15).fill = yfill; ws.cell(ri, 15).alignment = ctr
+            ws.cell(ri, 16, '').border = border; ws.cell(ri, 16).fill = yfill
+            ri += 1
+
+    ws.freeze_panes = 'C3'
+
+    output = io.BytesIO(); wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年{dept}全年收支.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 @app.route('/api/export_contracts_excel/<dept>/<int:month>')
 @login_required
 def export_contracts_excel(dept, month):
@@ -1975,7 +2091,7 @@ def export_pptx():
             tcPr = tc.get_or_add_tcPr()
             solidFill = tc.makeelement(qn('a:solidFill'))
             srgbClr = tc.makeelement(qn('a:srgbClr'))
-            srgbClr.set('val', f'{int(bg):06X}')
+            srgbClr.set('val', str(bg))
             solidFill.append(srgbClr)
             tcPr.append(solidFill)
 
@@ -2334,8 +2450,8 @@ def export_excel():
     ws3 = wb.create_sheet(f'{year}年合約追蹤')
     make_sheet(ws3, ['年度','部門','月份','客戶/計畫','合約金額','簽約日期','預計完成','狀態','實收金額','備註','延續下月'],
                [8,10,6,25,12,12,12,12,12,20,8],
-               [(r['year'],r['dept'],r['month'],r['client'],r['amount'],r['sign_date'],r['due_date'],
-                 r['status'],r['actual_amount'],r['note'] or '','是' if r['carry_next'] else '') for r in contract_rows])
+               [(r['year'],r['dept'],r['month'],r['client'],r['amount'],r['sign_date'],r.get('expected_date',''),
+                 r['status'],r.get('expected_amount',''),r['note'] or '','是' if r['carry_next'] else '') for r in contract_rows])
 
     output = io.BytesIO()
     wb.save(output); output.seek(0)
