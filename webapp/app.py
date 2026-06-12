@@ -823,6 +823,22 @@ def reset_user_password(uid):
     con.close()
     return jsonify({'status': 'ok'})
 
+@app.route('/admin/update_user/<int:uid>', methods=['POST'])
+@login_required
+def update_user(uid):
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'forbidden'}), 403
+    d = request.json
+    display_name = d.get('display_name', '').strip()
+    dept = d.get('dept', '').strip()
+    role = d.get('role', 'editor')
+    con = get_db()
+    con.execute("UPDATE users SET display_name=?, dept=?, role=? WHERE id=?",
+                (display_name, dept, role, uid))
+    con.commit()
+    con.close()
+    return jsonify({'status': 'ok', 'display_name': display_name, 'dept': dept, 'role': role})
+
 @app.route('/admin/delete_user/<int:uid>', methods=['DELETE'])
 @login_required
 def delete_user(uid):

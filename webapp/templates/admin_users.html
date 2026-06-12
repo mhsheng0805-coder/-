@@ -113,7 +113,8 @@
           </td>
           <td class="text-center" style="font-size:12px; color:#888;">{{ u.created_at[:10] if u.created_at else '-' }}</td>
           <td class="text-center" style="white-space:nowrap;">
-            <button class="btn btn-warning btn-sm" onclick="showResetPw({{ u.id }}, '{{ u.username }}')">修改密碼</button>
+            <button class="btn btn-primary btn-sm" onclick="showEditUser({{ u.id }}, '{{ u.username }}', '{{ u.display_name or '' }}', '{{ u.dept or '' }}', '{{ u.role }}')">編輯</button>
+            <button class="btn btn-warning btn-sm" onclick="showResetPw({{ u.id }}, '{{ u.username }}')">改密碼</button>
             {% if u.username != 'admin' %}
             <button class="btn btn-sm" id="toggle-btn-{{ u.id }}"
                     style="background:{% if u.disabled %}#28a745{% else %}#6c757d{% endif %};color:white;"
@@ -127,6 +128,49 @@
         {% endfor %}
       </tbody>
     </table>
+
+    <!-- 編輯使用者 inline 表單 -->
+    <div id="edit-user-form" style="display:none; background:#f0fff4; border:1px solid #a8d5b5;
+         border-radius:8px; padding:16px; margin-top:16px;">
+      <h4 style="margin-bottom:12px; color:#155724;">✏️ 編輯帳號：<span id="edit-user-username"></span></h4>
+      <input type="hidden" id="edit-user-id">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; align-items:end;">
+        <div class="form-group" style="margin:0;">
+          <label>姓名</label>
+          <input type="text" id="edit-display" autocomplete="off" placeholder="真實姓名">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>部門</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select id="edit-dept-sel" onchange="document.getElementById('edit-dept').value=this.value" style="flex:1;">
+              <option value="">— 無 —</option>
+              <option value="原料部">原料部</option>
+              <option value="產品部">產品部</option>
+              <option value="檢驗部">檢驗部</option>
+              <option value="製程部">製程部</option>
+              <option value="雲分部">雲分部</option>
+              <option value="產服部">產服部</option>
+              <option value="企劃處">企劃處</option>
+            </select>
+          </div>
+          <input type="hidden" id="edit-dept" value="">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>權限</label>
+          <select id="edit-role">
+            <option value="editor">編輯者（可輸入資料）</option>
+            <option value="viewer">檢視者（唯讀）</option>
+            <option value="admin">管理者（全部功能）</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <button class="btn btn-primary" onclick="doEditUser()">💾 儲存</button>
+        <button class="btn btn-sm" style="background:#ccc;color:#333;"
+                onclick="document.getElementById('edit-user-form').style.display='none'">取消</button>
+        <span id="edit-user-msg" style="font-size:13px; color:#c0392b;"></span>
+      </div>
+    </div>
 
     <!-- 修改密碼 inline 表單 -->
     <div id="reset-pw-form" style="display:none; background:#fff8e1; border:1px solid #ffe082;
@@ -251,6 +295,56 @@ function toggleUser(id, username) {
       showToast(d.disabled ? '帳號已停用' : '✅ 帳號已啟用', d.disabled ? 'error' : 'success');
     });
 }
+const ROLE_LABELS = {admin:'管理者', editor:'編輯者', viewer:'檢視者'};
+const ROLE_BADGES = {admin:'badge-green', editor:'badge-blue', viewer:'badge-gray'};
+
+function showEditUser(id, username, display, dept, role) {
+  document.getElementById('edit-user-id').value = id;
+  document.getElementById('edit-user-username').textContent = username;
+  document.getElementById('edit-display').value = display;
+  // 部門下拉：若不在清單中則動態加入
+  const sel = document.getElementById('edit-dept-sel');
+  let found = false;
+  for (const opt of sel.options) { if (opt.value === dept) { found = true; break; } }
+  if (dept && !found) {
+    const opt = document.createElement('option');
+    opt.value = dept; opt.textContent = dept; sel.appendChild(opt);
+  }
+  sel.value = dept;
+  document.getElementById('edit-dept').value = dept;
+  document.getElementById('edit-role').value = role || 'editor';
+  document.getElementById('edit-user-msg').textContent = '';
+  const form = document.getElementById('edit-user-form');
+  form.style.display = 'block';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+function doEditUser() {
+  const id = document.getElementById('edit-user-id').value;
+  const display_name = document.getElementById('edit-display').value.trim();
+  const dept = document.getElementById('edit-dept').value || document.getElementById('edit-dept-sel').value;
+  const role = document.getElementById('edit-role').value;
+  const msg = document.getElementById('edit-user-msg');
+  fetch(`/admin/update_user/${id}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({display_name, dept, role})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { msg.textContent = '錯誤：' + d.error; return; }
+    // 更新列上的顯示
+    const row = document.getElementById('user-row-' + id);
+    row.cells[1].textContent = display_name || '-';
+    row.cells[2].innerHTML = dept
+      ? `<span class="badge badge-blue">${dept}</span>`
+      : `<span style="color:#aaa;font-size:12px;">—</span>`;
+    const label = ROLE_LABELS[role] || role;
+    const badge = ROLE_BADGES[role] || 'badge-gray';
+    row.cells[3].innerHTML = `<span class="badge ${badge}">${label}</span>`;
+    document.getElementById('edit-user-form').style.display = 'none';
+    showToast('✅ 帳號資料已更新');
+  });
+}
+
 function showResetPw(uid, username) {
   document.getElementById('reset-pw-uid').value = uid;
   document.getElementById('reset-pw-username').textContent = username;
