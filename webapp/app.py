@@ -2009,6 +2009,7 @@ def dept_contracts(dept):
     return render_template('dept_contracts.html', dept=dept, month=month,
                            months=MONTHS, year=year, all_years=all_years,
                            departments=allowed,
+                           all_departments=DEPARTMENTS,
                            can_write=can_write_dept(dept))
 
 @app.route('/import')
