@@ -246,10 +246,15 @@ function toggleStatusFields() {
   const status = document.getElementById('cf-status').value;
   document.getElementById('status-expected-fields').style.display = (status === '預計簽約') ? 'block' : 'none';
   document.getElementById('status-signed-fields').style.display = (status === '已簽約' || status === '簽約中/用印中') ? 'block' : 'none';
-  // 洽談中、預計簽約、簽約中/用印中時自動勾選延續追蹤
   const carry = document.getElementById('cf-carry');
-  if (status === '洽談中' || status === '預計簽約' || status === '簽約中/用印中') {
-    carry.checked = true;
+  if (status === '已簽約' || status === '停止' || status === '完成') {
+    carry.checked = false;
+    carry.disabled = true;
+  } else {
+    carry.disabled = false;
+    if (status === '洽談中' || status === '預計簽約' || status === '簽約中/用印中') {
+      carry.checked = true;
+    }
   }
 }
 
