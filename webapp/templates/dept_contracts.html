@@ -361,7 +361,15 @@ function renderCarryForward(list) {
           c.expected_amount>0 ? `預計簽約金額：${fmt(c.expected_amount)}元` :
           c.amount>0 ? `金額：${fmt(c.amount)}元` : ''
         }</div>
-        <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:#888;">上月：</span>
+          <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
+          <span id="cu-new-status-${idx}" style="display:none;align-items:center;gap:4px;">
+            <span style="font-size:13px;color:#888;">→</span>
+            <span style="font-size:11px;color:#888;">本月：</span>
+            <span id="cu-new-badge-${idx}" class="badge badge-info"></span>
+          </span>
+        </div>
         ${CAN_WRITE ? `<button type="button" class="btn btn-sm" style="background:#2e75b6;color:#fff;white-space:nowrap;" onclick="editCarryContract(${idx})">✏️ 修改</button>
         <button type="button" class="btn btn-sm" style="background:#c0392b;color:#fff;white-space:nowrap;" onclick="deleteCarryContract(${c.id})">🗑️ 刪除</button>` : ''}
       </div>
@@ -439,13 +447,35 @@ function renderCarryForward(list) {
   el.innerHTML = html;
 }
 
+const _cuStatusLabel = {
+  '已簽約':'已簽約', '仍預計簽約':'預計簽約', '仍簽約中/用印中':'簽約中/用印中',
+  '仍在洽談中':'洽談中', '停止':'停止'
+};
+const _cuStatusColor = {
+  '已簽約':'background:#27ae60;color:#fff',
+  '仍預計簽約':'background:#f39c12;color:#fff',
+  '仍簽約中/用印中':'background:#8e44ad;color:#fff',
+  '仍在洽談中':'background:#2980b9;color:#fff',
+  '停止':'background:#c0392b;color:#fff'
+};
 function toggleCarryUpdate(idx) {
   const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
   document.getElementById(`cu-signed-${idx}`).style.display   = val==='已簽約'           ? 'block' : 'none';
   document.getElementById(`cu-expected-${idx}`).style.display = val==='仍預計簽約'        ? 'block' : 'none';
   document.getElementById(`cu-signing-${idx}`).style.display  = val==='仍簽約中/用印中'  ? 'block' : 'none';
   document.getElementById(`cu-stop-${idx}`).style.display     = val==='停止'             ? 'block' : 'none';
-  // 仍在洽談中：無需額外欄位
+  // 更新卡片標頭的「本月狀態」顯示
+  const wrap = document.getElementById(`cu-new-status-${idx}`);
+  const badge = document.getElementById(`cu-new-badge-${idx}`);
+  if (wrap && badge) {
+    if (val) {
+      badge.textContent = _cuStatusLabel[val] || val;
+      badge.style.cssText = `font-size:12px;padding:2px 8px;border-radius:4px;${_cuStatusColor[val]||'background:#888;color:#fff'}`;
+      wrap.style.display = 'inline-flex';
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
 }
 
 function saveAllCarryUpdates() {
