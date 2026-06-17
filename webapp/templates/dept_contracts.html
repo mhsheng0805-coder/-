@@ -459,13 +459,17 @@ const _cuStatusColor = {
   '仍在洽談中':'background:#2980b9;color:#fff',
   '停止':'background:#c0392b;color:#fff'
 };
+let _carryAutoSaveTimer = null;
+function _scheduleCarryAutoSave() {
+  clearTimeout(_carryAutoSaveTimer);
+  _carryAutoSaveTimer = setTimeout(() => saveAllCarryUpdates(true), 1500);
+}
 function toggleCarryUpdate(idx) {
   const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
   document.getElementById(`cu-signed-${idx}`).style.display   = val==='已簽約'           ? 'block' : 'none';
   document.getElementById(`cu-expected-${idx}`).style.display = val==='仍預計簽約'        ? 'block' : 'none';
   document.getElementById(`cu-signing-${idx}`).style.display  = val==='仍簽約中/用印中'  ? 'block' : 'none';
   document.getElementById(`cu-stop-${idx}`).style.display     = val==='停止'             ? 'block' : 'none';
-  // 更新卡片標頭的「本月狀態」顯示
   const wrap = document.getElementById(`cu-new-status-${idx}`);
   const badge = document.getElementById(`cu-new-badge-${idx}`);
   if (wrap && badge) {
@@ -477,9 +481,10 @@ function toggleCarryUpdate(idx) {
       wrap.style.display = 'none';
     }
   }
+  _scheduleCarryAutoSave();
 }
 
-function saveAllCarryUpdates() {
+function saveAllCarryUpdates(silent = false) {
   const el = document.getElementById('carry-list');
   const list = el._carryList || [];
   const updates = [];
@@ -509,7 +514,7 @@ function saveAllCarryUpdates() {
     }
     updates.push(payload);
   }
-  if (!updates.length) { showToast('請至少為一筆合約選擇進度', 'error'); return; }
+  if (!updates.length) { if (!silent) showToast('請至少為一筆合約選擇進度', 'error'); return; }
   Promise.all(updates.map(payload =>
     fetch('/api/update_contract_progress', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -517,10 +522,14 @@ function saveAllCarryUpdates() {
     }).then(r => r.json())
   )).then(results => {
     const failed = results.filter(d => d.error).length;
-    if (failed) showToast(`${updates.length - failed} 筆成功，${failed} 筆失敗`, 'error');
-    else showToast(`已儲存 ${updates.length} 筆進度更新`);
-    loadData();
-  });
+    if (!silent) {
+      if (failed) showToast(`${updates.length - failed} 筆成功，${failed} 筆失敗`, 'error');
+      else showToast(`已儲存 ${updates.length} 筆進度更新`);
+      loadData();
+    } else if (!failed) {
+      showToast('✅ 自動儲存完成');
+    }
+  }).catch(() => { if (!silent) showToast('❌ 網路錯誤，請重試', 'error'); });
 }
 
 function loadGroupOptions(dept, selectedValue, callback) {

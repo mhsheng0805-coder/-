@@ -1475,7 +1475,7 @@ def update_contract_progress():
     if not cur_month or not cur_year:
         return jsonify({'error': '缺少 current_month / current_year'}), 400
     con = get_db()
-    is_pg = DATABASE_URL is not None
+    is_pg = IS_PG
     status       = d.get('status', '')
     carry_next   = d.get('carry_next', 0) or 0
     amount       = d.get('amount', 0) or 0
