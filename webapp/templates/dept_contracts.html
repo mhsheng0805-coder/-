@@ -291,8 +291,10 @@ function renderContracts(list) {
       <th>跨部門</th><th>付款方式</th><th>延續</th><th>操作</th>
     </tr></thead>
     <tbody>${list.map((c, idx)=>{
-      const idata = parseJSON(c.installment_data, []);
-      const cdData = parseJSON(c.cross_dept_data, {});
+      const _idataRaw = parseJSON(c.installment_data, []);
+      const idata = Array.isArray(_idataRaw) ? _idataRaw : [];
+      const _cdRaw = parseJSON(c.cross_dept_data, {});
+      const cdData = (_cdRaw && typeof _cdRaw === 'object' && !Array.isArray(_cdRaw)) ? _cdRaw : {};
       const payStr = c.payment_type === '分期'
         ? (idata.length
             ? idata.map((e,i)=>`第${i+1}期${e.year?` ${e.year}年`:''}：${e.amount>0?fmt(e.amount):'-'}`).join('<br>')
