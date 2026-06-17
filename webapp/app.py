@@ -295,6 +295,16 @@ _MIGRATE_NEW_TABLES_SQLITE = [
         action TEXT NOT NULL, table_name TEXT,
         item TEXT, old_value TEXT, new_value TEXT,
         changed_by TEXT, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, note TEXT)""",
+    """CREATE TABLE IF NOT EXISTS carry_updates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+        contract_id INTEGER NOT NULL,
+        status TEXT DEFAULT '', carry_next INTEGER DEFAULT 0,
+        amount REAL DEFAULT 0, sign_date TEXT DEFAULT '',
+        expected_amount REAL DEFAULT 0, expected_date TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(year, dept, month, contract_id))""",
 ]
 _MIGRATE_NEW_TABLES_PG = [
     """CREATE TABLE IF NOT EXISTS locks (
@@ -310,6 +320,16 @@ _MIGRATE_NEW_TABLES_PG = [
         action TEXT NOT NULL, table_name TEXT,
         item TEXT, old_value TEXT, new_value TEXT,
         changed_by TEXT, changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, note TEXT)""",
+    """CREATE TABLE IF NOT EXISTS carry_updates (
+        id SERIAL PRIMARY KEY,
+        year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
+        contract_id INTEGER NOT NULL,
+        status TEXT DEFAULT '', carry_next INTEGER DEFAULT 0,
+        amount REAL DEFAULT 0, sign_date TEXT DEFAULT '',
+        expected_amount REAL DEFAULT 0, expected_date TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(year, dept, month, contract_id))""",
 ]
 
 _MIGRATE_ANNUAL_GOALS_SQLITE = [
@@ -1062,10 +1082,30 @@ def get_data(dept, month):
         'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
     ).fetchall()]
-    carry_forward = [dict(r) for r in con.execute(
-        'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',
-        (year, dept, month - 1)
-    ).fetchall()] if month > 1 else []
+    if month > 1:
+        cf_raw = [dict(r) for r in con.execute(
+            'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',
+            (year, dept, month - 1)
+        ).fetchall()]
+        cu_map = {r['contract_id']: dict(r) for r in con.execute(
+            'SELECT * FROM carry_updates WHERE year=? AND dept=? AND month=?',
+            (year, dept, month)
+        ).fetchall()}
+        carry_forward = []
+        for c in cf_raw:
+            cu = cu_map.get(c['id'])
+            m = dict(c)
+            if cu:
+                m['cu_status'] = cu['status']
+                m['cu_carry_next'] = cu['carry_next']
+                m['cu_amount'] = cu['amount']
+                m['cu_sign_date'] = cu['sign_date']
+                m['cu_expected_amount'] = cu['expected_amount']
+                m['cu_expected_date'] = cu['expected_date']
+                m['cu_note'] = cu['note']
+            carry_forward.append(m)
+    else:
+        carry_forward = []
     con.close()
     return jsonify({'revenue': data, 'cumul': cumul_data, 'unclaimed': unclaim_data,
                     'contracts': contracts, 'carry_forward': carry_forward})
@@ -1422,29 +1462,42 @@ def save_contract():
 @app.route('/api/update_contract_progress', methods=['POST'])
 @login_required
 def update_contract_progress():
-    """上月合約進度更新 — 直接更新原始合約狀態，不受鎖定限制"""
+    """上月合約進度更新 — 寫入 carry_updates，不修改原始合約"""
     d = request.json
     cid = d.get('id')
     if not cid:
         return jsonify({'error': '缺少合約 id'}), 400
-    if not can_write_dept(d.get('dept', '')):
+    dept = d.get('dept', '')
+    if not can_write_dept(dept):
         return jsonify({'error': '無寫入權限'}), 403
+    cur_month = d.get('current_month')
+    cur_year  = d.get('current_year')
+    if not cur_month or not cur_year:
+        return jsonify({'error': '缺少 current_month / current_year'}), 400
     con = get_db()
-    orig = con.execute('SELECT status, origin_status FROM contracts WHERE id=?', (cid,)).fetchone()
-    if orig and not orig['origin_status']:
-        con.execute('UPDATE contracts SET origin_status=? WHERE id=?', (orig['status'], cid))
-    fields = ['status=?', 'carry_next=?', 'updated_at=CURRENT_TIMESTAMP']
-    params = [d.get('status', ''), d.get('carry_next', 0) or 0]
-    if 'amount' in d:
-        fields.insert(-1, 'amount=?'); params.append(d.get('amount') or 0)
-        fields.insert(-1, 'sign_date=?'); params.append(d.get('sign_date') or '')
-    if 'expected_amount' in d:
-        fields.insert(-1, 'expected_amount=?'); params.append(d.get('expected_amount') or 0)
-        fields.insert(-1, 'expected_date=?'); params.append(d.get('expected_date') or '')
-    if 'note' in d:
-        fields.insert(-1, 'note=?'); params.append(d.get('note') or '')
-    params.append(cid)
-    con.execute(f"UPDATE contracts SET {', '.join(fields)} WHERE id=?", params)
+    is_pg = DATABASE_URL is not None
+    status       = d.get('status', '')
+    carry_next   = d.get('carry_next', 0) or 0
+    amount       = d.get('amount', 0) or 0
+    sign_date    = d.get('sign_date', '') or ''
+    exp_amount   = d.get('expected_amount', 0) or 0
+    exp_date     = d.get('expected_date', '') or ''
+    note         = d.get('note', '') or ''
+    vals = (cur_year, dept, cur_month, cid, status, carry_next, amount, sign_date, exp_amount, exp_date, note)
+    if is_pg:
+        con.execute(
+            '''INSERT INTO carry_updates (year,dept,month,contract_id,status,carry_next,amount,sign_date,expected_amount,expected_date,note)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (year,dept,month,contract_id) DO UPDATE SET
+               status=EXCLUDED.status,carry_next=EXCLUDED.carry_next,
+               amount=EXCLUDED.amount,sign_date=EXCLUDED.sign_date,
+               expected_amount=EXCLUDED.expected_amount,expected_date=EXCLUDED.expected_date,
+               note=EXCLUDED.note,updated_at=CURRENT_TIMESTAMP''', vals)
+    else:
+        con.execute(
+            '''INSERT OR REPLACE INTO carry_updates
+               (year,dept,month,contract_id,status,carry_next,amount,sign_date,expected_amount,expected_date,note)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)''', vals)
     con.commit(); con.close()
     return jsonify({'status': 'ok'})
 

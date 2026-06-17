@@ -374,28 +374,23 @@ function renderCarryForward(list) {
         <button type="button" class="btn btn-sm" style="background:#c0392b;color:#fff;white-space:nowrap;" onclick="deleteCarryContract(${c.id})">🗑️ 刪除</button>` : ''}
       </div>
 
-      <div style="display:flex;gap:24px;align-items:center;flex-wrap:nowrap;margin-bottom:6px;">
-        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
-          <input type="radio" name="cu${idx}" value="已簽約" onchange="toggleCarryUpdate(${idx})"><span>已簽約</span></label>
-        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
-          <input type="radio" name="cu${idx}" value="仍預計簽約" onchange="toggleCarryUpdate(${idx})"><span>仍預計簽約</span></label>
-        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
-          <input type="radio" name="cu${idx}" value="仍簽約中/用印中" onchange="toggleCarryUpdate(${idx})"><span>仍簽約中/用印中</span></label>
-        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
-          <input type="radio" name="cu${idx}" value="仍在洽談中" onchange="toggleCarryUpdate(${idx})"><span>仍在洽談中</span></label>
-        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
-          <input type="radio" name="cu${idx}" value="停止" onchange="toggleCarryUpdate(${idx})"><span>停止</span></label>
-      </div>
+      <div style="display:flex;gap:24px;align-items:center;flex-wrap:nowrap;margin-bottom:6px;">${
+        [['已簽約','已簽約'],['仍預計簽約','仍預計簽約'],['仍簽約中/用印中','仍簽約中/用印中'],['仍在洽談中','仍在洽談中'],['停止','停止']].map(([val,lbl])=>{
+          const preRadio = _cuStatusToRadio[c.cu_status||''];
+          return `<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:normal;font-size:13px;white-space:nowrap;">
+            <input type="radio" name="cu${idx}" value="${val}" ${preRadio===val?'checked':''} onchange="toggleCarryUpdate(${idx})"><span>${lbl}</span></label>`;
+        }).join('')
+      }</div>
 
       <div id="cu-signed-${idx}" style="display:none;margin-top:8px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">簽約日期</label>
-            <input type="date" id="cu-sign-date-${idx}">
+            <input type="date" id="cu-sign-date-${idx}" value="${c.cu_sign_date||''}">
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">簽約金額 (元)</label>
-            <input type="text" class="input-num" id="cu-sign-amt-${idx}" value="${refAmt}"
+            <input type="text" class="input-num" id="cu-sign-amt-${idx}" value="${c.cu_amount>0?fmt(c.cu_amount):refAmt}"
                    autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)">
           </div>
         </div>
@@ -405,11 +400,11 @@ function renderCarryForward(list) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">更新預計簽約日期</label>
-            <input type="date" id="cu-exp-date-${idx}" value="${c.expected_date||''}">
+            <input type="date" id="cu-exp-date-${idx}" value="${c.cu_expected_date||c.expected_date||''}">
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">預計簽約金額 (元)</label>
-            <input type="text" class="input-num" id="cu-exp-amt-${idx}" value="${refAmt}"
+            <input type="text" class="input-num" id="cu-exp-amt-${idx}" value="${c.cu_expected_amount>0?fmt(c.cu_expected_amount):refAmt}"
                    autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)">
           </div>
         </div>
@@ -419,11 +414,11 @@ function renderCarryForward(list) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">簽約日期</label>
-            <input type="date" id="cu-signing-date-${idx}">
+            <input type="date" id="cu-signing-date-${idx}" value="${c.cu_sign_date||''}">
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">簽約金額 (元)</label>
-            <input type="text" class="input-num" id="cu-signing-amt-${idx}" value="${refAmt}"
+            <input type="text" class="input-num" id="cu-signing-amt-${idx}" value="${c.cu_amount>0?fmt(c.cu_amount):refAmt}"
                    autocomplete="off" oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)">
           </div>
         </div>
@@ -432,7 +427,7 @@ function renderCarryForward(list) {
       <div id="cu-stop-${idx}" style="display:none;margin-top:8px;">
         <div class="form-group" style="margin-bottom:0;">
           <label style="font-size:12px;">停止理由</label>
-          <input type="text" id="cu-stop-reason-${idx}" placeholder="請說明停止原因" autocomplete="off">
+          <input type="text" id="cu-stop-reason-${idx}" placeholder="請說明停止原因" autocomplete="off" value="${c.cu_note||''}">
         </div>
       </div>
     </div>`;
@@ -445,8 +440,14 @@ function renderCarryForward(list) {
     </div>`;
   }
   el.innerHTML = html;
+  // 預選了 radio 的項目，觸發 toggle 讓欄位顯示
+  list.forEach((c, idx) => { if (c.cu_status) toggleCarryUpdate(idx); });
 }
 
+const _cuStatusToRadio = {
+  '已簽約':'已簽約', '預計簽約':'仍預計簽約',
+  '簽約中/用印中':'仍簽約中/用印中', '洽談中':'仍在洽談中', '停止':'停止'
+};
 const _cuStatusLabel = {
   '已簽約':'已簽約', '仍預計簽約':'預計簽約', '仍簽約中/用印中':'簽約中/用印中',
   '仍在洽談中':'洽談中', '停止':'停止'
@@ -487,7 +488,7 @@ function saveAllCarryUpdates() {
     if (!val) continue; // 未選擇的略過
     const c = list[idx];
     // 只傳必要欄位，避免意外覆蓋原有金額
-    let payload = { id: c.id, dept: c.dept || DEPT };
+    let payload = { id: c.id, dept: c.dept || DEPT, current_month: MONTH, current_year: YEAR };
     if (val === '已簽約') {
       payload.status = '已簽約'; payload.carry_next = 0;
       payload.sign_date = document.getElementById(`cu-sign-date-${idx}`).value || '';
