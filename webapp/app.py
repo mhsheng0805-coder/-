@@ -1429,16 +1429,18 @@ def update_contract_progress():
     if not can_write_dept(d.get('dept', '')):
         return jsonify({'error': '無寫入權限'}), 403
     con = get_db()
-    con.execute('''UPDATE contracts SET
-        status=?, carry_next=?,
-        sign_date=?, amount=?,
-        expected_date=?, expected_amount=?,
-        note=?, updated_at=CURRENT_TIMESTAMP
-        WHERE id=?''',
-        (d.get('status',''), d.get('carry_next', 0),
-         d.get('sign_date',''), d.get('amount', 0),
-         d.get('expected_date',''), d.get('expected_amount', 0),
-         d.get('note',''), cid))
+    fields = ['status=?', 'carry_next=?', 'updated_at=CURRENT_TIMESTAMP']
+    params = [d.get('status', ''), d.get('carry_next', 0) or 0]
+    if 'amount' in d:
+        fields.insert(-1, 'amount=?'); params.append(d.get('amount') or 0)
+        fields.insert(-1, 'sign_date=?'); params.append(d.get('sign_date') or '')
+    if 'expected_amount' in d:
+        fields.insert(-1, 'expected_amount=?'); params.append(d.get('expected_amount') or 0)
+        fields.insert(-1, 'expected_date=?'); params.append(d.get('expected_date') or '')
+    if 'note' in d:
+        fields.insert(-1, 'note=?'); params.append(d.get('note') or '')
+    params.append(cid)
+    con.execute(f"UPDATE contracts SET {', '.join(fields)} WHERE id=?", params)
     con.commit(); con.close()
     return jsonify({'status': 'ok'})
 

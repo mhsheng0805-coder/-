@@ -442,22 +442,27 @@ function saveAllCarryUpdates() {
     const val = document.querySelector(`input[name="cu${idx}"]:checked`)?.value;
     if (!val) continue; // 未選擇的略過
     const c = list[idx];
-    let patch = {};
+    // 只傳必要欄位，避免意外覆蓋原有金額
+    let payload = { id: c.id, dept: c.dept || DEPT };
     if (val === '已簽約') {
-      patch = { status:'已簽約', sign_date: document.getElementById(`cu-sign-date-${idx}`).value,
-                amount: parseFmt(document.getElementById(`cu-sign-amt-${idx}`).value), carry_next:0 };
+      payload.status = '已簽約'; payload.carry_next = 0;
+      payload.sign_date = document.getElementById(`cu-sign-date-${idx}`).value || '';
+      payload.amount = parseFmt(document.getElementById(`cu-sign-amt-${idx}`).value) || c.amount || 0;
     } else if (val === '仍預計簽約') {
-      patch = { status:'預計簽約', expected_date: document.getElementById(`cu-exp-date-${idx}`).value,
-                expected_amount: parseFmt(document.getElementById(`cu-exp-amt-${idx}`).value), carry_next:1 };
+      payload.status = '預計簽約'; payload.carry_next = 1;
+      payload.expected_date = document.getElementById(`cu-exp-date-${idx}`).value || '';
+      payload.expected_amount = parseFmt(document.getElementById(`cu-exp-amt-${idx}`).value) || c.expected_amount || 0;
     } else if (val === '仍簽約中/用印中') {
-      patch = { status:'簽約中/用印中', sign_date: document.getElementById(`cu-signing-date-${idx}`).value,
-                amount: parseFmt(document.getElementById(`cu-signing-amt-${idx}`).value), carry_next:1 };
+      payload.status = '簽約中/用印中'; payload.carry_next = 1;
+      payload.sign_date = document.getElementById(`cu-signing-date-${idx}`).value || '';
+      payload.amount = parseFmt(document.getElementById(`cu-signing-amt-${idx}`).value) || c.amount || 0;
     } else if (val === '仍在洽談中') {
-      patch = { status:'洽談中', carry_next:1 };
+      payload.status = '洽談中'; payload.carry_next = 1;
     } else {
-      patch = { status:'停止', note: document.getElementById(`cu-stop-reason-${idx}`).value, carry_next:0 };
+      payload.status = '停止'; payload.carry_next = 0;
+      payload.note = document.getElementById(`cu-stop-reason-${idx}`).value || '';
     }
-    updates.push({...c, ...patch, dept: c.dept || DEPT});
+    updates.push(payload);
   }
   if (!updates.length) { showToast('請至少為一筆合約選擇進度', 'error'); return; }
   Promise.all(updates.map(payload =>
