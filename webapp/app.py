@@ -1421,26 +1421,47 @@ def save_contract():
 @app.route('/api/update_contract_progress', methods=['POST'])
 @login_required
 def update_contract_progress():
-    """上月合約進度更新 — 只更新 status/carry_next/sign_date/amount/expected_date/expected_amount，不受鎖定限制"""
+    """上月合約進度更新 — 凍結原始合約狀態，在當月新增一筆新記錄"""
     d = request.json
     cid = d.get('id')
     if not cid:
         return jsonify({'error': '缺少合約 id'}), 400
-    if not can_write_dept(d.get('dept', '')):
+    dept = d.get('dept', '')
+    if not can_write_dept(dept):
         return jsonify({'error': '無寫入權限'}), 403
+    cur_month = d.get('current_month')
+    cur_year  = d.get('current_year')
+    if not cur_month or not cur_year:
+        return jsonify({'error': '缺少 current_month / current_year'}), 400
     con = get_db()
-    fields = ['status=?', 'carry_next=?', 'updated_at=CURRENT_TIMESTAMP']
-    params = [d.get('status', ''), d.get('carry_next', 0) or 0]
-    if 'amount' in d:
-        fields.insert(-1, 'amount=?'); params.append(d.get('amount') or 0)
-        fields.insert(-1, 'sign_date=?'); params.append(d.get('sign_date') or '')
-    if 'expected_amount' in d:
-        fields.insert(-1, 'expected_amount=?'); params.append(d.get('expected_amount') or 0)
-        fields.insert(-1, 'expected_date=?'); params.append(d.get('expected_date') or '')
-    if 'note' in d:
-        fields.insert(-1, 'note=?'); params.append(d.get('note') or '')
-    params.append(cid)
-    con.execute(f"UPDATE contracts SET {', '.join(fields)} WHERE id=?", params)
+    orig = con.execute('SELECT * FROM contracts WHERE id=?', (cid,)).fetchone()
+    if not orig:
+        con.close()
+        return jsonify({'error': '找不到合約'}), 404
+    # 凍結原始合約：carry_next=0，狀態與金額保持原樣
+    con.execute('UPDATE contracts SET carry_next=0, updated_at=CURRENT_TIMESTAMP WHERE id=?', (cid,))
+    # 在當月建立新合約，繼承原始欄位，套用本月更新
+    new_status    = d.get('status', orig['status'])
+    new_carry     = d.get('carry_next', 0) or 0
+    new_amount    = d.get('amount',           orig['amount']           or 0) if 'amount'           in d else (orig['amount'] or 0)
+    new_sign_date = d.get('sign_date',        orig['sign_date']        or '') if 'sign_date'        in d else (orig['sign_date'] or '')
+    new_exp_amt   = d.get('expected_amount',  orig['expected_amount']  or 0) if 'expected_amount'  in d else (orig['expected_amount'] or 0)
+    new_exp_date  = d.get('expected_date',    orig['expected_date']    or '') if 'expected_date'    in d else (orig['expected_date'] or '')
+    new_note      = d.get('note',             orig['note']             or '') if 'note'             in d else (orig['note'] or '')
+    con.execute(
+        '''INSERT INTO contracts
+           (year, dept, month, client, project_name, amount, sign_date, status, group_name,
+            note, carry_next, cross_dept, cross_dept_data, payment_type,
+            installments, installment_data, expected_amount, expected_date)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        (cur_year, dept, cur_month,
+         orig['client'], orig['project_name'],
+         new_amount, new_sign_date, new_status, orig['group_name'],
+         new_note, new_carry,
+         orig['cross_dept'], orig['cross_dept_data'], orig['payment_type'],
+         orig['installments'], orig['installment_data'],
+         new_exp_amt, new_exp_date)
+    )
     con.commit(); con.close()
     return jsonify({'status': 'ok'})
 
