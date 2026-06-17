@@ -275,6 +275,7 @@ function parseJSON(s, def) { try { return JSON.parse(s||''); } catch(e) { return
 
 function renderContracts(list) {
   const el = document.getElementById('contract-list');
+  el._contractList = list;
   if (!list.length) {
     el.innerHTML = '<em style="color:#999;">尚無合約，請點右上角「＋ 新增合約」。</em>'; return;
   }
@@ -284,7 +285,7 @@ function renderContracts(list) {
       <th>日期</th><th>金額</th>
       <th>跨部門</th><th>付款方式</th><th>延續</th><th>操作</th>
     </tr></thead>
-    <tbody>${list.map(c=>{
+    <tbody>${list.map((c, idx)=>{
       const idata = parseJSON(c.installment_data, []);
       const cdData = parseJSON(c.cross_dept_data, {});
       const payStr = c.payment_type === '分期'
@@ -323,7 +324,7 @@ function renderContracts(list) {
         <td class="text-center">${(c.carry_next || c.status==='洽談中' || c.status==='預計簽約')?'✅':''}</td>
         <td class="text-center" style="white-space:nowrap;">
           ${CAN_WRITE ? `
-          <button class="btn btn-warning btn-sm" onclick='editContract(${JSON.stringify(c)})'>編輯</button>
+          <button class="btn btn-warning btn-sm" onclick="editContractByIdx(${idx})">編輯</button>
           <button class="btn btn-danger btn-sm" onclick="deleteContract(${c.id})">刪除</button>
           ` : '<span style="color:#aaa;font-size:11px;">—</span>'}
         </td>
@@ -570,6 +571,10 @@ function showContractForm(contract) {
 }
 function hideContractForm() { document.getElementById('contract-form').style.display = 'none'; }
 function editContract(c) { showContractForm(c); }
+function editContractByIdx(idx) {
+  const list = document.getElementById('contract-list')._contractList || [];
+  if (list[idx]) showContractForm(list[idx]);
+}
 
 // ── 分期邏輯 ────────────────────────────────────────────
 function toggleInstallments() {
