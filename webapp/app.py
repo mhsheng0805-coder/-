@@ -1418,6 +1418,30 @@ def save_contract():
     con.close()
     return jsonify({'status': 'ok'})
 
+@app.route('/api/update_contract_progress', methods=['POST'])
+@login_required
+def update_contract_progress():
+    """上月合約進度更新 — 只更新 status/carry_next/sign_date/amount/expected_date/expected_amount，不受鎖定限制"""
+    d = request.json
+    cid = d.get('id')
+    if not cid:
+        return jsonify({'error': '缺少合約 id'}), 400
+    if not can_write_dept(d.get('dept', '')):
+        return jsonify({'error': '無寫入權限'}), 403
+    con = get_db()
+    con.execute('''UPDATE contracts SET
+        status=?, carry_next=?,
+        sign_date=?, amount=?,
+        expected_date=?, expected_amount=?,
+        note=?, updated_at=CURRENT_TIMESTAMP
+        WHERE id=?''',
+        (d.get('status',''), d.get('carry_next', 0),
+         d.get('sign_date',''), d.get('amount', 0),
+         d.get('expected_date',''), d.get('expected_amount', 0),
+         d.get('note',''), cid))
+    con.commit(); con.close()
+    return jsonify({'status': 'ok'})
+
 @app.route('/api/export_dept_excel/<dept>/<int:month>')
 @login_required
 def export_dept_excel(dept, month):

@@ -457,12 +457,12 @@ function saveAllCarryUpdates() {
   }
   if (!updates.length) { showToast('請至少為一筆合約選擇進度', 'error'); return; }
   Promise.all(updates.map(payload =>
-    fetch('/api/save_contract', {
+    fetch('/api/update_contract_progress', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     }).then(r => r.json())
   )).then(results => {
-    const failed = results.filter(d => !d.ok).length;
+    const failed = results.filter(d => d.error).length;
     if (failed) showToast(`${updates.length - failed} 筆成功，${failed} 筆失敗`, 'error');
     else showToast(`已儲存 ${updates.length} 筆進度更新`);
     loadData();
