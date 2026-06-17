@@ -346,6 +346,7 @@ function renderCarryForward(list) {
           ${c.expected_amount>0?`預計簽約金額：${fmt(c.expected_amount)}元`:(c.amount>0?`簽約金額：${fmt(c.amount)}元`:'')}
         </div>
         <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
+        ${CAN_WRITE ? `<button type="button" class="btn btn-sm" style="background:#2e75b6;color:#fff;white-space:nowrap;" onclick="editCarryContract(${idx})">✏️ 修改</button>` : ''}
       </div>
 
       <div style="display:flex;gap:24px;align-items:center;flex-wrap:nowrap;margin-bottom:6px;">
@@ -590,6 +591,15 @@ function buildInstallmentRows(existing) {
              style="flex:1; font-size:13px;">`;
     container.appendChild(row);
   }
+}
+
+function editCarryContract(idx) {
+  const el = document.getElementById('carry-list');
+  const list = el._carryList || [];
+  const c = list[idx];
+  if (!c) return;
+  showContractForm(c);
+  document.getElementById('contract-form').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 // ── 跨部門邏輯 ──────────────────────────────────────────
