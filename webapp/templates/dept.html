@@ -532,9 +532,9 @@ function openGoalsModal() {
   document.getElementById('goals-modal').style.display = 'block';
 }
 
-function closeGoalsModal() {
+function closeGoalsModal(save = true) {
   clearTimeout(_gmSaveTimer);
-  doSaveGoals(true); // 關閉前強制儲存
+  if (save) doSaveGoals(true); // 關閉前強制儲存
   document.getElementById('goals-modal').style.display = 'none';
 }
 
@@ -652,9 +652,8 @@ function doSaveGoals(silent = false) {
 }
 
 function saveGoals() {
-  doSaveGoals(false);
-  closeGoalsModal();
-  loadData();
+  doSaveGoals(false); // save + loadData() 在 callback 裡
+  closeGoalsModal(false); // 只關 modal，不重複 save
 }
 
 function saveAll(showMsg = true) {
