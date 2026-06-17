@@ -265,6 +265,9 @@ function loadData() {
   fetch(`/api/data/${DEPT}/${MONTH}?year=${YEAR}`).then(r=>r.json()).then(data => {
     renderContracts(data.contracts || []);
     renderCarryForward(data.carry_forward || []);
+  }).catch(()=>{
+    document.getElementById('contract-list').innerHTML = '<em style="color:red;">載入失敗，請重新整理頁面。</em>';
+    document.getElementById('carry-list').innerHTML = '<em style="color:red;">載入失敗，請重新整理頁面。</em>';
   });
 }
 
@@ -758,11 +761,12 @@ function saveContract() {
 
   fetch('/api/save_contract',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(payload)})
-    .then(r=>r.json()).then(()=>{
+    .then(r=>r.json()).then(d=>{
+      if (d.error) { showToast('❌ 儲存失敗：' + d.error, 'error'); return; }
       showToast('✅ 合約已儲存');
       if (_inCarryEditModal) closeCarryEditModal(); else hideContractForm();
       loadData();
-    });
+    }).catch(()=>{ showToast('❌ 網路錯誤，請重試', 'error'); loadData(); });
 }
 
 // ── 合約表單自動儲存 ────────────────────────────────────
