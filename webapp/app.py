@@ -363,7 +363,7 @@ _OLD_DERIVE_ITEMS = ['衍生支出-研發成果', '衍生支出-研發成果(能
 _NEW_DERIVE_ITEM = '計畫衍生支出'
 
 _OLD_SVC_INCOME = ['試驗服務收入', '技術服務收入', '訓練服務收入', '其他業務收入']
-_OLD_INCOME_REMOVE = ['配合款-其他政府收入', '配合款-其他民間收入', '其他專案-來自民間']
+_OLD_INCOME_REMOVE = ['配合款-其他政府收入']  # 僅刪除真正廢棄的項目；配合款-其他民間收入、其他專案-來自民間 仍為現行 INCOME_ITEMS
 _NEW_SVC_INCOME = '其他民間收入'
 
 def _migrate(cur, is_pg):
