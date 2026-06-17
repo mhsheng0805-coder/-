@@ -1027,7 +1027,7 @@ def dept_view(dept):
         return redirect(url_for('index'))
     if not can_access_dept(dept):
         return redirect(url_for('dept_view', dept=session.get('dept')))
-    month = request.args.get('month', 1, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
     year = get_current_year()
     all_years = get_all_years()
     allowed = get_allowed_depts()
@@ -2027,8 +2027,8 @@ def dept_contracts(dept):
         return redirect(url_for('index'))
     if not can_access_dept(dept):
         return redirect(url_for('dept_contracts', dept=session.get('dept'),
-                                month=request.args.get('month', 1)))
-    month = request.args.get('month', 1, type=int)
+                                month=request.args.get('month', datetime.now().month)))
+    month = request.args.get('month', datetime.now().month, type=int)
     year = get_current_year()
     all_years = get_all_years()
     allowed = get_allowed_depts()
