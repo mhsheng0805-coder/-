@@ -88,10 +88,10 @@
           </datalist>
         </div>
         <div class="form-group">
-          <label>組別</label>
-          <select id="cf-group" style="width:100%;">
-            <option value="">— 請選擇 —</option>
-          </select>
+          <label>組別（可複選）</label>
+          <div id="cf-group-container" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;border:1px solid #ddd;border-radius:6px;min-height:36px;background:#fff;">
+            <span style="color:#aaa;font-size:13px;" id="cf-group-placeholder">載入中…</span>
+          </div>
         </div>
         <div class="form-group">
           <label>狀態</label>
@@ -470,26 +470,40 @@ function saveAllCarryUpdates() {
 }
 
 function loadGroupOptions(dept, selectedValue, callback) {
-  const sel = document.getElementById('cf-group');
-  sel.innerHTML = '<option value="">— 請選擇 —</option>';
-  if (!dept) { if (callback) callback(); return; }
+  const container = document.getElementById('cf-group-container');
+  container.innerHTML = '<span style="color:#aaa;font-size:13px;">載入中…</span>';
+  if (!dept) { container.innerHTML = '<span style="color:#aaa;font-size:13px;">— 無組別 —</span>'; if (callback) callback(); return; }
+  // selectedValue 支援逗號分隔多值
+  const selected = selectedValue ? selectedValue.split(',').map(s => s.trim()).filter(Boolean) : [];
   fetch(`/api/dept_groups?dept=${encodeURIComponent(dept)}`)
     .then(r => r.json()).then(groups => {
-      groups.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g.group_name;
-        opt.textContent = g.group_name;
-        if (g.group_name === selectedValue) opt.selected = true;
-        sel.appendChild(opt);
-      });
-      // 若原有值不在清單中（舊資料），仍顯示
-      if (selectedValue && !groups.find(g => g.group_name === selectedValue)) {
-        const opt = document.createElement('option');
-        opt.value = selectedValue; opt.textContent = selectedValue; opt.selected = true;
-        sel.appendChild(opt);
+      container.innerHTML = '';
+      // 舊資料若有不在清單中的值，也加入
+      const extraVals = selected.filter(v => !groups.find(g => g.group_name === v));
+      const allGroups = [...groups.map(g => g.group_name), ...extraVals];
+      if (!allGroups.length) {
+        container.innerHTML = '<span style="color:#aaa;font-size:13px;">— 無組別 —</span>';
+        if (callback) callback(); return;
       }
+      allGroups.forEach(name => {
+        const lbl = document.createElement('label');
+        lbl.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;white-space:nowrap;padding:2px 6px;border-radius:4px;border:1px solid #ccc;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'cf-group-cb';
+        cb.value = name;
+        cb.checked = selected.includes(name);
+        cb.style.width = 'auto';
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(name));
+        container.appendChild(lbl);
+      });
       if (callback) callback();
     });
+}
+
+function getSelectedGroups() {
+  return [...document.querySelectorAll('.cf-group-cb:checked')].map(c => c.value).join(',');
 }
 
 function showContractForm(contract) {
@@ -691,7 +705,7 @@ function saveContract() {
     dept: DEPT, month: MONTH,
     client,
     project_name: document.getElementById('cf-project').value.trim(),
-    group_name: document.getElementById('cf-group').value.trim(),
+    group_name: getSelectedGroups(),
     lead_dept: document.getElementById('cf-lead-dept').value,
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
@@ -744,7 +758,7 @@ function saveContractSilent(onDone) {
     id: document.getElementById('cf-id').value || null,
     dept: DEPT, month: MONTH, client,
     project_name: document.getElementById('cf-project').value.trim(),
-    group_name: document.getElementById('cf-group').value.trim(),
+    group_name: getSelectedGroups(),
     lead_dept: document.getElementById('cf-lead-dept').value,
     amount: parseFmt(document.getElementById('cf-amount').value),
     sign_date: document.getElementById('cf-sign-date').value,
