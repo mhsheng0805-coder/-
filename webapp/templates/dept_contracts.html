@@ -356,9 +356,11 @@ function renderCarryForward(list) {
           <strong>${c.client||''}</strong>
           ${c.project_name?`<br><span style="font-size:11px;color:#888;">${c.project_name}</span>`:''}
         </div>
-        <div style="font-size:12px;color:#555;white-space:nowrap;">
-          ${c.expected_amount>0?`預計簽約金額：${fmt(c.expected_amount)}元`:(c.amount>0?`簽約金額：${fmt(c.amount)}元`:'')}
-        </div>
+        <div style="font-size:12px;color:#555;white-space:nowrap;">${
+          (c.status==='已簽約'||c.status==='簽約中/用印中') && c.amount>0 ? `簽約金額：${fmt(c.amount)}元` :
+          c.expected_amount>0 ? `預計簽約金額：${fmt(c.expected_amount)}元` :
+          c.amount>0 ? `金額：${fmt(c.amount)}元` : ''
+        }</div>
         <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
         ${CAN_WRITE ? `<button type="button" class="btn btn-sm" style="background:#2e75b6;color:#fff;white-space:nowrap;" onclick="editCarryContract(${idx})">✏️ 修改</button>
         <button type="button" class="btn btn-sm" style="background:#c0392b;color:#fff;white-space:nowrap;" onclick="deleteCarryContract(${c.id})">🗑️ 刪除</button>` : ''}
