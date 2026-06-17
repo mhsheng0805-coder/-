@@ -74,11 +74,11 @@
                value=""></td>
           <td><input type="text" class="input-num income-amt tbl-inp" data-item="{{ item }}"
                oninput="fmtOnInput(this)"
-               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
+               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% else %}style="background:#fff;"{% endif %}
                value=""></td>
           <td><input type="text" class="input-num income-exp tbl-inp" data-item="{{ item }}"
                oninput="fmtOnInput(this)"
-               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% endif %}
+               {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% else %}style="background:#fff;"{% endif %}
                value=""></td>
           <td class="text-right income-forecast" data-item="{{ item }}" style="font-size:13px;">-</td>
           <td class="text-right income-diff" data-item="{{ item }}" style="font-size:13px;">-</td>
@@ -128,7 +128,7 @@
           {% else %}
             <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
                  readonly style="background:#f0f8ff; color:#1a5276;" value=""></td>
-            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}" value=""></td>
+            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}" oninput="fmtOnInput(this)" style="background:#fff;" value=""></td>
             {% if uc_item %}
             <td><input type="text" class="input-num unclaim-amt" data-item="{{ uc_item }}" value=""
                  style="background:#fffde7;"></td>
