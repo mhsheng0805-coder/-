@@ -262,13 +262,18 @@ function toggleStatusFields() {
 }
 
 function loadData() {
-  fetch(`/api/data/${DEPT}/${MONTH}?year=${YEAR}`).then(r=>r.json()).then(data => {
-    renderContracts(data.contracts || []);
-    renderCarryForward(data.carry_forward || []);
-  }).catch(()=>{
-    document.getElementById('contract-list').innerHTML = '<em style="color:red;">載入失敗，請重新整理頁面。</em>';
-    document.getElementById('carry-list').innerHTML = '<em style="color:red;">載入失敗，請重新整理頁面。</em>';
-  });
+  fetch(`/api/data/${DEPT}/${MONTH}?year=${YEAR}`)
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+      try { renderContracts(data.contracts || []); }
+      catch(e) { document.getElementById('contract-list').innerHTML = `<em style="color:red;">合約渲染錯誤: ${e.message}</em>`; }
+      try { renderCarryForward(data.carry_forward || []); }
+      catch(e) { document.getElementById('carry-list').innerHTML = `<em style="color:red;">上月合約渲染錯誤: ${e.message}</em>`; }
+    })
+    .catch(e => {
+      document.getElementById('contract-list').innerHTML = `<em style="color:red;">載入失敗: ${e.message}</em>`;
+      document.getElementById('carry-list').innerHTML = `<em style="color:red;">載入失敗: ${e.message}</em>`;
+    });
 }
 
 function parseJSON(s, def) { try { return JSON.parse(s||''); } catch(e) { return def; } }
