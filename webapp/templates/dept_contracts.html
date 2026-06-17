@@ -363,7 +363,7 @@ function renderCarryForward(list) {
         }</div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           <span style="font-size:11px;color:#888;">上月：</span>
-          <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
+          <span class="badge ${statusColors[c.origin_status||c.status]||'badge-gray'}">${c.origin_status||c.status||''}</span>
           <span id="cu-new-status-${idx}" style="display:none;align-items:center;gap:4px;">
             <span style="font-size:13px;color:#888;">→</span>
             <span style="font-size:11px;color:#888;">本月：</span>

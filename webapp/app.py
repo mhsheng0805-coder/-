@@ -357,6 +357,7 @@ _MIGRATE_CONTRACTS = [
     "ALTER TABLE contracts ADD COLUMN expected_date TEXT DEFAULT ''",
     "ALTER TABLE contracts ADD COLUMN project_name TEXT DEFAULT ''",
     "ALTER TABLE contracts ADD COLUMN lead_dept TEXT DEFAULT ''",
+    "ALTER TABLE contracts ADD COLUMN origin_status TEXT DEFAULT ''",
 ]
 
 _OLD_DERIVE_ITEMS = ['衍生支出-研發成果', '衍生支出-研發成果(能專)', '衍生支出-其他', '衍生支出-成果下放']
@@ -1429,6 +1430,9 @@ def update_contract_progress():
     if not can_write_dept(d.get('dept', '')):
         return jsonify({'error': '無寫入權限'}), 403
     con = get_db()
+    orig = con.execute('SELECT status, origin_status FROM contracts WHERE id=?', (cid,)).fetchone()
+    if orig and not orig['origin_status']:
+        con.execute('UPDATE contracts SET origin_status=? WHERE id=?', (orig['status'], cid))
     fields = ['status=?', 'carry_next=?', 'updated_at=CURRENT_TIMESTAMP']
     params = [d.get('status', ''), d.get('carry_next', 0) or 0]
     if 'amount' in d:
