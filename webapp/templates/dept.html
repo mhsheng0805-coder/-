@@ -304,6 +304,7 @@
     <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center;">
       <span id="gm-save-status" style="font-size:12px; color:#555; margin-right:auto;"></span>
       <button class="btn" onclick="closeGoalsModal()" style="background:#6c757d;color:white;">關閉</button>
+      <button class="btn btn-primary" onclick="saveGoals()">💾 儲存</button>
     </div>
   </div>
 </div>
@@ -532,6 +533,8 @@ function openGoalsModal() {
 }
 
 function closeGoalsModal() {
+  clearTimeout(_gmSaveTimer);
+  doSaveGoals(true); // 關閉前強制儲存
   document.getElementById('goals-modal').style.display = 'none';
 }
 
