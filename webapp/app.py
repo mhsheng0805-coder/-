@@ -1062,7 +1062,7 @@ def get_data(dept, month):
         (year, dept, month)
     ).fetchall()]
     carry_forward = [dict(r) for r in con.execute(
-        'SELECT * FROM contracts WHERE year=? AND dept=? AND month=? AND carry_next=1',
+        'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',
         (year, dept, month - 1)
     ).fetchall()] if month > 1 else []
     con.close()
