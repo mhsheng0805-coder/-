@@ -1096,10 +1096,22 @@ def get_data(dept, month):
             m['next_cu_month'] = month + 1
         contracts.append(m)
     if month > 1:
+        # 上月直接新增的合約（原始狀態非已簽約/停止）
         cf_raw = [dict(r) for r in con.execute(
-            'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',
+            "SELECT * FROM contracts WHERE year=? AND dept=? AND month=? AND status NOT IN ('已簽約','停止')",
             (year, dept, month - 1)
         ).fetchall()]
+        # 更早月份的合約，若在上月的 carry_updates 中 carry_next=1，也要帶入
+        active_older = {r['contract_id'] for r in con.execute(
+            'SELECT contract_id FROM carry_updates WHERE year=? AND dept=? AND month=? AND carry_next=1',
+            (year, dept, month - 1)
+        ).fetchall()}
+        existing_ids = {c['id'] for c in cf_raw}
+        for cid in active_older - existing_ids:
+            row = con.execute('SELECT * FROM contracts WHERE id=?', (cid,)).fetchone()
+            if row:
+                cf_raw.append(dict(row))
+        # 取本月的 carry_updates（已儲存的進度更新）
         cu_map = {r['contract_id']: dict(r) for r in con.execute(
             'SELECT * FROM carry_updates WHERE year=? AND dept=? AND month=?',
             (year, dept, month)
@@ -1116,10 +1128,6 @@ def get_data(dept, month):
                 m['cu_expected_amount'] = cu['expected_amount']
                 m['cu_expected_date'] = cu['expected_date']
                 m['cu_note'] = cu['note']
-            # 已簽約或停止不再延續
-            effective_status = m.get('cu_status') or m['status']
-            if effective_status in ('已簽約', '停止'):
-                continue
             carry_forward.append(m)
     else:
         carry_forward = []
