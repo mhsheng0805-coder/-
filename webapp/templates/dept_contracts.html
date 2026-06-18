@@ -398,7 +398,7 @@ function renderCarryForward(list) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">更新預計簽約日期</label>
-            <input type="date" id="cu-exp-date-${idx}" value="${c.cu_expected_date||c.expected_date||''}">
+            <input type="text" id="cu-exp-date-${idx}" placeholder="例：2026/07/31" value="${c.cu_expected_date||c.expected_date||''}" autocomplete="off">
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:12px;">預計簽約金額 (元)</label>
