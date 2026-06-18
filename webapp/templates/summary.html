@@ -36,7 +36,8 @@
             <th style="min-width:110px;">預計簽約</th>
             <th style="min-width:110px;">小計(B)</th>
             <th style="min-width:110px;">差異=(B)-(A)</th>
-            <th style="min-width:75px;">達成率</th>
+            <th style="min-width:75px;">已簽約<br>達成率</th>
+            <th style="min-width:75px;">預估<br>達成率</th>
           </tr>
         </thead>
         <tbody id="ytd-income-body"></tbody>
@@ -242,6 +243,7 @@ function renderYTD(d) {
       <td class="text-right">${fmtN(row.expected)}</td>
       <td class="text-right">${fmtN(row.subtotal)}</td>
       <td class="text-right" style="${diffStyle(diff)}">${fmtN(diff)}</td>
+      <td class="text-center">${rateStr(row.signed, row.goal)}</td>
       <td class="text-center">${rateStr(row.subtotal, row.goal)}</td>
     </tr>`;
   }).join('');
@@ -312,6 +314,7 @@ function renderYTD(d) {
     <td class="text-right">${typeof r.expected==='number' ? fmtN(r.expected) : (r.expected||'-')}</td>
     <td class="text-right">${typeof r.subtotal==='number' ? fmtN(r.subtotal) : (r.subtotal||'-')}</td>
     <td class="text-right" style="${typeof r.diff==='number' ? diffStyle(r.diff) : ''}">${typeof r.diff==='number' ? fmtN(r.diff) : (r.diff||'-')}</td>
+    <td></td>
     <td></td>
   </tr>`).join('');
 }
