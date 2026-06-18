@@ -1078,10 +1078,23 @@ def get_data(dept, month):
         (year, dept, month)
     ).fetchall()
     unclaim_data = {r['item']: r['amount'] for r in unclaimed}
-    contracts = [dict(r) for r in con.execute(
+    contracts_raw = [dict(r) for r in con.execute(
         'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
     ).fetchall()]
+    # 標注下月對本月合約的更新狀態
+    next_cu = {r['contract_id']: dict(r) for r in con.execute(
+        'SELECT * FROM carry_updates WHERE year=? AND dept=? AND month=?',
+        (year, dept, month + 1)
+    ).fetchall()}
+    contracts = []
+    for c in contracts_raw:
+        m = dict(c)
+        cu = next_cu.get(c['id'])
+        if cu:
+            m['next_cu_status'] = cu['status']
+            m['next_cu_month'] = month + 1
+        contracts.append(m)
     if month > 1:
         cf_raw = [dict(r) for r in con.execute(
             'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',

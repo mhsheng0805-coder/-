@@ -323,7 +323,10 @@ function renderContracts(list) {
         <td>${c.client||''}${c.project_name ? `<br><span style="font-size:11px;color:#888;">${c.project_name}</span>` : ''}</td>
         <td style="font-size:12px;">${c.lead_dept||''}</td>
         <td style="font-size:12px;">${c.group_name||''}</td>
-        <td class="text-center"><span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span></td>
+        <td class="text-center">
+          <span class="badge ${statusColors[c.status]||'badge-gray'}">${c.status||''}</span>
+          ${c.next_cu_status ? `<br><span style="font-size:10px;color:#888;">${c.next_cu_month}月→</span><span class="badge ${statusColors[c.next_cu_status]||'badge-gray'}" style="font-size:10px;padding:1px 5px;">${c.next_cu_status}</span>` : ''}
+        </td>
         <td class="text-center">${dateVal}</td>
         <td class="text-right">${amtVal || ''}</td>
         <td style="font-size:12px;">${cdStr}</td>
