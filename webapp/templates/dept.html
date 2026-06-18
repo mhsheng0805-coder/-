@@ -60,7 +60,8 @@
         <th>1–{{ month }}月<br>預計簽約</th>
         <th>預估<br>(已+預)</th>
         <th>差異<br>(預估-A)</th>
-        <th>達成率</th>
+        <th>已簽約<br>達成率</th>
+        <th>預估<br>達成率</th>
       </tr></thead>
       <tbody>
         {% set income_totals = ['來自民間收入'] %}
@@ -83,6 +84,7 @@
           <td class="text-right income-forecast" data-item="{{ item }}" style="font-size:13px;">-</td>
           <td class="text-right income-diff" data-item="{{ item }}" style="font-size:13px;">-</td>
           <td class="text-center income-rate" data-item="{{ item }}">-</td>
+          <td class="text-center income-rate-exp" data-item="{{ item }}">-</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -401,13 +403,22 @@ function calcAll() {
   if (clEl) clEl.textContent = totalClaimed > 0 ? fmt(totalClaimed) : '0';
   if (ucEl) ucEl.textContent = totalUnclaim > 0 ? fmt(totalUnclaim) : '0';
 
-  // 達成率（收入）= 已簽約 / 年度預算(A)
+  // 已簽約達成率 = 已簽約 / 年度目標(A)
   document.querySelectorAll('.income-rate').forEach(td => {
     const item = td.dataset.item;
     const amt  = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
     const goal = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
     td.textContent = goal > 0 ? (amt/goal*100).toFixed(1)+'%' : '-';
     td.style.color = (goal > 0 && amt >= goal) ? '#155724' : '';
+  });
+  // 預估達成率 = (已簽約 + 預計簽約) / 年度目標(A)
+  document.querySelectorAll('.income-rate-exp').forEach(td => {
+    const item = td.dataset.item;
+    const amt  = parseFmt(document.querySelector(`.income-amt[data-item="${item}"]`)?.value||0);
+    const exp  = parseFmt(document.querySelector(`.income-exp[data-item="${item}"]`)?.value||0);
+    const goal = parseFmt(document.querySelector(`.income-goal[data-item="${item}"]`)?.value||0);
+    td.textContent = goal > 0 ? ((amt+exp)/goal*100).toFixed(1)+'%' : '-';
+    td.style.color = (goal > 0 && (amt+exp) >= goal) ? '#155724' : '';
   });
   // 達成率（支出）— 用累計金額 vs 年度目標
   document.querySelectorAll('.expense-rate').forEach(td => {
