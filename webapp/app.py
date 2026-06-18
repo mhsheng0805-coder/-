@@ -1110,9 +1110,37 @@ def get_data(dept, month):
             carry_forward.append(m)
     else:
         carry_forward = []
+    # 彙總合約金額（1..month 累計，以 carry_updates 最新狀態為準）
+    all_contracts = con.execute(
+        'SELECT id, status, amount, expected_amount FROM contracts WHERE year=? AND dept=? AND month<=?',
+        (year, dept, month)
+    ).fetchall()
+    cu_latest = {}
+    for r in con.execute(
+        '''SELECT cu.contract_id, cu.status, cu.amount, cu.expected_amount
+           FROM carry_updates cu
+           WHERE cu.year=? AND cu.dept=? AND cu.month<=?
+             AND cu.month=(SELECT MAX(month) FROM carry_updates
+                           WHERE contract_id=cu.contract_id AND year=? AND dept=? AND month<=?)''',
+        (year, dept, month, year, dept, month)
+    ).fetchall():
+        cu_latest[r['contract_id']] = dict(r)
+    contract_signed_sum = 0
+    contract_expected_sum = 0
+    for c in all_contracts:
+        cu = cu_latest.get(c['id'])
+        eff_status   = (cu['status']           if cu else c['status'])           or ''
+        eff_amount   = (cu['amount']            if cu else c['amount'])           or 0
+        eff_expected = (cu['expected_amount']   if cu else c['expected_amount'])  or 0
+        if eff_status == '已簽約':
+            contract_signed_sum += eff_amount
+        elif eff_status == '預計簽約':
+            contract_expected_sum += eff_expected
     con.close()
     return jsonify({'revenue': data, 'cumul': cumul_data, 'unclaimed': unclaim_data,
-                    'contracts': contracts, 'carry_forward': carry_forward})
+                    'contracts': contracts, 'carry_forward': carry_forward,
+                    'contract_summary': {'signed': contract_signed_sum,
+                                         'expected': contract_expected_sum}})
 
 def _is_locked(con, year, dept, month):
     row = con.execute('SELECT locked FROM locks WHERE year=? AND dept=? AND month=?',

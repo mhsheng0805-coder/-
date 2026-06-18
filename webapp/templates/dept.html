@@ -470,9 +470,17 @@ function loadData() {
       const d = rev[inp.dataset.item];
       inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
     });
+    const cs = data.contract_summary || {};
     document.querySelectorAll('.income-exp').forEach(inp => {
-      const d = rev[inp.dataset.item];
-      inp.value = (d && d.expected_amount > 0) ? fmt(d.expected_amount) : '';
+      if (inp.dataset.item === '其他民間收入' && cs.expected > 0) {
+        inp.value = fmt(cs.expected);
+        inp.style.background = '#e8f4fd';
+        inp.title = '自動彙入自合約預計簽約金額';
+      } else {
+        const d = rev[inp.dataset.item];
+        inp.value = (d && d.expected_amount > 0) ? fmt(d.expected_amount) : '';
+        if (inp.dataset.item !== '其他民間收入') inp.style.background = '';
+      }
     });
     document.querySelectorAll('.income-goal').forEach(inp => {
       inp.value = fmtGoal(goals[inp.dataset.item] || 0);
