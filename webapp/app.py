@@ -1103,6 +1103,10 @@ def get_data(dept, month):
                 m['cu_expected_amount'] = cu['expected_amount']
                 m['cu_expected_date'] = cu['expected_date']
                 m['cu_note'] = cu['note']
+            # 已簽約或停止不再延續
+            effective_status = m.get('cu_status') or m['status']
+            if effective_status in ('已簽約', '停止'):
+                continue
             carry_forward.append(m)
     else:
         carry_forward = []
