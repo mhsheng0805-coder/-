@@ -1309,34 +1309,11 @@ def save_revenue():
     if _is_locked(con, year, dept, month):
         con.close()
         return jsonify({'error': 'locked'}), 423
-    # 即時計算合約預計簽約金額（供其他民間收入使用）
-    cu_latest = {}
-    for r in con.execute(
-        '''SELECT cu.contract_id, cu.status, cu.expected_amount
-           FROM carry_updates cu
-           WHERE cu.year=? AND cu.dept=? AND cu.month<=?
-             AND cu.month=(SELECT MAX(month) FROM carry_updates
-                           WHERE contract_id=cu.contract_id AND year=? AND dept=? AND month<=?)''',
-        (year, dept, month, year, dept, month)
-    ).fetchall():
-        cu_latest[r['contract_id']] = dict(r)
-    all_contracts = con.execute(
-        'SELECT id, status, expected_amount FROM contracts WHERE year=? AND dept=? AND month<=?',
-        (year, dept, month)
-    ).fetchall()
-    live_contract_expected = 0
-    for c in all_contracts:
-        cu = cu_latest.get(c['id'])
-        eff_status   = (cu['status']          if cu else c['status'])          or ''
-        eff_expected = (cu['expected_amount']  if cu else c['expected_amount']) or 0
-        if eff_status == '預計簽約':
-            live_contract_expected += eff_expected
-
     for item, vals in d['items'].items():
         old = con.execute('SELECT amount,expected_amount,goal FROM revenue WHERE year=? AND dept=? AND month=? AND item=?',
                           (year,dept,month,item)).fetchone()
         new_amt = vals.get('amount', 0)
-        new_exp = live_contract_expected if item == '其他民間收入' else vals.get('expected_amount', 0)
+        new_exp = vals.get('expected_amount', 0)
         new_goal = vals.get('goal', 0)
         if old and (old['amount'] != new_amt or old['goal'] != new_goal):
             _log(con, year, dept, month, 'edit', 'revenue', item,
