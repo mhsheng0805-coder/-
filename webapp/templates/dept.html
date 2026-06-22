@@ -60,8 +60,8 @@
         <th style="width:11%;">1–{{ month }}月<br>預計簽約</th>
         <th style="width:11%;">預估<br>(已+預)</th>
         <th style="width:11%;">差異<br>(預估-A)</th>
-        <th style="width:9%; font-size:17px;">已簽約<br>達成率</th>
-        <th style="width:9%; font-size:17px;">已簽約+預計<br>達成率</th>
+        <th style="width:9%;">已簽約<br>達成率</th>
+        <th style="width:9%;">已簽約+預計<br>達成率</th>
       </tr></thead>
       <tbody>
         {% set income_totals = ['來自民間收入'] %}
@@ -81,8 +81,8 @@
                oninput="fmtOnInput(this)"
                {% if item in income_totals %}readonly style="background:#e8f4e8; font-weight:bold;"{% else %}style="background:#fff;"{% endif %}
                value=""></td>
-          <td class="text-right income-forecast" data-item="{{ item }}" style="font-size:17px; font-weight:500;">-</td>
-          <td class="text-right income-diff" data-item="{{ item }}" style="font-size:17px; font-weight:500;">-</td>
+          <td class="text-right income-forecast" data-item="{{ item }}">-</td>
+          <td class="text-right income-diff" data-item="{{ item }}">-</td>
           <td class="text-center income-rate" data-item="{{ item }}">-</td>
           <td class="text-center income-rate-exp" data-item="{{ item }}">-</td>
         </tr>
