@@ -7,7 +7,7 @@
     <p style="color:#666; margin-bottom:20px;">請選擇部門及月份開始填寫資料，或查看彙整報表。</p>
     <div class="dept-tabs">
       {% for dept in departments %}
-      <a href="/dept/{{ dept }}?month=1" class="dept-tab dept-nav" data-dept="{{ dept }}">{{ dept }}</a>
+      <a href="/dept/{{ dept }}?month={{ months|list|last }}" class="dept-tab dept-nav" data-dept="{{ dept }}">{{ dept }}</a>
       {% endfor %}
     </div>
     <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
@@ -72,7 +72,7 @@
           <td class="text-right">-</td><td class="text-right">-</td>
           <td class="text-right">-</td><td class="text-right">-</td>
           <td class="text-center">-</td>
-          <td class="text-center"><a href="/dept/{{ dept }}?month=1" class="btn btn-primary btn-sm dept-link" data-dept="{{ dept }}">填寫</a></td>
+          <td class="text-center"><a href="/dept/{{ dept }}?month={{ months|list|last }}" class="dept-link" data-dept="{{ dept }}" style="color:#1f4e79; text-decoration:underline; font-weight:bold;">{{ dept }}</a></td>
         </tr>
         {% endfor %}
       </tbody>
