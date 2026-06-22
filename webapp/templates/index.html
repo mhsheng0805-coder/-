@@ -19,6 +19,35 @@
   </div>
 </div>
 
+<!-- 篩選區 -->
+<div class="card" style="margin-bottom:12px;">
+  <div class="card-body" style="padding:12px 16px;">
+    <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
+      <div>
+        <strong style="font-size:13px; color:#555;">📅 月份：</strong>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+          {% for m in range(1, 13) %}
+          <label style="font-size:13px; cursor:pointer; padding:3px 8px; border:1px solid #ddd; border-radius:4px; background:#f8f9fa;">
+            <input type="checkbox" class="filter-month" value="{{ m }}" style="margin-right:3px;"
+                   {% if m <= months|list|last %}checked{% endif %}>{{ m }}月
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <strong style="font-size:13px; color:#555;">🏢 部門：</strong>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+          {% for dept in departments %}
+          <label style="font-size:13px; cursor:pointer; padding:3px 8px; border:1px solid #ddd; border-radius:4px; background:#f8f9fa;">
+            <input type="checkbox" class="filter-dept" value="{{ dept }}" checked style="margin-right:3px;">{{ dept }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="stats-area" class="stats-grid">
   <div class="stat-card"><div class="value" id="stat-income">-</div><div class="label">來自民間業務收入合計（累計）</div></div>
   <div class="stat-card" style="border-color:#28a745"><div class="value" id="stat-expense" style="color:#28a745">-</div><div class="label">支出合計（累計）</div></div>
@@ -28,7 +57,7 @@
 </div>
 
 <div class="card">
-  <div class="card-header">📊 各部門收支概況（全年累計）</div>
+  <div class="card-header" id="overview-header">📊 各部門收支概況（全年累計）</div>
   <div class="card-body" style="overflow-x:auto;">
     <table id="overview-table">
       <thead><tr>
@@ -51,26 +80,60 @@
 {% endblock %}
 {% block scripts %}
 <script>
-fetch('/api/overview').then(r=>r.json()).then(data => {
-  let totalIncome=0, totalExp=0, totalUnclaim=0, totalContracts=0;
-  data.depts.forEach(d => {
-    const tr = document.getElementById('row-' + d.dept);
-    if (!tr) return;
-    const net = d.income - d.expense;
-    tr.cells[1].textContent = fmt(d.income);
-    tr.cells[2].textContent = fmt(d.expense);
-    tr.cells[3].textContent = fmt(net);
-    tr.cells[3].style.color = net >= 0 ? '#155724' : '#721c24';
-    tr.cells[4].textContent = fmt(d.unclaim);
-    tr.cells[5].textContent = d.contracts;
-    totalIncome += d.income; totalExp += d.expense;
-    totalUnclaim += d.unclaim; totalContracts += d.contracts;
+const ALL_DEPTS = {{ departments | tojson }};
+
+function loadOverview() {
+  const months = [...document.querySelectorAll('.filter-month:checked')].map(c => +c.value);
+  const depts  = [...document.querySelectorAll('.filter-dept:checked')].map(c => c.value);
+  const maxMonth = months.length > 0 ? Math.max(...months) : 0;
+  const params = new URLSearchParams();
+  if (maxMonth > 0) params.set('month', maxMonth);
+  if (depts.length > 0 && depts.length < ALL_DEPTS.length) params.set('depts', depts.join(','));
+
+  // 先隱藏未勾選的部門列，顯示勾選的
+  ALL_DEPTS.forEach(d => {
+    const tr = document.getElementById('row-' + d);
+    if (tr) tr.style.display = depts.includes(d) ? '' : 'none';
   });
-  document.getElementById('stat-income').textContent = fmt(totalIncome);
-  document.getElementById('stat-expense').textContent = fmt(totalExp);
-  document.getElementById('stat-net').textContent = fmt(totalIncome - totalExp);
-  document.getElementById('stat-unclaim').textContent = fmt(totalUnclaim);
-  document.getElementById('stat-contracts').textContent = totalContracts + ' 筆';
-}).catch(()=>{});
+
+  fetch('/api/overview?' + params).then(r=>r.json()).then(data => {
+    let totalIncome=0, totalExp=0, totalUnclaim=0, totalContracts=0;
+    // 先清除所有列數據
+    ALL_DEPTS.forEach(d => {
+      const tr = document.getElementById('row-' + d);
+      if (tr) { for (let i=1;i<=5;i++) tr.cells[i].textContent = '-'; }
+    });
+    data.depts.forEach(d => {
+      const tr = document.getElementById('row-' + d.dept);
+      if (!tr) return;
+      const net = d.income - d.expense;
+      tr.cells[1].textContent = fmt(d.income);
+      tr.cells[2].textContent = fmt(d.expense);
+      tr.cells[3].textContent = fmt(net);
+      tr.cells[3].style.color = net >= 0 ? '#155724' : '#721c24';
+      tr.cells[4].textContent = fmt(d.unclaim);
+      tr.cells[5].textContent = d.contracts;
+      totalIncome += d.income; totalExp += d.expense;
+      totalUnclaim += d.unclaim; totalContracts += d.contracts;
+    });
+    document.getElementById('stat-income').textContent = fmt(totalIncome);
+    document.getElementById('stat-expense').textContent = fmt(totalExp);
+    document.getElementById('stat-net').textContent = fmt(totalIncome - totalExp);
+    document.getElementById('stat-unclaim').textContent = fmt(totalUnclaim);
+    document.getElementById('stat-contracts').textContent = totalContracts + ' 筆';
+    // 更新標題顯示篩選範圍
+    const hdr = document.getElementById('overview-header');
+    if (hdr) {
+      const mLabel = maxMonth > 0 ? `1–${maxMonth}月` : '全年';
+      const dLabel = depts.length < ALL_DEPTS.length ? depts.join('、') : '全部門';
+      hdr.textContent = `📊 各部門收支概況（${mLabel}累計，${dLabel}）`;
+    }
+  }).catch(()=>{});
+}
+
+document.querySelectorAll('.filter-month, .filter-dept').forEach(cb => {
+  cb.addEventListener('change', loadOverview);
+});
+loadOverview();
 </script>
 {% endblock %}

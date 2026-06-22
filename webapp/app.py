@@ -1956,12 +1956,25 @@ def delete_contract(cid):
 @login_required
 def api_overview():
     year = get_current_year()
+    month = request.args.get('month', type=int) or 0
+    depts_param = request.args.get('depts', '')
+    selected_depts = [d for d in depts_param.split(',') if d] if depts_param else DEPARTMENTS
     con = get_db()
     result = []
-    for dept in DEPARTMENTS:
-        income   = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='來自民間收入'", (year, dept)).fetchone()[0]
-        expense  = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='其他民間收入支出'", (year, dept)).fetchone()[0]
-        unclaim  = con.execute("SELECT COALESCE(SUM(amount),0) FROM unclaimed WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
+    for dept in selected_depts:
+        if dept not in DEPARTMENTS:
+            continue
+        if month > 0:
+            income   = con.execute("SELECT COALESCE(amount,0) FROM revenue WHERE year=? AND dept=? AND month=? AND item='來自民間收入'", (year, dept, month)).fetchone()
+            expense  = con.execute("SELECT COALESCE(amount,0) FROM revenue WHERE year=? AND dept=? AND month=? AND item='其他民間收入支出'", (year, dept, month)).fetchone()
+            unclaim  = con.execute("SELECT COALESCE(SUM(amount),0) FROM unclaimed WHERE year=? AND dept=? AND month=?", (year, dept, month)).fetchone()
+            income  = income[0] if income else 0
+            expense = expense[0] if expense else 0
+            unclaim = unclaim[0] if unclaim else 0
+        else:
+            income   = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='來自民間收入'", (year, dept)).fetchone()[0]
+            expense  = con.execute("SELECT COALESCE(SUM(amount),0) FROM revenue WHERE year=? AND dept=? AND item='其他民間收入支出'", (year, dept)).fetchone()[0]
+            unclaim  = con.execute("SELECT COALESCE(SUM(amount),0) FROM unclaimed WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
         contracts= con.execute("SELECT COUNT(*) FROM contracts WHERE year=? AND dept=?", (year, dept)).fetchone()[0]
         result.append({'dept': dept, 'income': income, 'expense': expense + unclaim,
                        'unclaim': unclaim, 'contracts': contracts})
