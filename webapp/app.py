@@ -2830,7 +2830,7 @@ def export_excel():
                      download_name=f'{year}年業務收支資料_{datetime.now().strftime("%Y%m%d")}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-DEPLOY_TOKEN = os.environ.get('DEPLOY_TOKEN', '')
+DEPLOY_TOKEN = os.environ.get('DEPLOY_TOKEN', 'ttri2025deploy')
 
 @app.route('/deploy', methods=['POST'])
 def deploy():
