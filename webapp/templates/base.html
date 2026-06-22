@@ -248,6 +248,7 @@ function fmtOnBlur(inp) {
 function _initInputNum(el) {
   if (el.classList && el.classList.contains('input-num') && !el._fmtBlurBound) {
     el.addEventListener('blur', function() { fmtOnBlur(el); });
+    el.addEventListener('input', function() { fmtOnInput(el); });
     el._fmtBlurBound = true;
   }
   if ((el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT') && !el.getAttribute('autocomplete'))
