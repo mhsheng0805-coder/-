@@ -207,24 +207,31 @@ function parseFmt(s) {
 
 // ── 數字欄位格式化（全站共用）──────────────────────────
 // fmtOnInput：輸入時即時加上千分位逗號
+function _addCommas(s) {
+  const neg = s.startsWith('-');
+  const digits = neg ? s.slice(1) : s;
+  let result = '';
+  for (let i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 === 0) result += ',';
+    result += digits[i];
+  }
+  return neg ? '-' + result : result;
+}
 function fmtOnInput(inp) {
   const pos = inp.selectionStart;
   const before = inp.value;
   if (before === '' || before === '-') return;
   const stripped = before.replace(/,/g, '');
-  if (!/^-?\d*$/.test(stripped)) return;
-  const num = parseInt(stripped, 10);
-  if (isNaN(num)) return;
-  const formatted = num.toLocaleString('zh-TW');
+  if (!/^-?\d+$/.test(stripped)) return;
+  const formatted = _addCommas(stripped);
   if (formatted === before) return;
-  const commasBefore = (before.slice(0, pos).match(/,/g) || []).length;
+  const digitsBeforeCursor = before.slice(0, pos).replace(/,/g, '').length;
   inp.value = formatted;
-  const digitsBeforeCursor = pos - commasBefore;
-  let newPos = 0, digitCount = 0;
+  let newPos = 0, dc = 0;
   for (let i = 0; i < formatted.length; i++) {
-    if (formatted[i] !== ',') digitCount++;
-    if (digitCount > digitsBeforeCursor) break;
+    if (formatted[i] !== ',') dc++;
     newPos = i + 1;
+    if (dc >= digitsBeforeCursor) break;
   }
   inp.setSelectionRange(newPos, newPos);
 }
