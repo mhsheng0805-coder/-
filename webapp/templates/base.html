@@ -206,17 +206,27 @@ function parseFmt(s) {
 {% endif %}
 
 // ── 數字欄位格式化（全站共用）──────────────────────────
-// fmtOnInput：輸入中只去除逗號，不重格式化（防止游標跳位重複數字）
+// fmtOnInput：輸入時即時加上千分位逗號
 function fmtOnInput(inp) {
   const pos = inp.selectionStart;
   const before = inp.value;
-  if (before === '-') return;
+  if (before === '' || before === '-') return;
   const stripped = before.replace(/,/g, '');
-  if (stripped !== before) {
-    const newPos = before.slice(0, pos).replace(/,/g, '').length;
-    inp.value = stripped;
-    inp.setSelectionRange(newPos, newPos);
+  if (!/^-?\d*$/.test(stripped)) return;
+  const num = parseInt(stripped, 10);
+  if (isNaN(num)) return;
+  const formatted = num.toLocaleString('zh-TW');
+  if (formatted === before) return;
+  const commasBefore = (before.slice(0, pos).match(/,/g) || []).length;
+  inp.value = formatted;
+  const digitsBeforeCursor = pos - commasBefore;
+  let newPos = 0, digitCount = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (formatted[i] !== ',') digitCount++;
+    if (digitCount > digitsBeforeCursor) break;
+    newPos = i + 1;
   }
+  inp.setSelectionRange(newPos, newPos);
 }
 // fmtOnBlur：離開欄位時才格式化千分位
 function fmtOnBlur(inp) {
