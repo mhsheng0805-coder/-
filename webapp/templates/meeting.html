@@ -21,11 +21,18 @@
       </div>
       <div>
         <strong style="font-size:14px; color:#555;">🏢 部門：</strong>
-        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+        <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;">
+          <span class="dept-pill active" data-dept="all" onclick="selectDept(this)"
+                style="font-size:14px; cursor:pointer; padding:5px 14px; border-radius:16px;
+                       background:#1f4e79; color:white; border:1px solid #1f4e79;">
+            📋 全部門彙整
+          </span>
           {% for dept in departments %}
-          <label style="font-size:14px; cursor:pointer; padding:4px 10px; border:1px solid #ddd; border-radius:4px; background:#f8f9fa;">
-            <input type="checkbox" class="filter-dept" value="{{ dept }}" checked style="margin-right:4px;">{{ dept }}
-          </label>
+          <span class="dept-pill" data-dept="{{ dept }}" onclick="selectDept(this)"
+                style="font-size:14px; cursor:pointer; padding:5px 14px; border-radius:16px;
+                       background:#f8f9fa; color:#333; border:1px solid #ccc;">
+            {{ dept }}
+          </span>
           {% endfor %}
         </div>
       </div>
@@ -42,6 +49,7 @@ const ALL_DEPTS = {{ departments | tojson }};
 const INCOME_LABELS = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'};
 const UNCLAIM_MAP = {'業務費':'業務費(未核銷)','維護費':'維護費(未核銷)','旅運費':'旅運費(未核銷)','材料費':'材料費(未核銷)'};
 let _month = {{ months | list | last }};
+let _selectedDept = 'all';
 
 function selectMonth(el) {
   document.querySelectorAll('.month-pill').forEach(p => {
@@ -52,9 +60,18 @@ function selectMonth(el) {
   loadMeeting();
 }
 
+function selectDept(el) {
+  document.querySelectorAll('.dept-pill').forEach(p => {
+    p.style.background = '#f8f9fa'; p.style.color = '#333'; p.style.borderColor = '#ccc';
+  });
+  el.style.background = '#1f4e79'; el.style.color = 'white'; el.style.borderColor = '#1f4e79';
+  _selectedDept = el.dataset.dept;
+  loadMeeting();
+}
+
 function loadMeeting() {
-  const depts = [...document.querySelectorAll('.filter-dept:checked')].map(c => c.value);
-  const params = new URLSearchParams({month: _month, depts: depts.join(',')});
+  const depts = _selectedDept === 'all' ? ALL_DEPTS.join(',') : _selectedDept;
+  const params = new URLSearchParams({month: _month, depts: depts});
   fetch('/api/meeting_data?' + params).then(r=>r.json()).then(renderMeeting).catch(()=>{});
 }
 
@@ -264,9 +281,6 @@ function renderMeeting(data) {
   el.innerHTML = html;
 }
 
-document.querySelectorAll('.filter-dept').forEach(cb => {
-  cb.addEventListener('change', loadMeeting);
-});
 loadMeeting();
 </script>
 {% endblock %}
