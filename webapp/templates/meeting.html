@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% block title %}會議簡報 - {{ year }}年業務收支{% endblock %}
+{% block content %}
+
+<div class="card" style="margin-bottom:12px;">
+  <div class="card-header">📊 {{ year }}年 各部門收支概況 — 會議簡報</div>
+  <div class="card-body" style="padding:12px 16px;">
+    <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
+      <div>
+        <strong style="font-size:14px; color:#555;">📅 截至月份：</strong>
+        <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;">
+          {% for m in range(1, 13) %}
+          <span class="month-pill {% if m == months|list|last %}active{% endif %}" data-month="{{ m }}"
+                onclick="selectMonth(this)"
+                style="font-size:14px; cursor:pointer; padding:5px 14px; border-radius:16px; border:1px solid #ccc;
+                       {% if m == months|list|last %}background:#1f4e79; color:white; border-color:#1f4e79;{% else %}background:#f8f9fa; color:#333;{% endif %}">
+            {{ m }}月
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <strong style="font-size:14px; color:#555;">🏢 部門：</strong>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+          {% for dept in departments %}
+          <label style="font-size:14px; cursor:pointer; padding:4px 10px; border:1px solid #ddd; border-radius:4px; background:#f8f9fa;">
+            <input type="checkbox" class="filter-dept" value="{{ dept }}" checked style="margin-right:4px;">{{ dept }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="meeting-content"></div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const ALL_DEPTS = {{ departments | tojson }};
+const INCOME_LABELS = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'};
+const UNCLAIM_MAP = {'業務費':'業務費(未核銷)','維護費':'維護費(未核銷)','旅運費':'旅運費(未核銷)','材料費':'材料費(未核銷)'};
+let _month = {{ months | list | last }};
+
+function selectMonth(el) {
+  document.querySelectorAll('.month-pill').forEach(p => {
+    p.style.background = '#f8f9fa'; p.style.color = '#333'; p.style.borderColor = '#ccc';
+  });
+  el.style.background = '#1f4e79'; el.style.color = 'white'; el.style.borderColor = '#1f4e79';
+  _month = +el.dataset.month;
+  loadMeeting();
+}
+
+function loadMeeting() {
+  const depts = [...document.querySelectorAll('.filter-dept:checked')].map(c => c.value);
+  const params = new URLSearchParams({month: _month, depts: depts.join(',')});
+  fetch('/api/meeting_data?' + params).then(r=>r.json()).then(renderMeeting).catch(()=>{});
+}
+
+function renderMeeting(data) {
+  const el = document.getElementById('meeting-content');
+  let html = '';
+  data.depts.forEach(d => {
+    const incTotal = d.income.find(r => r.item === '來自民間收入') || {};
+    const totalGoal = incTotal.goal || 0;
+    const totalAmt  = incTotal.amount || 0;
+    const totalExp  = incTotal.expected || 0;
+    const totalForecast = totalAmt + totalExp;
+
+    html += `<div class="card" style="margin-bottom:16px;">
+      <div class="card-header" style="background:linear-gradient(135deg,#1f4e79,#2e75b6); font-size:18px;">
+        📊 ${d.dept} — 截至${_month}月
+      </div>
+      <div class="card-body" style="overflow-x:auto; padding:12px;">
+        <table>
+          <thead><tr>
+            <th style="text-align:left; width:14%;">收入項目</th>
+            <th style="width:11%;">目標(A)</th>
+            <th style="width:11%;">已簽約</th>
+            <th style="width:11%;">預計簽約</th>
+            <th style="width:11%;">預估(已+預)</th>
+            <th style="width:11%;">差異(預估-A)</th>
+            <th style="width:9%;">已簽約達成率</th>
+            <th style="width:9%;">已簽約+預計達成率</th>
+          </tr></thead>
+          <tbody>`;
+
+    d.income.forEach(r => {
+      const isTotal = r.item === '來自民間收入';
+      const bg = isTotal ? 'background:#c6efce; font-weight:bold;' : 'background:#ebf8ee;';
+      const label = INCOME_LABELS[r.item] || r.item;
+      const g = r.goal || 0;
+      const a = r.amount || 0;
+      const e = r.expected || 0;
+      const f = a + e;
+      const diff = f - g;
+      const rate1 = g > 0 ? (a/g*100).toFixed(1)+'%' : '-';
+      const rate2 = g > 0 ? (f/g*100).toFixed(1)+'%' : '-';
+      const diffStyle = diff < 0 ? 'color:#c0392b;font-weight:bold;' : (diff > 0 ? 'color:#155724;font-weight:bold;' : '');
+      html += `<tr style="${bg}">
+        <td>${label}</td>
+        <td class="text-right">${g > 0 ? fmt(g) : '-'}</td>
+        <td class="text-right">${a > 0 ? fmt(a) : '-'}</td>
+        <td class="text-right">${e > 0 ? fmt(e) : '-'}</td>
+        <td class="text-right">${f > 0 ? fmt(f) : '-'}</td>
+        <td class="text-right" style="${diffStyle}">${g > 0 ? fmt(diff) : '-'}</td>
+        <td class="text-center">${rate1}</td>
+        <td class="text-center">${rate2}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+
+        <table style="margin-top:12px;">
+          <thead><tr>
+            <th style="text-align:left; width:14%;">支出項目</th>
+            <th style="width:14%;">年度目標</th>
+            <th style="width:14%;">已核銷</th>
+            <th style="width:14%;">已申請未核銷</th>
+            <th style="width:14%;">本月止累計</th>
+            <th style="width:10%;">達成率</th>
+          </tr></thead>
+          <tbody>`;
+
+    let expClaimedTotal = 0, expUnclaimTotal = 0;
+    d.expense.forEach(r => {
+      const isTotal = r.item === '其他民間收入支出';
+      const bg = isTotal ? 'background:#ffc7c7; font-weight:bold;' : 'background:#fff0f0;';
+      const g = r.goal || 0;
+      const a = r.amount || 0;
+      const ucItem = UNCLAIM_MAP[r.item] || '';
+      const uc = ucItem ? (d.unclaimed[ucItem] || 0) : 0;
+      const sub = a + uc;
+      if (!isTotal) { expClaimedTotal += a; expUnclaimTotal += uc; }
+      const displayAmt = isTotal ? fmt(expClaimedTotal) : (a > 0 ? fmt(a) : '-');
+      const displayUc  = isTotal ? fmt(expUnclaimTotal) : (ucItem ? (uc > 0 ? fmt(uc) : '-') : '—');
+      const displaySub = isTotal ? fmt(expClaimedTotal + expUnclaimTotal) : (sub > 0 ? fmt(sub) : '—');
+      const rate = g > 0 ? ((isTotal ? (expClaimedTotal+expUnclaimTotal) : sub)/g*100).toFixed(1)+'%' : '-';
+      html += `<tr style="${bg}">
+        <td>${r.item}</td>
+        <td class="text-right">${g > 0 ? fmt(g) : (g < 0 ? fmt(g) : '-')}</td>
+        <td class="text-right">${displayAmt}</td>
+        <td class="text-right">${displayUc}</td>
+        <td class="text-right">${displaySub}</td>
+        <td class="text-center">${rate}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+document.querySelectorAll('.filter-dept').forEach(cb => {
+  cb.addEventListener('change', loadMeeting);
+});
+loadMeeting();
+</script>
+{% endblock %}

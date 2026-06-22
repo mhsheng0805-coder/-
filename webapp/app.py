@@ -1981,6 +1981,51 @@ def api_overview():
     con.close()
     return jsonify({'depts': result})
 
+@app.route('/meeting')
+@login_required
+def meeting_page():
+    year = get_current_year()
+    return render_template('meeting.html', year=year, departments=DEPARTMENTS,
+                           income_items=INCOME_ITEMS, expense_items=EXPENSE_ITEMS,
+                           months=MONTHS)
+
+@app.route('/api/meeting_data')
+@login_required
+def api_meeting_data():
+    year = get_current_year()
+    month = request.args.get('month', type=int) or 6
+    depts_param = request.args.get('depts', '')
+    selected = [d for d in depts_param.split(',') if d] if depts_param else DEPARTMENTS
+    con = get_db()
+    result = []
+    for dept in selected:
+        if dept not in DEPARTMENTS:
+            continue
+        rev_rows = con.execute('SELECT item, amount, expected_amount, goal FROM revenue WHERE year=? AND dept=? AND month=?',
+                               (year, dept, month)).fetchall()
+        rev = {r['item']: dict(r) for r in rev_rows}
+        uc_rows = con.execute('SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?',
+                              (year, dept, month)).fetchall()
+        uc = {r['item']: r['amount'] for r in uc_rows}
+        goal_rows = con.execute('SELECT item, goal FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
+        goals = {r['item']: r['goal'] for r in goal_rows}
+        income = []
+        for item in INCOME_ITEMS:
+            r = rev.get(item, {})
+            g = goals.get(item, 0)
+            amt = r.get('amount', 0) or 0
+            exp = r.get('expected_amount', 0) or 0
+            income.append({'item': item, 'goal': g, 'amount': amt, 'expected': exp})
+        expense = []
+        for item in EXPENSE_ITEMS:
+            r = rev.get(item, {})
+            g = goals.get(item, 0)
+            amt = r.get('amount', 0) or 0
+            expense.append({'item': item, 'goal': g, 'amount': amt})
+        result.append({'dept': dept, 'income': income, 'expense': expense, 'unclaimed': uc})
+    con.close()
+    return jsonify({'month': month, 'depts': result})
+
 @app.route('/api/summary_data')
 @login_required
 def api_summary_data():
