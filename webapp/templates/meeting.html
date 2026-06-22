@@ -61,6 +61,116 @@ function loadMeeting() {
 function renderMeeting(data) {
   const el = document.getElementById('meeting-content');
   let html = '';
+
+  // ── 全部門彙整 ──
+  if (data.depts.length > 1) {
+    const INCOME_KEYS = {{ income_items | tojson }};
+    const EXPENSE_KEYS = {{ expense_items | tojson }};
+    const sumInc = {};
+    INCOME_KEYS.forEach(k => { sumInc[k] = {goal:0, amount:0, expected:0}; });
+    const sumExp = {};
+    EXPENSE_KEYS.forEach(k => { sumExp[k] = {goal:0, amount:0}; });
+    const sumUc = {};
+
+    data.depts.forEach(d => {
+      d.income.forEach(r => {
+        if (sumInc[r.item]) {
+          sumInc[r.item].goal += r.goal||0;
+          sumInc[r.item].amount += r.amount||0;
+          sumInc[r.item].expected += r.expected||0;
+        }
+      });
+      d.expense.forEach(r => {
+        if (sumExp[r.item]) {
+          sumExp[r.item].goal += r.goal||0;
+          sumExp[r.item].amount += r.amount||0;
+        }
+      });
+      Object.entries(d.unclaimed||{}).forEach(([k,v]) => { sumUc[k] = (sumUc[k]||0) + (v||0); });
+    });
+
+    const deptNames = data.depts.map(d=>d.dept).join('、');
+    html += `<div class="card" style="margin-bottom:20px; border:3px solid #1f4e79;">
+      <div class="card-header" style="background:linear-gradient(135deg,#0d3b66,#1f4e79); font-size:20px;">
+        📋 全部門彙整 — 截至${_month}月（${deptNames}）
+      </div>
+      <div class="card-body" style="overflow-x:auto; padding:12px;">
+        <table>
+          <thead><tr>
+            <th style="text-align:left; width:14%;">收入項目</th>
+            <th style="width:11%;">目標(A)</th>
+            <th style="width:11%;">已簽約</th>
+            <th style="width:11%;">預計簽約</th>
+            <th style="width:11%;">預估(已+預)</th>
+            <th style="width:11%;">差異(預估-A)</th>
+            <th style="width:9%;">已簽約達成率</th>
+            <th style="width:9%;">已簽約+預計達成率</th>
+          </tr></thead>
+          <tbody>`;
+
+    INCOME_KEYS.forEach(item => {
+      const s = sumInc[item];
+      const isTotal = item === '來自民間收入';
+      const bg = isTotal ? 'background:#c6efce; font-weight:bold;' : 'background:#ebf8ee;';
+      const label = INCOME_LABELS[item] || item;
+      const f = s.amount + s.expected;
+      const diff = f - s.goal;
+      const r1 = s.goal > 0 ? (s.amount/s.goal*100).toFixed(1)+'%' : '-';
+      const r2 = s.goal > 0 ? (f/s.goal*100).toFixed(1)+'%' : '-';
+      const ds = diff < 0 ? 'color:#c0392b;font-weight:bold;' : (diff > 0 ? 'color:#155724;font-weight:bold;' : '');
+      html += `<tr style="${bg}">
+        <td>${label}</td>
+        <td class="text-right">${s.goal ? fmt(s.goal) : '-'}</td>
+        <td class="text-right">${s.amount ? fmt(s.amount) : '-'}</td>
+        <td class="text-right">${s.expected ? fmt(s.expected) : '-'}</td>
+        <td class="text-right">${f ? fmt(f) : '-'}</td>
+        <td class="text-right" style="${ds}">${s.goal ? fmt(diff) : '-'}</td>
+        <td class="text-center">${r1}</td>
+        <td class="text-center">${r2}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+        <table style="margin-top:12px;">
+          <thead><tr>
+            <th style="text-align:left; width:14%;">支出項目</th>
+            <th style="width:14%;">年度目標</th>
+            <th style="width:14%;">已核銷</th>
+            <th style="width:14%;">已申請未核銷</th>
+            <th style="width:14%;">本月止累計</th>
+            <th style="width:10%;">達成率</th>
+          </tr></thead>
+          <tbody>`;
+
+    let sExpClaimed = 0, sExpUnclaim = 0;
+    EXPENSE_KEYS.forEach(item => {
+      const s = sumExp[item];
+      const isTotal = item === '其他民間收入支出';
+      const bg = isTotal ? 'background:#ffc7c7; font-weight:bold;' : 'background:#fff0f0;';
+      const ucItem = UNCLAIM_MAP[item] || '';
+      const uc = ucItem ? (sumUc[ucItem] || 0) : 0;
+      const sub = s.amount + uc;
+      if (!isTotal) { sExpClaimed += s.amount; sExpUnclaim += uc; }
+      const dAmt = isTotal ? fmt(sExpClaimed) : (s.amount ? fmt(s.amount) : '-');
+      const dUc  = isTotal ? fmt(sExpUnclaim) : (ucItem ? (uc ? fmt(uc) : '-') : '—');
+      const dSub = isTotal ? fmt(sExpClaimed+sExpUnclaim) : (sub > 0 ? fmt(sub) : '—');
+      const rate = s.goal > 0 ? ((isTotal ? (sExpClaimed+sExpUnclaim) : sub)/s.goal*100).toFixed(1)+'%' : '-';
+      html += `<tr style="${bg}">
+        <td>${item}</td>
+        <td class="text-right">${s.goal ? fmt(s.goal) : (s.goal < 0 ? fmt(s.goal) : '-')}</td>
+        <td class="text-right">${dAmt}</td>
+        <td class="text-right">${dUc}</td>
+        <td class="text-right">${dSub}</td>
+        <td class="text-center">${rate}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+      </div>
+    </div>`;
+  }
+
+  // ── 各部門明細 ──
   data.depts.forEach(d => {
     const incTotal = d.income.find(r => r.item === '來自民間收入') || {};
     const totalGoal = incTotal.goal || 0;
