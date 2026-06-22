@@ -24,13 +24,15 @@
   <div class="card-body" style="padding:12px 16px;">
     <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
       <div>
-        <strong style="font-size:13px; color:#555;">📅 月份：</strong>
-        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+        <strong style="font-size:13px; color:#555;">📅 截至月份：</strong>
+        <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;">
           {% for m in range(1, 13) %}
-          <label style="font-size:13px; cursor:pointer; padding:3px 8px; border:1px solid #ddd; border-radius:4px; background:#f8f9fa;">
-            <input type="checkbox" class="filter-month" value="{{ m }}" style="margin-right:3px;"
-                   {% if m <= months|list|last %}checked{% endif %}>{{ m }}月
-          </label>
+          <span class="month-pill {% if m == months|list|last %}active{% endif %}" data-month="{{ m }}"
+                onclick="selectMonth(this)"
+                style="font-size:13px; cursor:pointer; padding:4px 12px; border-radius:16px; border:1px solid #ccc;
+                       {% if m == months|list|last %}background:#1f4e79; color:white; border-color:#1f4e79;{% else %}background:#f8f9fa; color:#333;{% endif %}">
+            {{ m }}月
+          </span>
           {% endfor %}
         </div>
       </div>
@@ -81,16 +83,25 @@
 {% block scripts %}
 <script>
 const ALL_DEPTS = {{ departments | tojson }};
+let _selectedMonth = {{ months | list | last }};
+
+function selectMonth(el) {
+  document.querySelectorAll('.month-pill').forEach(p => {
+    p.style.background = '#f8f9fa'; p.style.color = '#333'; p.style.borderColor = '#ccc';
+    p.classList.remove('active');
+  });
+  el.style.background = '#1f4e79'; el.style.color = 'white'; el.style.borderColor = '#1f4e79';
+  el.classList.add('active');
+  _selectedMonth = +el.dataset.month;
+  loadOverview();
+}
 
 function loadOverview() {
-  const months = [...document.querySelectorAll('.filter-month:checked')].map(c => +c.value);
-  const depts  = [...document.querySelectorAll('.filter-dept:checked')].map(c => c.value);
-  const maxMonth = months.length > 0 ? Math.max(...months) : 0;
+  const depts = [...document.querySelectorAll('.filter-dept:checked')].map(c => c.value);
   const params = new URLSearchParams();
-  if (maxMonth > 0) params.set('month', maxMonth);
+  params.set('month', _selectedMonth);
   if (depts.length > 0 && depts.length < ALL_DEPTS.length) params.set('depts', depts.join(','));
 
-  // 先隱藏未勾選的部門列，顯示勾選的
   ALL_DEPTS.forEach(d => {
     const tr = document.getElementById('row-' + d);
     if (tr) tr.style.display = depts.includes(d) ? '' : 'none';
@@ -98,7 +109,6 @@ function loadOverview() {
 
   fetch('/api/overview?' + params).then(r=>r.json()).then(data => {
     let totalIncome=0, totalExp=0, totalUnclaim=0, totalContracts=0;
-    // 先清除所有列數據
     ALL_DEPTS.forEach(d => {
       const tr = document.getElementById('row-' + d);
       if (tr) { for (let i=1;i<=5;i++) tr.cells[i].textContent = '-'; }
@@ -121,17 +131,15 @@ function loadOverview() {
     document.getElementById('stat-net').textContent = fmt(totalIncome - totalExp);
     document.getElementById('stat-unclaim').textContent = fmt(totalUnclaim);
     document.getElementById('stat-contracts').textContent = totalContracts + ' 筆';
-    // 更新標題顯示篩選範圍
     const hdr = document.getElementById('overview-header');
     if (hdr) {
-      const mLabel = maxMonth > 0 ? `1–${maxMonth}月` : '全年';
       const dLabel = depts.length < ALL_DEPTS.length ? depts.join('、') : '全部門';
-      hdr.textContent = `📊 各部門收支概況（${mLabel}累計，${dLabel}）`;
+      hdr.textContent = `📊 各部門收支概況（截至${_selectedMonth}月，${dLabel}）`;
     }
   }).catch(()=>{});
 }
 
-document.querySelectorAll('.filter-month, .filter-dept').forEach(cb => {
+document.querySelectorAll('.filter-dept').forEach(cb => {
   cb.addEventListener('change', loadOverview);
 });
 loadOverview();
