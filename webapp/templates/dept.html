@@ -101,10 +101,12 @@
   <div class="card-body" style="overflow-x:auto; padding:12px;">
     <table>
       <thead><tr>
-        <th style="text-align:left;">項目</th>
-        <th>年度目標</th>
-        <th>1–{{ month }}月<br>已核銷</th><th>已申請<br>未核銷</th><th>本月止累計</th>
-        <th>達成率</th>
+        <th style="text-align:left; width:12%;">項目</th>
+        <th style="width:14%;">年度目標</th>
+        <th style="width:14%;">1–{{ month }}月<br>已核銷</th>
+        <th style="width:14%;">已申請<br>未核銷</th>
+        <th style="width:14%;">本月止累計</th>
+        <th style="width:10%;">達成率</th>
       </tr></thead>
       <tbody>
         {% set exp_totals = ['其他民間收入支出'] %}
@@ -120,19 +122,19 @@
             {% else %}style="background:#fff0f0;"{% endif %}>
           <td>{{ item }}</td>
           {% if item in exp_totals %}
-            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
+            <td><input type="text" class="input-num expense-goal tbl-inp" data-item="{{ item }}"
                  readonly style="background:#f0f8ff; color:#1a5276;" value=""></td>
             <td class="text-right" id="total-claimed">0</td>
             <td class="text-right" id="total-unclaim">0</td>
-            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}"
+            <td><input type="text" class="input-num expense-amt tbl-inp" data-item="{{ item }}"
                  readonly style="background:#ffe0e0; font-weight:bold;" value=""></td>
             <td class="text-center expense-rate" data-item="{{ item }}">-</td>
           {% else %}
-            <td><input type="text" class="input-num expense-goal" data-item="{{ item }}"
+            <td><input type="text" class="input-num expense-goal tbl-inp" data-item="{{ item }}"
                  readonly style="background:#f0f8ff; color:#1a5276;" value=""></td>
-            <td><input type="text" class="input-num expense-amt" data-item="{{ item }}" oninput="fmtOnInput(this)" style="background:#fff;" value=""></td>
+            <td><input type="text" class="input-num expense-amt tbl-inp" data-item="{{ item }}" oninput="fmtOnInput(this)" style="background:#fff;" value=""></td>
             {% if uc_item %}
-            <td><input type="text" class="input-num unclaim-amt" data-item="{{ uc_item }}" value=""
+            <td><input type="text" class="input-num unclaim-amt tbl-inp" data-item="{{ uc_item }}" value=""
                  style="background:#fffde7;"></td>
             {% else %}
             <td style="text-align:center; color:#ccc;">—</td>
