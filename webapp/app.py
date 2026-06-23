@@ -1990,9 +1990,9 @@ def export_contracts_yearly(dept):
     ws = wb.active; ws.title = f'{year}年全年合約'
     ws['A1'] = f'{year}年 {dept} 全年度合約追蹤（最新狀態）'
     ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
-    ws.merge_cells('A1:N1'); ws.row_dimensions[1].height = 22
-    headers = ['建立月份','洽談廠商/客戶','計畫名稱','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','金額方式','期數','跨部門','延續下月','備註']
-    widths  = [8,22,28,12,14,16,14,14,12,10,8,20,8,20]
+    ws.merge_cells('A1:M1'); ws.row_dimensions[1].height = 22
+    headers = ['建立月份','洽談廠商/客戶','計畫名稱','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','金額方式','期數','跨部門','備註']
+    widths  = [8,22,28,12,14,16,14,14,12,10,8,20,20]
     for c2,(h,w) in enumerate(zip(headers,widths),1):
         cell = ws.cell(2,c2,h); cell.font=hfont; cell.fill=hfill
         cell.alignment=ctr; cell.border=border
@@ -2018,7 +2018,7 @@ def export_contracts_yearly(dept):
                 r['expected_amount'] or '', r['expected_date'] or '',
                 r['amount'] or '', r['sign_date'] or '',
                 r['payment_type'] or '當年', r['installments'] if r.get('payment_type')=='分期' else '',
-                cd_str, '是' if r.get('carry_next') else '', r['note'] or '']
+                cd_str, r['note'] or '']
         for c2,v in enumerate(vals,1):
             ws.cell(ri,c2,v).border=border
 
