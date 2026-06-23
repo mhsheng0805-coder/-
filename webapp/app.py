@@ -1942,16 +1942,22 @@ def export_contracts_excel(dept, month):
 
     # 合計列
     total_row = 3 + len(rows)
+    sum_exp = sum(float(r.get('expected_amount') or 0) for r in rows)
+    sum_amt = sum(float(r.get('amount') or 0) for r in rows)
     tfont = Font(name='微軟正黑體',size=10,bold=True)
+    tfill = PatternFill('solid',start_color='FFFFCC',fgColor='FFFFCC')
     ws.cell(total_row, 1, '合計').font = tfont
+    ws.cell(total_row, 1).fill = tfill
     ws.cell(total_row, 1).border = border
     for c in range(2, 14):
         ws.cell(total_row, c).border = border
-    for col in (5, 7):
-        start = get_column_letter(col)
-        ws.cell(total_row, col).value = f'=SUM({start}3:{start}{total_row-1})'
-        ws.cell(total_row, col).number_format = num_fmt
-        ws.cell(total_row, col).font = tfont
+        ws.cell(total_row, c).fill = tfill
+    ws.cell(total_row, 5).value = sum_exp
+    ws.cell(total_row, 5).number_format = num_fmt
+    ws.cell(total_row, 5).font = tfont
+    ws.cell(total_row, 7).value = sum_amt
+    ws.cell(total_row, 7).number_format = num_fmt
+    ws.cell(total_row, 7).font = tfont
 
     output = io.BytesIO(); wb.save(output); output.seek(0)
     return send_file(output, as_attachment=True,
@@ -2064,16 +2070,22 @@ def export_contracts_yearly(dept):
 
     # 合計列
     total_row = 3 + len(rows)
+    sum_exp = sum(float(r.get('expected_amount') or 0) for r in rows)
+    sum_amt = sum(float(r.get('amount') or 0) for r in rows)
     tfont = Font(name='微軟正黑體',size=10,bold=True)
+    tfill = PatternFill('solid',start_color='FFFFCC',fgColor='FFFFCC')
     ws.cell(total_row, 1, '合計').font = tfont
+    ws.cell(total_row, 1).fill = tfill
     ws.cell(total_row, 1).border = border
     for c2 in range(2, 14):
         ws.cell(total_row, c2).border = border
-    for col in (6, 8):
-        start = get_column_letter(col)
-        ws.cell(total_row, col).value = f'=SUM({start}3:{start}{total_row-1})'
-        ws.cell(total_row, col).number_format = num_fmt
-        ws.cell(total_row, col).font = tfont
+        ws.cell(total_row, c2).fill = tfill
+    ws.cell(total_row, 6).value = sum_exp
+    ws.cell(total_row, 6).number_format = num_fmt
+    ws.cell(total_row, 6).font = tfont
+    ws.cell(total_row, 8).value = sum_amt
+    ws.cell(total_row, 8).number_format = num_fmt
+    ws.cell(total_row, 8).font = tfont
 
     output = io.BytesIO(); wb.save(output); output.seek(0)
     return send_file(output, as_attachment=True,
