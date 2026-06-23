@@ -2021,8 +2021,10 @@ def export_contracts_yearly(dept):
                 if inst_data:
                     def _inst_label(e):
                         d = e.get('date','')
+                        y = e.get('year','')
                         a = e.get('amount',0)
-                        return f"{d}：{a:,.0f}" if d else f"{a:,.0f}"
+                        lbl = d if d else (f"{y}年" if y else '')
+                        return f"{lbl}：{a:,.0f}" if lbl else f"{a:,.0f}"
                     inst_str = '；'.join(_inst_label(e) for e in inst_data if e.get('amount'))
                 else:
                     inst_str = f"{r.get('installments','')}期"
