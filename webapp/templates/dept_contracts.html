@@ -637,7 +637,6 @@ function buildInstallmentRows(existing) {
   const container = document.getElementById('installment-rows');
   // 保留現有值
   const prev = existing || Array.from(container.querySelectorAll('.install-row')).map(r => ({
-    year: r.querySelector('.install-year').value,
     date: r.querySelector('.install-date')?.value || '',
     amount: r.querySelector('.install-amount').value,
   }));
@@ -646,20 +645,15 @@ function buildInstallmentRows(existing) {
     const row = document.createElement('div');
     row.className = 'install-row';
     row.style.cssText = 'display:flex; gap:8px; align-items:center; background:#fff8e1; padding:6px 8px; border-radius:4px;';
-    const yr = prev[i]?.year || YEAR;
     const dt = prev[i]?.date || '';
     const am = prev[i]?.amount !== undefined ? prev[i].amount : 0;
-    row.innerHTML = `<span style="font-size:12px; white-space:nowrap; color:#5d4037;">第${i+1}期</span>
-      <input type="number" class="install-year" placeholder="年" min="100" max="200"
-             value="${yr}" style="width:65px; font-size:13px;">
-      <span style="font-size:12px; color:#888;">年</span>
-      <input type="text" class="install-date" placeholder="月/日"
-             value="${dt}" style="width:65px; font-size:13px;">
+    row.innerHTML = `<span style="font-size:13px; white-space:nowrap; color:#5d4037;">第${i+1}期</span>
+      <input type="date" class="install-date" value="${dt}"
+             style="width:160px; font-size:13px;">
       <input type="text" class="install-amount input-num" placeholder="金額"
              value="${am > 0 ? fmt(am) : ''}"
              oninput="fmtOnInput(this)" onblur="fmtOnBlur(this)"
-             style="flex:1; font-size:13px;">
-      <span style="font-size:12px; color:#888;">金額</span>`;
+             style="flex:1; font-size:13px;">`;
     container.appendChild(row);
   }
 }
@@ -790,7 +784,6 @@ function saveContract() {
   const installments = parseInt(document.getElementById('cf-installments').value) || 1;
   const installment_data = ptype === '分期'
     ? Array.from(document.querySelectorAll('#installment-rows .install-row')).map(r => ({
-        year: parseInt(r.querySelector('.install-year').value) || null,
         date: r.querySelector('.install-date')?.value || '',
         amount: parseFmt(r.querySelector('.install-amount').value),
       }))
@@ -853,7 +846,6 @@ function saveContractSilent(onDone) {
   const installments = parseInt(document.getElementById('cf-installments').value) || 1;
   const installment_data = ptype === '分期'
     ? Array.from(document.querySelectorAll('#installment-rows .install-row')).map(r => ({
-        year: parseInt(r.querySelector('.install-year').value) || null,
         date: r.querySelector('.install-date')?.value || '',
         amount: parseFmt(r.querySelector('.install-amount').value),
       })) : [];
