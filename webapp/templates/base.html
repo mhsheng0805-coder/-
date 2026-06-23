@@ -106,6 +106,7 @@ tr:hover { background: #eef4fb; }
 <nav>
   <span class="logo">📊 紡織所業務部門來自民間業務收入明細</span>
   <a href="/" {% if request.path=='/' %}class="active"{% endif %}>🏠 首頁</a>
+  <a href="/meeting" {% if '/meeting' in request.path %}class="active"{% endif %}>📺 會議簡報</a>
   {% if session.get('role') == 'admin' %}
   <a href="/summary" {% if '/summary' in request.path %}class="active"{% endif %}>📈 彙整</a>
   <a href="/contracts" {% if '/contracts' in request.path %}class="active"{% endif %}>合約</a>
