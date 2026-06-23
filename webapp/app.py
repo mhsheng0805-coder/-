@@ -2019,7 +2019,14 @@ def export_contracts_yearly(dept):
             try:
                 inst_data = _json.loads(r.get('installment_data') or '[]')
                 if inst_data:
-                    inst_str = '；'.join(f"{e.get('year','')}年：{e.get('amount',0):,.0f}" for e in inst_data if e.get('amount'))
+                    def _inst_label(e):
+                        y = e.get('year','')
+                        d = e.get('date','')
+                        a = e.get('amount',0)
+                        lbl = f"{y}年" if y else ''
+                        if d: lbl += f"/{d}"
+                        return f"{lbl}：{a:,.0f}" if lbl else f"{a:,.0f}"
+                    inst_str = '；'.join(_inst_label(e) for e in inst_data if e.get('amount'))
                 else:
                     inst_str = f"{r.get('installments','')}期"
             except: inst_str = f"{r.get('installments','')}期"
