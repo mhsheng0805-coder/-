@@ -1927,12 +1927,16 @@ def export_contracts_excel(dept, month):
                 parts.append(f"{k}（{detail}）")
             cd_str = '；'.join(parts)
         vals = [r['client'] or '', r['project_name'] or '', r['group_name'] or '', r['status'] or '',
-                r['expected_amount'] or '', r['expected_date'] or '',
-                r['amount'] or '', r['sign_date'] or '',
+                r['expected_amount'] or 0, r['expected_date'] or '',
+                r['amount'] or 0, r['sign_date'] or '',
                 r['payment_type'] or '當年', r['installments'] if r['payment_type']=='分期' else '',
                 cd_str, '是' if r['carry_next'] else '', r['note'] or '']
+        num_fmt = '#,##0'
         for c,v in enumerate(vals,1):
-            ws.cell(ri,c,v).border=border
+            cell = ws.cell(ri,c,v)
+            cell.border = border
+            if c in (5, 7) and isinstance(v, (int, float)) and v > 0:
+                cell.number_format = num_fmt
 
     output = io.BytesIO(); wb.save(output); output.seek(0)
     return send_file(output, as_attachment=True,
@@ -2030,12 +2034,16 @@ def export_contracts_yearly(dept):
                     inst_str = f"{r.get('installments','')}期"
             except: inst_str = f"{r.get('installments','')}期"
         vals = [f"{r['month']}月", r['client'] or '', r['project_name'] or '', r['group_name'] or '', r['status'] or '',
-                r['expected_amount'] or '', r['expected_date'] or '',
-                r['amount'] or '', r['sign_date'] or '',
+                r['expected_amount'] or 0, r['expected_date'] or '',
+                r['amount'] or 0, r['sign_date'] or '',
                 r['payment_type'] or '當年', inst_str,
                 cd_str, r['note'] or '']
+        num_fmt = '#,##0'
         for c2,v in enumerate(vals,1):
-            ws.cell(ri,c2,v).border=border
+            cell = ws.cell(ri,c2,v)
+            cell.border = border
+            if c2 in (6, 8) and isinstance(v, (int, float)) and v > 0:
+                cell.number_format = num_fmt
 
     output = io.BytesIO(); wb.save(output); output.seek(0)
     return send_file(output, as_attachment=True,
