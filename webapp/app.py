@@ -1991,8 +1991,8 @@ def export_contracts_yearly(dept):
     ws['A1'] = f'{year}年 {dept} 全年度合約追蹤（最新狀態）'
     ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
     ws.merge_cells('A1:M1'); ws.row_dimensions[1].height = 22
-    headers = ['建立月份','洽談廠商/客戶','計畫名稱','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','金額方式','期數','跨部門','備註']
-    widths  = [8,22,28,12,14,16,14,14,12,10,8,20,20]
+    headers = ['建立月份','洽談廠商/客戶','計畫名稱','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','金額方式','分期明細','跨部門','備註']
+    widths  = [8,22,28,12,14,16,14,14,12,10,30,20,20]
     for c2,(h,w) in enumerate(zip(headers,widths),1):
         cell = ws.cell(2,c2,h); cell.font=hfont; cell.fill=hfill
         cell.alignment=ctr; cell.border=border
@@ -2014,10 +2014,19 @@ def export_contracts_yearly(dept):
                     for e in entries)
                 parts.append(f"{k}（{detail}）")
             cd_str = '；'.join(parts)
+        inst_str = ''
+        if r.get('payment_type') == '分期':
+            try:
+                inst_data = _json.loads(r.get('installment_data') or '[]')
+                if inst_data:
+                    inst_str = '；'.join(f"{e.get('year','')}年：{e.get('amount',0):,.0f}" for e in inst_data if e.get('amount'))
+                else:
+                    inst_str = f"{r.get('installments','')}期"
+            except: inst_str = f"{r.get('installments','')}期"
         vals = [f"{r['month']}月", r['client'] or '', r['project_name'] or '', r['group_name'] or '', r['status'] or '',
                 r['expected_amount'] or '', r['expected_date'] or '',
                 r['amount'] or '', r['sign_date'] or '',
-                r['payment_type'] or '當年', r['installments'] if r.get('payment_type')=='分期' else '',
+                r['payment_type'] or '當年', inst_str,
                 cd_str, r['note'] or '']
         for c2,v in enumerate(vals,1):
             ws.cell(ri,c2,v).border=border
