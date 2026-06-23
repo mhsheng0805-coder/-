@@ -1939,6 +1939,94 @@ def export_contracts_excel(dept, month):
                      download_name=f'{year}年{dept}{month}月合約.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@app.route('/api/export_contracts_yearly/<dept>')
+@login_required
+def export_contracts_yearly(dept):
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
+    if not can_access_dept(dept):
+        return jsonify({'error': 'forbidden'}), 403
+    import json as _json
+    year = get_current_year()
+    con = get_db()
+    all_contracts = [dict(r) for r in con.execute(
+        'SELECT * FROM contracts WHERE year=? AND dept=? ORDER BY month, id',
+        (year, dept)).fetchall()]
+    cu_rows = con.execute(
+        '''SELECT cu.contract_id, cu.status, cu.amount, cu.sign_date,
+                  cu.expected_amount, cu.expected_date, cu.note, cu.month
+           FROM carry_updates cu
+           WHERE cu.year=? AND cu.dept=?
+           ORDER BY cu.month''',
+        (year, dept)).fetchall()
+    con.close()
+
+    cu_latest = {}
+    for r in cu_rows:
+        cu_latest[r['contract_id']] = dict(r)
+
+    seen = set()
+    rows = []
+    for c in all_contracts:
+        if c['id'] in seen:
+            continue
+        seen.add(c['id'])
+        cu = cu_latest.get(c['id'])
+        if cu:
+            c['status'] = cu['status'] or c['status']
+            if cu['amount']: c['amount'] = cu['amount']
+            if cu['sign_date']: c['sign_date'] = cu['sign_date']
+            if cu['expected_amount']: c['expected_amount'] = cu['expected_amount']
+            if cu['expected_date']: c['expected_date'] = cu['expected_date']
+            if cu['note']: c['note'] = cu['note']
+        rows.append(c)
+
+    wb = openpyxl.Workbook()
+    thin = Side(style='thin'); border = Border(left=thin,right=thin,top=thin,bottom=thin)
+    hfill = PatternFill('solid',start_color='BDD7EE',fgColor='BDD7EE')
+    hfont = Font(name='微軟正黑體',size=10,bold=True)
+    ctr   = Alignment(horizontal='center',vertical='center')
+
+    ws = wb.active; ws.title = f'{year}年全年合約'
+    ws['A1'] = f'{year}年 {dept} 全年度合約追蹤（最新狀態）'
+    ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
+    ws.merge_cells('A1:N1'); ws.row_dimensions[1].height = 22
+    headers = ['建立月份','洽談廠商/客戶','計畫名稱','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','金額方式','期數','跨部門','延續下月','備註']
+    widths  = [8,22,28,12,14,16,14,14,12,10,8,20,8,20]
+    for c2,(h,w) in enumerate(zip(headers,widths),1):
+        cell = ws.cell(2,c2,h); cell.font=hfont; cell.fill=hfill
+        cell.alignment=ctr; cell.border=border
+        ws.column_dimensions[get_column_letter(c2)].width=w
+    for ri,r in enumerate(rows,3):
+        cd = _json.loads(r['cross_dept_data'] or '{}') if r.get('cross_dept_data') else {}
+        def _cd_entries(v):
+            if isinstance(v, (int, float)):
+                return [{'year': None, 'amount': v}] if v else []
+            return v if isinstance(v, list) else []
+        cd_str = ''
+        if r.get('cross_dept'):
+            parts = []
+            for k, v in cd.items():
+                entries = [e for e in _cd_entries(v) if e.get('amount')]
+                if not entries: continue
+                detail = '、'.join(
+                    f"{e['year']}年:{e['amount']:,.0f}" if e.get('year') else f"{e['amount']:,.0f}"
+                    for e in entries)
+                parts.append(f"{k}（{detail}）")
+            cd_str = '；'.join(parts)
+        vals = [f"{r['month']}月", r['client'] or '', r['project_name'] or '', r['group_name'] or '', r['status'] or '',
+                r['expected_amount'] or '', r['expected_date'] or '',
+                r['amount'] or '', r['sign_date'] or '',
+                r['payment_type'] or '當年', r['installments'] if r.get('payment_type')=='分期' else '',
+                cd_str, '是' if r.get('carry_next') else '', r['note'] or '']
+        for c2,v in enumerate(vals,1):
+            ws.cell(ri,c2,v).border=border
+
+    output = io.BytesIO(); wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年{dept}全年合約.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 @app.route('/api/delete_contract/<int:cid>', methods=['DELETE'])
 @login_required
 def delete_contract(cid):
