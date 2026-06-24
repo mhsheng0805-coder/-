@@ -2,7 +2,18 @@
 {% block title %}會議簡報 - {{ year }}年業務收支{% endblock %}
 {% block content %}
 
-<div class="card" style="margin-bottom:12px;">
+<style>
+@media print {
+  nav, .no-print { display: none !important; }
+  body { background: white !important; font-size: 12px !important; }
+  .card { box-shadow: none !important; border: none !important; margin-bottom: 8px !important; }
+  .card-header { color: black !important; background: #dce6f1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 14px !important; }
+  table { font-size: 12px !important; }
+  th, td { padding: 4px 6px !important; }
+  tr { page-break-inside: avoid; }
+}
+</style>
+<div class="card no-print" style="margin-bottom:12px;">
   <div class="card-header">📊 {{ year }}年 各部門收支概況 — 會議簡報</div>
   <div class="card-body" style="padding:12px 16px;">
     <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
@@ -35,6 +46,11 @@
           </span>
           {% endfor %}
         </div>
+      </div>
+      <div style="margin-left:auto; align-self:center;">
+        <button onclick="window.print()" class="btn" style="background:#333;color:white;font-size:14px;padding:8px 20px;">
+          🖨 列印
+        </button>
       </div>
     </div>
   </div>
