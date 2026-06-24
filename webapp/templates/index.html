@@ -14,7 +14,7 @@
       <a href="/summary" class="btn btn-primary">📈 查看彙整報表</a>
       <a href="/contracts" class="btn btn-warning">合約追蹤明細</a>
       <a href="/export_excel" class="btn btn-success">⬇ 匯出 Excel</a>
-      <a href="/export_pptx" class="btn btn-warning">📊 匯出 PPT</a>
+      <a href="/export_pptx" class="btn btn-warning ppt-link">📊 匯出 PPT</a>
       <a href="/meeting" class="btn" style="background:#1f4e79;color:white;">📺 會議簡報</a>
     </div>
   </div>
@@ -145,6 +145,8 @@ function updateDeptLinks() {
   document.querySelectorAll('.dept-link, .dept-nav').forEach(a => {
     a.href = '/dept/' + a.dataset.dept + '?month=' + _selectedMonth;
   });
+  const pptLink = document.querySelector('.ppt-link');
+  if (pptLink) pptLink.href = '/export_pptx?thru_month=' + _selectedMonth;
 }
 
 document.querySelectorAll('.filter-dept').forEach(cb => {
