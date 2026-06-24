@@ -21,10 +21,78 @@
       </div>
       <button type="submit" class="btn btn-primary">🔍 篩選</button>
       <a href="/contracts" class="btn btn-sm" style="background:#ccc; color:#333;">清除</a>
+      <a href="/contracts?view=summary" class="btn btn-sm" style="background:#1f4e79; color:white;">📋 依部門彙整（最新狀態）</a>
     </form>
   </div>
 </div>
 
+{% if selected_view == 'summary' and grouped %}
+<!-- 依部門彙整檢視 -->
+{% for dept, dept_contracts in grouped.items() %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header" style="background:linear-gradient(135deg,#1f4e79,#2e75b6); font-size:16px;">
+    📋 {{ dept }} — 共 {{ dept_contracts|length }} 筆合約
+  </div>
+  <div class="card-body" style="overflow-x:auto; padding:12px;">
+    <table>
+      <thead><tr>
+        <th>建立月</th><th style="min-width:140px;">客戶/計畫</th><th>組別</th><th>狀態</th>
+        <th>預計簽約金額</th><th>預計日期</th><th>簽約金額</th><th>簽約日期</th><th>備註</th>
+      </tr></thead>
+      <tbody>
+        {% set ns = namespace(sum_exp=0, sum_amt=0) %}
+        {% for c in dept_contracts %}
+        <tr>
+          <td class="text-center">{{ c.month }}月</td>
+          <td><strong>{{ c.client or '' }}</strong>{% if c.project_name %}<br><span style="font-size:12px;color:#666;">{{ c.project_name }}</span>{% endif %}</td>
+          <td class="text-center">{{ c.group_name or '' }}</td>
+          <td class="text-center">
+            {% if c.status == '已簽約' %}<span class="badge badge-green">已簽約</span>
+            {% elif c.status == '預計簽約' %}<span class="badge badge-blue">預計簽約</span>
+            {% elif c.status == '簽約中/用印中' %}<span class="badge" style="background:#fff3cd;color:#856404;">簽約中</span>
+            {% elif c.status == '洽談中' %}<span class="badge badge-yellow">洽談中</span>
+            {% elif c.status == '停止' %}<span class="badge badge-gray">停止</span>
+            {% else %}<span class="badge badge-gray">{{ c.status or '' }}</span>{% endif %}
+          </td>
+          <td class="text-right">{{ "{:,.0f}".format(c.expected_amount) if c.expected_amount else '-' }}</td>
+          <td class="text-center">{{ c.expected_date or '' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(c.amount) if c.amount else '-' }}</td>
+          <td class="text-center">{{ c.sign_date or '' }}</td>
+          <td>{{ c.note or '' }}</td>
+        </tr>
+        {% set ns.sum_exp = ns.sum_exp + (c.expected_amount or 0) %}
+        {% set ns.sum_amt = ns.sum_amt + (c.amount or 0) %}
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="background:#dce6f1; font-weight:bold;">
+          <td colspan="4" class="text-right">{{ dept }} 合計</td>
+          <td class="text-right">{{ "{:,.0f}".format(ns.sum_exp) if ns.sum_exp else '-' }}</td>
+          <td></td>
+          <td class="text-right">{{ "{:,.0f}".format(ns.sum_amt) if ns.sum_amt else '-' }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+<!-- 全部門合計 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header" style="background:linear-gradient(135deg,#0d3b66,#1f4e79); font-size:16px;">
+    📊 全部門合計 — 共 {{ contracts|length }} 筆
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="value">{{ contracts|length }}</div><div class="label">合約總筆數</div></div>
+      <div class="stat-card" style="border-color:#2e75b6"><div class="value" style="color:#2e75b6;">{{ "{:,.0f}".format(contracts|sum(attribute='expected_amount')) }}</div><div class="label">預計簽約金額合計</div></div>
+      <div class="stat-card" style="border-color:#28a745"><div class="value" style="color:#155724;">{{ "{:,.0f}".format(contracts|sum(attribute='amount')) }}</div><div class="label">簽約金額合計</div></div>
+    </div>
+  </div>
+</div>
+{% else %}
+<!-- 原有列表檢視 -->
 <div class="card">
   <div class="card-header">
     合約列表
@@ -70,6 +138,7 @@
     {% endif %}
   </div>
 </div>
+{% endif %}
 
 <!-- 依部門統計 -->
 {% if contracts %}

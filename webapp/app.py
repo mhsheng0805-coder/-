@@ -2327,18 +2327,48 @@ def contracts_view():
     all_years = get_all_years()
     dept  = request.args.get('dept', '')
     month = request.args.get('month', 0, type=int)
+    view  = request.args.get('view', '')
     con = get_db()
     q, params = 'SELECT * FROM contracts WHERE year=?', [year]
     if dept:  q += ' AND dept=?';  params.append(dept)
     if month: q += ' AND month=?'; params.append(month)
-    q += ' ORDER BY month, dept, id'
+    q += ' ORDER BY dept, month, id'
     contracts = [dict(r) for r in con.execute(q, params).fetchall()]
+
+    # 彙整模式：去重 + 套用最新 carry_updates 狀態
+    grouped = {}
+    if view == 'summary':
+        cu_rows = con.execute(
+            'SELECT contract_id, status, amount, sign_date, expected_amount, expected_date, note, month '
+            'FROM carry_updates WHERE year=? ORDER BY month', (year,)).fetchall()
+        cu_latest = {}
+        for r in cu_rows:
+            cu_latest[r['contract_id']] = dict(r)
+        seen = set()
+        deduped = []
+        for c in contracts:
+            if c['id'] in seen:
+                continue
+            seen.add(c['id'])
+            cu = cu_latest.get(c['id'])
+            if cu:
+                c['status'] = cu['status'] or c['status']
+                if cu['amount']: c['amount'] = cu['amount']
+                if cu['sign_date']: c['sign_date'] = cu['sign_date']
+                if cu['expected_amount']: c['expected_amount'] = cu['expected_amount']
+                if cu['expected_date']: c['expected_date'] = cu['expected_date']
+            deduped.append(c)
+        contracts = deduped
+        for c in contracts:
+            grouped.setdefault(c['dept'], []).append(c)
+
     con.close()
     allowed = get_allowed_depts()
     return render_template('contracts.html', contracts=contracts,
                            departments=allowed, months=MONTHS,
                            year=year, all_years=all_years,
                            selected_dept=dept, selected_month=month,
+                           selected_view=view, grouped=grouped,
                            statuses=CONTRACT_STATUSES)
 
 @app.route('/dept/<dept>/contracts')
