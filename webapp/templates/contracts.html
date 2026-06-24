@@ -232,8 +232,8 @@ function renderContractChart(type) {
   let cfg = null;
 
   if (type === 'status') {
-    const counts = {};
-    CONTRACTS.forEach(c => { const s = c.status || '未分類'; counts[s] = (counts[s]||0) + 1; });
+    const counts = {}, amounts = {};
+    CONTRACTS.forEach(c => { const s = c.status || '未分類'; counts[s] = (counts[s]||0) + 1; amounts[s] = (amounts[s]||0) + (c.amount||0); });
     const labels = Object.keys(counts);
     const values = labels.map(l => counts[l]);
     const colors = labels.map(l => STATUS_COLORS[l] || '#999');
@@ -252,11 +252,14 @@ function renderContractChart(type) {
             return ` ${ctx.label}: ${ctx.raw} 筆 (${pct}%)`;
           }}},
           datalabels: {
-            color: '#fff', font: { weight: 'bold', size: 14, family: '微軟正黑體' },
+            color: '#fff', font: { weight: 'bold', size: 13, family: '微軟正黑體' },
             formatter: (val, ctx) => {
               const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
               const pct = total > 0 ? (val/total*100).toFixed(0) : 0;
-              return val + '筆\n' + pct + '%';
+              const lbl = ctx.chart.data.labels[ctx.dataIndex];
+              const amt = amounts[lbl] || 0;
+              const amtStr = amt > 0 ? (amt/10000).toFixed(0) + '萬' : '';
+              return val + '筆(' + pct + '%)\n' + amtStr;
             }, textAlign: 'center'
           }
         }
