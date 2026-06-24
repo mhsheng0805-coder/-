@@ -4,13 +4,19 @@
 
 <style>
 @media print {
+  @page { size: landscape; margin: 8mm; }
   nav, .no-print { display: none !important; }
-  body { background: white !important; font-size: 12px !important; }
-  .card { box-shadow: none !important; border: none !important; margin-bottom: 8px !important; }
-  .card-header { color: black !important; background: #dce6f1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 14px !important; }
-  table { font-size: 12px !important; }
-  th, td { padding: 4px 6px !important; }
+  body { background: white !important; font-size: 11px !important; }
+  .card { box-shadow: none !important; border: none !important; margin-bottom: 6px !important; break-inside: avoid; }
+  .card-header { color: black !important; background: #dce6f1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 13px !important; padding: 6px 10px !important; }
+  .card-body { overflow: visible !important; padding: 6px !important; }
+  table { font-size: 11px !important; width: 100% !important; table-layout: fixed; }
+  th, td { padding: 3px 4px !important; overflow: hidden; text-overflow: ellipsis; }
+  th { font-size: 10px !important; }
   tr { page-break-inside: avoid; }
+  .dept-section { break-before: page; }
+  .dept-section:first-child { break-before: auto; }
+  .print-hide { display: none !important; }
 }
 </style>
 <div class="card no-print" style="margin-bottom:12px;">
@@ -211,9 +217,10 @@ function renderMeeting(data) {
     const totalExp  = incTotal.expected || 0;
     const totalForecast = totalAmt + totalExp;
 
-    html += `<div class="card" style="margin-bottom:16px;">
+    html += `<div class="card dept-section" data-dept="${d.dept}" style="margin-bottom:16px;">
       <div class="card-header" style="background:linear-gradient(135deg,#1f4e79,#2e75b6); font-size:18px;">
         📊 ${d.dept} — 截至${_month}月
+        <button onclick="printDept('${d.dept}')" class="btn btn-sm no-print print-hide" style="margin-left:auto;background:rgba(255,255,255,0.2);color:white;font-size:12px;">🖨 列印</button>
       </div>
       <div class="card-body" style="overflow-x:auto; padding:12px;">
         <table>
@@ -295,6 +302,22 @@ function renderMeeting(data) {
     </div>`;
   });
   el.innerHTML = html;
+}
+
+function printDept(dept) {
+  document.querySelectorAll('#meeting-content .card').forEach(el => {
+    if (el.dataset.dept === dept) {
+      el.classList.remove('print-hide');
+    } else {
+      el.classList.add('print-hide');
+    }
+  });
+  setTimeout(() => {
+    window.print();
+    document.querySelectorAll('#meeting-content .card.print-hide').forEach(el => {
+      el.classList.remove('print-hide');
+    });
+  }, 100);
 }
 
 loadMeeting();
