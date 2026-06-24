@@ -213,7 +213,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 const CONTRACTS = {{ contracts|tojson }};
-const STATUS_COLORS = {'洽談中':'#ffc107','新增簽約':'#2e75b6','已簽約執行中':'#28a745','完成':'#6c757d'};
+const STATUS_COLORS = {'已簽約':'#28a745','預計簽約':'#2e75b6','簽約中/用印中':'#e67e22','洽談中':'#ffc107','停止':'#dc3545','新增簽約':'#17a2b8','已簽約執行中':'#28a745','完成':'#6c757d'};
 const DEPT_COLORS2 = ['#2e75b6','#28a745','#e67e22','#c0392b','#8e44ad','#16a085'];
 let _ctChart = null;
 let _currentCT = 'status';
