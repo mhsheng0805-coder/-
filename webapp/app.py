@@ -2092,6 +2092,85 @@ def export_contracts_yearly(dept):
                      download_name=f'{year}年{dept}全年合約.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@app.route('/api/export_contracts_all_yearly')
+@login_required
+def export_contracts_all_yearly():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
+    import json as _json
+    year = get_current_year()
+    con = get_db()
+    all_contracts = [dict(r) for r in con.execute(
+        'SELECT * FROM contracts WHERE year=? ORDER BY dept, month, id', (year,)).fetchall()]
+    cu_rows = con.execute(
+        'SELECT contract_id, status, amount, sign_date, expected_amount, expected_date, note, month '
+        'FROM carry_updates WHERE year=? ORDER BY month', (year,)).fetchall()
+    con.close()
+    cu_latest = {}
+    for r in cu_rows:
+        cu_latest[r['contract_id']] = dict(r)
+    seen = set()
+    by_dept = {}
+    for c in all_contracts:
+        if c['id'] in seen: continue
+        seen.add(c['id'])
+        cu = cu_latest.get(c['id'])
+        if cu:
+            c['status'] = cu['status'] or c['status']
+            if cu['amount']: c['amount'] = cu['amount']
+            if cu['sign_date']: c['sign_date'] = cu['sign_date']
+            if cu['expected_amount']: c['expected_amount'] = cu['expected_amount']
+            if cu['expected_date']: c['expected_date'] = cu['expected_date']
+        by_dept.setdefault(c['dept'], []).append(c)
+
+    wb = openpyxl.Workbook()
+    thin = Side(style='thin'); border = Border(left=thin,right=thin,top=thin,bottom=thin)
+    hfill = PatternFill('solid',start_color='BDD7EE',fgColor='BDD7EE')
+    hfont = Font(name='微軟正黑體',size=10,bold=True)
+    ctr = Alignment(horizontal='center',vertical='center')
+    num_fmt = '#,##0'
+    tfont = Font(name='微軟正黑體',size=10,bold=True)
+    tfill = PatternFill('solid',start_color='FFFFCC',fgColor='FFFFCC')
+    headers = ['建立月份','洽談廠商/客戶','計畫名稱','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','備註']
+    widths = [8,22,28,12,14,16,14,16,14,20]
+    first_sheet = True
+    for dept in DEPARTMENTS:
+        rows = by_dept.get(dept, [])
+        if not rows: continue
+        if first_sheet:
+            ws = wb.active; ws.title = dept; first_sheet = False
+        else:
+            ws = wb.create_sheet(title=dept)
+        ws['A1'] = f'{year}年 {dept} 全年度合約（最新狀態）'
+        ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
+        ws.merge_cells(f'A1:{get_column_letter(len(headers))}1')
+        for ci,(h,w) in enumerate(zip(headers,widths),1):
+            cell = ws.cell(2,ci,h); cell.font=hfont; cell.fill=hfill; cell.alignment=ctr; cell.border=border
+            ws.column_dimensions[get_column_letter(ci)].width=w
+        for ri,r in enumerate(rows,3):
+            exp_amt = float(r.get('expected_amount') or 0)
+            sign_amt = float(r.get('amount') or 0)
+            vals = [f"{r['month']}月", r['client'] or '', r['project_name'] or '', r['group_name'] or '', r['status'] or '',
+                    exp_amt if exp_amt else '', r['expected_date'] or '',
+                    sign_amt if sign_amt else '', r['sign_date'] or '', r['note'] or '']
+            for ci,v in enumerate(vals,1):
+                cell = ws.cell(ri,ci,v); cell.border=border
+                if ci in (6,8) and isinstance(v,(int,float)) and v:
+                    cell.number_format = num_fmt
+        tr = 3 + len(rows)
+        sum_exp = sum(float(r.get('expected_amount') or 0) for r in rows)
+        sum_amt = sum(float(r.get('amount') or 0) for r in rows)
+        ws.cell(tr,1,'合計').font=tfont; ws.cell(tr,1).fill=tfill; ws.cell(tr,1).border=border
+        for ci in range(2,len(headers)+1):
+            ws.cell(tr,ci).border=border; ws.cell(tr,ci).fill=tfill
+        ws.cell(tr,6).value=sum_exp; ws.cell(tr,6).number_format=num_fmt; ws.cell(tr,6).font=tfont
+        ws.cell(tr,8).value=sum_amt; ws.cell(tr,8).number_format=num_fmt; ws.cell(tr,8).font=tfont
+
+    output = io.BytesIO(); wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年全部門合約彙整.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 @app.route('/api/delete_contract/<int:cid>', methods=['DELETE'])
 @login_required
 def delete_contract(cid):
