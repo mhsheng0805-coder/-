@@ -207,6 +207,7 @@
 {% block scripts %}
 {% if contracts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
 const CONTRACTS = {{ contracts|tojson }};
 const STATUS_COLORS = {'已簽約':'#28a745','預計簽約':'#2e75b6','簽約中/用印中':'#e67e22','洽談中':'#ffc107','停止':'#dc3545','新增簽約':'#17a2b8','已簽約執行中':'#28a745','完成':'#6c757d'};
@@ -239,6 +240,7 @@ function renderContractChart(type) {
     cfg = {
       type: 'doughnut',
       data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
+      plugins: [ChartDataLabels],
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
@@ -248,7 +250,15 @@ function renderContractChart(type) {
             const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
             const pct = total > 0 ? (ctx.raw/total*100).toFixed(1) : 0;
             return ` ${ctx.label}: ${ctx.raw} 筆 (${pct}%)`;
-          }}}
+          }}},
+          datalabels: {
+            color: '#fff', font: { weight: 'bold', size: 14, family: '微軟正黑體' },
+            formatter: (val, ctx) => {
+              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const pct = total > 0 ? (val/total*100).toFixed(0) : 0;
+              return val + '筆\n' + pct + '%';
+            }, textAlign: 'center'
+          }
         }
       }
     };
