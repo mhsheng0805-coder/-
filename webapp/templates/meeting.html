@@ -4,7 +4,7 @@
 
 <style>
 @media print {
-  @page { size: landscape; margin: 8mm; }
+  @page { size: landscape; margin: 8mm 8mm 15mm 8mm; @bottom-center { content: "第 " counter(page) " 頁 / 共 " counter(pages) " 頁"; font-size: 10px; color: #666; } }
   nav, .no-print { display: none !important; }
   body { background: white !important; font-size: 14px !important; }
   .card { box-shadow: none !important; border: none !important; margin-bottom: 8px !important; break-inside: avoid; }
