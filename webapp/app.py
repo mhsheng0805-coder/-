@@ -3,11 +3,11 @@
 支援多年度（民國年）
 執行: python app.py  |  網址: http://[本機IP]:5001
 """
-import sys, site
-site.ENABLE_USER_SITE = True
-_user_site = site.getusersitepackages()
-if _user_site and _user_site not in sys.path:
-    sys.path.insert(0, _user_site)
+import sys
+for _p in ['/home/ttri/.local/lib/python3.10/site-packages',
+           '/usr/local/lib/python3.10/dist-packages']:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from flask import (Flask, render_template, request, jsonify, redirect,
                    url_for, send_file, session, g)
 import sqlite3, os, secrets, hashlib
