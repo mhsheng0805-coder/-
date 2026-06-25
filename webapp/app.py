@@ -2386,34 +2386,63 @@ def export_meeting_word():
     con = get_db()
     UNCLAIM_MAP_W = {'業務費':'業務費(未核銷)','維護費':'維護費(未核銷)','旅運費':'旅運費(未核銷)','材料費':'材料費(未核銷)'}
 
+    from docx.shared import Emu
+
     doc = DocxDocument()
     style = doc.styles['Normal']
-    style.font.name = '微軟正黑體'
-    style.font.size = Pt(10)
+    style.font.name = '微軟正黑體'; style.font.size = Pt(11)
     style._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+    style.paragraph_format.space_after = Pt(2); style.paragraph_format.space_before = Pt(0)
     section = doc.sections[0]
-    section.orientation = 1  # landscape
+    section.orientation = 1
     section.page_width, section.page_height = section.page_height, section.page_width
-    section.left_margin = Cm(1.5); section.right_margin = Cm(1.5)
+    section.left_margin = Cm(1.2); section.right_margin = Cm(1.2)
+    section.top_margin = Cm(1.2); section.bottom_margin = Cm(1.5)
+
+    # 頁碼
+    from docx.oxml import OxmlElement
+    footer = section.footer
+    footer.is_linked_to_previous = False
+    fp = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    fr = fp.add_run('第 ')
+    fr.font.size = Pt(9); fr.font.name = '微軟正黑體'
+    fldChar1 = OxmlElement('w:fldChar'); fldChar1.set(qn('w:fldCharType'), 'begin')
+    fp._element.append(fldChar1)
+    instrText = OxmlElement('w:instrText'); instrText.text = 'PAGE'
+    fp._element.append(instrText)
+    fldChar2 = OxmlElement('w:fldChar'); fldChar2.set(qn('w:fldCharType'), 'end')
+    fp._element.append(fldChar2)
+    fr2 = fp.add_run(' 頁')
+    fr2.font.size = Pt(9); fr2.font.name = '微軟正黑體'
 
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title.add_run(f'紡織產業綜合研究所　業務部門來自民間業務收支表（民國 {year} 年，截至{month}月）')
-    run.font.size = Pt(14); run.font.bold = True
+    run.font.size = Pt(16); run.font.bold = True
     run.font.name = '微軟正黑體'; run._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
 
+    FS = 11
     def _fmt(v):
         if not v: return '-'
         return f'{int(v):,}'
 
-    def _set_cell(cell, text, bold=False, align='right', size=9):
+    def _set_cell(cell, text, bold=False, align='right', size=FS):
         cell.text = ''
         p = cell.paragraphs[0]
+        p.paragraph_format.space_after = Pt(1); p.paragraph_format.space_before = Pt(1)
         p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if align=='right' else (WD_ALIGN_PARAGRAPH.CENTER if align=='center' else WD_ALIGN_PARAGRAPH.LEFT)
         run = p.add_run(str(text))
         run.font.size = Pt(size); run.font.bold = bold
         run.font.name = '微軟正黑體'; run._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
 
+    def _set_col_widths(table, widths_cm):
+        for row in table.rows:
+            for ci, w in enumerate(widths_cm):
+                if ci < len(row.cells):
+                    row.cells[ci].width = Cm(w)
+
+    first_dept = True
     for dept in selected:
         if dept not in DEPARTMENTS: continue
         rev_rows = con.execute('SELECT item, amount, expected_amount, goal FROM revenue WHERE year=? AND dept=? AND month=?', (year, dept, month)).fetchall()
@@ -2423,17 +2452,25 @@ def export_meeting_word():
         goal_rows = con.execute('SELECT item, goal FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
         goals = {r['item']: r['goal'] for r in goal_rows}
 
-        doc.add_paragraph().add_run(f'📊 {dept} — 截至{month}月').font.size = Pt(12)
+        if not first_dept:
+            doc.add_page_break()
+        first_dept = False
+        p = doc.add_paragraph()
+        r = p.add_run(f'{dept} — 截至{month}月')
+        r.font.size = Pt(14); r.font.bold = True
+        r.font.name = '微軟正黑體'; r._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
 
         # 收入表
         inc_h = ['收入項目','目標(A)','已簽約','預計簽約','預估(已+預)','差異(預估-A)','已簽約達成率','已簽約+預計達成率']
+        inc_w = [5.5, 3, 3, 3, 3, 3, 2.8, 3.2]
         tbl = doc.add_table(rows=1+len(INCOME_ITEMS), cols=8, style='Table Grid')
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_col_widths(tbl, inc_w)
         for ci, h in enumerate(inc_h):
-            _set_cell(tbl.rows[0].cells[ci], h, bold=True, align='center', size=9)
+            _set_cell(tbl.rows[0].cells[ci], h, bold=True, align='center')
         for ri, item in enumerate(INCOME_ITEMS, 1):
-            r = rev.get(item, {}); g = goals.get(item, 0)
-            amt = r.get('amount',0) or 0; exp = r.get('expected_amount',0) or 0
+            rv = rev.get(item, {}); g = goals.get(item, 0)
+            amt = rv.get('amount',0) or 0; exp = rv.get('expected_amount',0) or 0
             f = amt+exp; diff = f-g
             r1 = f'{amt/g*100:.1f}%' if g else '-'; r2 = f'{f/g*100:.1f}%' if g else '-'
             label = '其他民間收入(試驗/技術/訓練/其他)' if item == '其他民間收入' else item
@@ -2443,17 +2480,19 @@ def export_meeting_word():
             for ci, (v, a) in enumerate(zip(vals, aligns)):
                 _set_cell(tbl.rows[ri].cells[ci], v, bold=is_total, align=a)
 
-        doc.add_paragraph()
+        doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
         # 支出表
         exp_h = ['支出項目','目標','已核銷','已申請未核銷','本月止累計','達成率']
+        exp_w = [5.5, 3, 3, 3.5, 3.5, 2.5]
         tbl2 = doc.add_table(rows=1+len(EXPENSE_ITEMS), cols=6, style='Table Grid')
         tbl2.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_col_widths(tbl2, exp_w)
         for ci, h in enumerate(exp_h):
-            _set_cell(tbl2.rows[0].cells[ci], h, bold=True, align='center', size=9)
+            _set_cell(tbl2.rows[0].cells[ci], h, bold=True, align='center')
         ec, euc = 0, 0
         for ri, item in enumerate(EXPENSE_ITEMS, 1):
-            r = rev.get(item, {}); g = goals.get(item, 0); amt = r.get('amount',0) or 0
+            rv = rev.get(item, {}); g = goals.get(item, 0); amt = rv.get('amount',0) or 0
             uc_item = UNCLAIM_MAP_W.get(item,''); ucv = uc.get(uc_item,0) if uc_item else 0
             is_total = item == '其他民間收入支出'
             if not is_total: ec += amt; euc += ucv
@@ -2464,8 +2503,6 @@ def export_meeting_word():
             aligns = ['left','right','right','right','right','center']
             for ci, (v, a) in enumerate(zip(vals, aligns)):
                 _set_cell(tbl2.rows[ri].cells[ci], v, bold=is_total, align=a)
-
-        doc.add_page_break()
 
     con.close()
     depts_label = '全部門' if len(selected) == len(DEPARTMENTS) else '、'.join(selected)
