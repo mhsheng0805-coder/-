@@ -60,6 +60,9 @@
         <a id="meeting-excel-link" href="#" class="btn" style="background:#217346;color:white;font-size:14px;padding:8px 20px;">
           ⬇ Excel
         </a>
+        <a id="meeting-word-link" href="#" class="btn" style="background:#2b579a;color:white;font-size:14px;padding:8px 20px;">
+          ⬇ Word
+        </a>
         <button onclick="window.print()" class="btn" style="background:#333;color:white;font-size:14px;padding:8px 20px;">
           🖨 列印
         </button>
@@ -103,6 +106,8 @@ function loadMeeting() {
   fetch('/api/meeting_data?' + params).then(r=>r.json()).then(renderMeeting).catch(()=>{});
   const excelLink = document.getElementById('meeting-excel-link');
   if (excelLink) excelLink.href = '/api/export_meeting_excel?month=' + _month + '&depts=' + depts;
+  const wordLink = document.getElementById('meeting-word-link');
+  if (wordLink) wordLink.href = '/api/export_meeting_word?month=' + _month + '&depts=' + depts;
 }
 
 function renderMeeting(data) {

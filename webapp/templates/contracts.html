@@ -39,7 +39,8 @@
       <a href="/contracts" class="btn btn-sm" style="background:#ccc; color:#333;">清除</a>
       <a href="/contracts?view=summary" class="btn btn-sm" style="background:#1f4e79; color:white;">📋 依部門彙整（最新狀態）</a>
       {% if selected_view == 'summary' %}
-      <a href="/api/export_contracts_all_yearly" class="btn btn-sm" style="background:#217346; color:white;">⬇ 匯出全部門合約 Excel</a>
+      <a href="/api/export_contracts_all_yearly" class="btn btn-sm" style="background:#217346; color:white;">⬇ Excel</a>
+      <a href="/api/export_contracts_word" class="btn btn-sm" style="background:#2b579a; color:white;">⬇ Word</a>
       <button onclick="window.print()" class="btn btn-sm" style="background:#333; color:white;">🖨 列印</button>
       {% endif %}
     </form>

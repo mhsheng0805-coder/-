@@ -2360,6 +2360,209 @@ def export_meeting_excel():
                      download_name=f'{year}年{depts_label}收支表_截至{month}月.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@app.route('/api/export_meeting_word')
+@login_required
+def export_meeting_word():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
+    try:
+        from docx import Document as DocxDocument
+        from docx.shared import Pt, Cm, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.oxml.ns import qn
+    except ImportError:
+        return '<h2>缺少套件</h2><pre>pip install python-docx</pre>', 500
+
+    year = get_current_year()
+    month = request.args.get('month', type=int) or 6
+    depts_param = request.args.get('depts', '')
+    selected = [d for d in depts_param.split(',') if d] if depts_param else DEPARTMENTS
+    con = get_db()
+    UNCLAIM_MAP_W = {'業務費':'業務費(未核銷)','維護費':'維護費(未核銷)','旅運費':'旅運費(未核銷)','材料費':'材料費(未核銷)'}
+
+    doc = DocxDocument()
+    style = doc.styles['Normal']
+    style.font.name = '微軟正黑體'
+    style.font.size = Pt(10)
+    style._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+    section = doc.sections[0]
+    section.orientation = 1  # landscape
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.left_margin = Cm(1.5); section.right_margin = Cm(1.5)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = title.add_run(f'紡織產業綜合研究所　業務部門來自民間業務收支表（民國 {year} 年，截至{month}月）')
+    run.font.size = Pt(14); run.font.bold = True
+    run.font.name = '微軟正黑體'; run._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+
+    def _fmt(v):
+        if not v: return '-'
+        return f'{int(v):,}'
+
+    def _set_cell(cell, text, bold=False, align='right', size=9):
+        cell.text = ''
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if align=='right' else (WD_ALIGN_PARAGRAPH.CENTER if align=='center' else WD_ALIGN_PARAGRAPH.LEFT)
+        run = p.add_run(str(text))
+        run.font.size = Pt(size); run.font.bold = bold
+        run.font.name = '微軟正黑體'; run._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+
+    for dept in selected:
+        if dept not in DEPARTMENTS: continue
+        rev_rows = con.execute('SELECT item, amount, expected_amount, goal FROM revenue WHERE year=? AND dept=? AND month=?', (year, dept, month)).fetchall()
+        rev = {r['item']: dict(r) for r in rev_rows}
+        uc_rows = con.execute('SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?', (year, dept, month)).fetchall()
+        uc = {r['item']: r['amount'] for r in uc_rows}
+        goal_rows = con.execute('SELECT item, goal FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
+        goals = {r['item']: r['goal'] for r in goal_rows}
+
+        doc.add_paragraph().add_run(f'📊 {dept} — 截至{month}月').font.size = Pt(12)
+
+        # 收入表
+        inc_h = ['收入項目','目標(A)','已簽約','預計簽約','預估(已+預)','差異(預估-A)','已簽約達成率','已簽約+預計達成率']
+        tbl = doc.add_table(rows=1+len(INCOME_ITEMS), cols=8, style='Table Grid')
+        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        for ci, h in enumerate(inc_h):
+            _set_cell(tbl.rows[0].cells[ci], h, bold=True, align='center', size=9)
+        for ri, item in enumerate(INCOME_ITEMS, 1):
+            r = rev.get(item, {}); g = goals.get(item, 0)
+            amt = r.get('amount',0) or 0; exp = r.get('expected_amount',0) or 0
+            f = amt+exp; diff = f-g
+            r1 = f'{amt/g*100:.1f}%' if g else '-'; r2 = f'{f/g*100:.1f}%' if g else '-'
+            label = '其他民間收入(試驗/技術/訓練/其他)' if item == '其他民間收入' else item
+            is_total = item == INCOME_TOTAL_ITEM
+            vals = [label, _fmt(g), _fmt(amt), _fmt(exp), _fmt(f), _fmt(diff) if g else '-', r1, r2]
+            aligns = ['left','right','right','right','right','right','center','center']
+            for ci, (v, a) in enumerate(zip(vals, aligns)):
+                _set_cell(tbl.rows[ri].cells[ci], v, bold=is_total, align=a)
+
+        doc.add_paragraph()
+
+        # 支出表
+        exp_h = ['支出項目','目標','已核銷','已申請未核銷','本月止累計','達成率']
+        tbl2 = doc.add_table(rows=1+len(EXPENSE_ITEMS), cols=6, style='Table Grid')
+        tbl2.alignment = WD_TABLE_ALIGNMENT.CENTER
+        for ci, h in enumerate(exp_h):
+            _set_cell(tbl2.rows[0].cells[ci], h, bold=True, align='center', size=9)
+        ec, euc = 0, 0
+        for ri, item in enumerate(EXPENSE_ITEMS, 1):
+            r = rev.get(item, {}); g = goals.get(item, 0); amt = r.get('amount',0) or 0
+            uc_item = UNCLAIM_MAP_W.get(item,''); ucv = uc.get(uc_item,0) if uc_item else 0
+            is_total = item == '其他民間收入支出'
+            if not is_total: ec += amt; euc += ucv
+            da = ec if is_total else amt; du = euc if is_total else ucv
+            sub = (ec+euc) if is_total else (amt+ucv)
+            rate = f'{sub/g*100:.1f}%' if g and g > 0 else '-'
+            vals = [item, _fmt(g) if g else ('-' if g==0 else _fmt(g)), _fmt(da), '—' if not uc_item and not is_total else _fmt(du), _fmt(sub), rate]
+            aligns = ['left','right','right','right','right','center']
+            for ci, (v, a) in enumerate(zip(vals, aligns)):
+                _set_cell(tbl2.rows[ri].cells[ci], v, bold=is_total, align=a)
+
+        doc.add_page_break()
+
+    con.close()
+    depts_label = '全部門' if len(selected) == len(DEPARTMENTS) else '、'.join(selected)
+    output = io.BytesIO(); doc.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年{depts_label}收支表_截至{month}月.docx',
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+@app.route('/api/export_contracts_word')
+@login_required
+def export_contracts_word():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
+    try:
+        from docx import Document as DocxDocument
+        from docx.shared import Pt, Cm
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.oxml.ns import qn
+    except ImportError:
+        return '<h2>缺少套件</h2><pre>pip install python-docx</pre>', 500
+    import json as _json
+    year = get_current_year()
+    con = get_db()
+    all_contracts = [dict(r) for r in con.execute('SELECT * FROM contracts WHERE year=? ORDER BY dept, month, id', (year,)).fetchall()]
+    cu_rows = con.execute('SELECT contract_id, status, amount, sign_date, expected_amount, expected_date FROM carry_updates WHERE year=? ORDER BY month', (year,)).fetchall()
+    con.close()
+    cu_latest = {}
+    for r in cu_rows: cu_latest[r['contract_id']] = dict(r)
+    seen = set(); by_dept = {}
+    for c in all_contracts:
+        if c['id'] in seen: continue
+        seen.add(c['id'])
+        cu = cu_latest.get(c['id'])
+        if cu:
+            c['status'] = cu['status'] or c['status']
+            if cu['amount']: c['amount'] = cu['amount']
+            if cu['sign_date']: c['sign_date'] = cu['sign_date']
+            if cu['expected_amount']: c['expected_amount'] = cu['expected_amount']
+            if cu['expected_date']: c['expected_date'] = cu['expected_date']
+        by_dept.setdefault(c['dept'], []).append(c)
+
+    doc = DocxDocument()
+    style = doc.styles['Normal']; style.font.name = '微軟正黑體'; style.font.size = Pt(10)
+    style._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+    section = doc.sections[0]
+    section.orientation = 1
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.left_margin = Cm(1.5); section.right_margin = Cm(1.5)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = title.add_run(f'紡織產業綜合研究所　業務部門簽約明細表（民國 {year} 年）')
+    run.font.size = Pt(14); run.font.bold = True
+    run.font.name = '微軟正黑體'; run._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+
+    def _set_cell(cell, text, bold=False, align='right', size=9):
+        cell.text = ''
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if align=='right' else (WD_ALIGN_PARAGRAPH.CENTER if align=='center' else WD_ALIGN_PARAGRAPH.LEFT)
+        run = p.add_run(str(text))
+        run.font.size = Pt(size); run.font.bold = bold
+        run.font.name = '微軟正黑體'; run._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+
+    def _fmt(v):
+        if not v: return '-'
+        return f'{int(v):,}'
+
+    for dept in DEPARTMENTS:
+        rows = by_dept.get(dept, [])
+        if not rows: continue
+        doc.add_paragraph().add_run(f'📋 {dept} — 共 {len(rows)} 筆合約').font.size = Pt(12)
+        headers = ['月份','客戶/計畫','組別','狀態','預計簽約金額','預計日期','簽約金額','簽約日期']
+        tbl = doc.add_table(rows=1+len(rows)+1, cols=8, style='Table Grid')
+        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        for ci, h in enumerate(headers):
+            _set_cell(tbl.rows[0].cells[ci], h, bold=True, align='center', size=9)
+        sum_exp, sum_amt = 0, 0
+        for ri, r in enumerate(rows, 1):
+            ea = float(r.get('expected_amount') or 0); sa = float(r.get('amount') or 0)
+            sum_exp += ea; sum_amt += sa
+            label = r['client'] or ''
+            if r.get('project_name'): label += '\n' + r['project_name']
+            vals = [f"{r['month']}月", label, r.get('group_name',''), r.get('status',''),
+                    _fmt(ea) if ea else '-', r.get('expected_date','') or '-',
+                    _fmt(sa) if sa else '-', r.get('sign_date','') or '-']
+            aligns = ['center','left','center','center','right','center','right','center']
+            for ci, (v, a) in enumerate(zip(vals, aligns)):
+                _set_cell(tbl.rows[ri].cells[ci], v, align=a)
+        # 合計列
+        _set_cell(tbl.rows[-1].cells[0], f'{dept} 合計', bold=True, align='right')
+        tbl.rows[-1].cells[0].merge(tbl.rows[-1].cells[3])
+        _set_cell(tbl.rows[-1].cells[4], _fmt(sum_exp), bold=True)
+        _set_cell(tbl.rows[-1].cells[6], _fmt(sum_amt), bold=True)
+
+        doc.add_page_break()
+
+    output = io.BytesIO(); doc.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年全部門簽約明細.docx',
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
 @app.route('/api/summary_data')
 @login_required
 def api_summary_data():
