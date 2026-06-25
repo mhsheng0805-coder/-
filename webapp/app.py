@@ -2508,23 +2508,29 @@ def export_contracts_word():
             if cu['expected_date']: c['expected_date'] = cu['expected_date']
         by_dept.setdefault(c['dept'], []).append(c)
 
+    from docx.shared import Emu
+
     doc = DocxDocument()
-    style = doc.styles['Normal']; style.font.name = '微軟正黑體'; style.font.size = Pt(10)
+    style = doc.styles['Normal']; style.font.name = '微軟正黑體'; style.font.size = Pt(11)
     style._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+    style.paragraph_format.space_after = Pt(2); style.paragraph_format.space_before = Pt(0)
     section = doc.sections[0]
     section.orientation = 1
     section.page_width, section.page_height = section.page_height, section.page_width
-    section.left_margin = Cm(1.5); section.right_margin = Cm(1.5)
+    section.left_margin = Cm(1.2); section.right_margin = Cm(1.2)
+    section.top_margin = Cm(1.2); section.bottom_margin = Cm(1.2)
 
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title.add_run(f'紡織產業綜合研究所　業務部門簽約明細表（民國 {year} 年）')
-    run.font.size = Pt(14); run.font.bold = True
+    run.font.size = Pt(16); run.font.bold = True
     run.font.name = '微軟正黑體'; run._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
 
-    def _set_cell(cell, text, bold=False, align='right', size=9):
+    FS = 11
+    def _set_cell(cell, text, bold=False, align='right', size=FS):
         cell.text = ''
         p = cell.paragraphs[0]
+        p.paragraph_format.space_after = Pt(1); p.paragraph_format.space_before = Pt(1)
         p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if align=='right' else (WD_ALIGN_PARAGRAPH.CENTER if align=='center' else WD_ALIGN_PARAGRAPH.LEFT)
         run = p.add_run(str(text))
         run.font.size = Pt(size); run.font.bold = bold
@@ -2534,34 +2540,45 @@ def export_contracts_word():
         if not v: return '-'
         return f'{int(v):,}'
 
+    def _set_col_widths(table, widths_cm):
+        for row in table.rows:
+            for ci, w in enumerate(widths_cm):
+                if ci < len(row.cells):
+                    row.cells[ci].width = Cm(w)
+
+    first_dept = True
     for dept in DEPARTMENTS:
         rows = by_dept.get(dept, [])
         if not rows: continue
-        doc.add_paragraph().add_run(f'📋 {dept} — 共 {len(rows)} 筆合約').font.size = Pt(12)
-        headers = ['月份','客戶/計畫','組別','狀態','預計簽約金額','預計日期','簽約金額','簽約日期']
-        tbl = doc.add_table(rows=1+len(rows)+1, cols=8, style='Table Grid')
+        if not first_dept:
+            doc.add_page_break()
+        first_dept = False
+        p = doc.add_paragraph()
+        r = p.add_run(f'{dept} — 共 {len(rows)} 筆合約')
+        r.font.size = Pt(14); r.font.bold = True
+        r.font.name = '微軟正黑體'; r._element.rPr.rFonts.set(qn('w:eastAsia'), '微軟正黑體')
+        headers = ['月份','客戶','計畫名稱','組別','狀態','簽約金額','簽約日期']
+        col_widths = [2, 5, 7, 3, 3, 3.5, 3]
+        tbl = doc.add_table(rows=1+len(rows)+1, cols=len(headers), style='Table Grid')
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_col_widths(tbl, col_widths)
         for ci, h in enumerate(headers):
-            _set_cell(tbl.rows[0].cells[ci], h, bold=True, align='center', size=9)
-        sum_exp, sum_amt = 0, 0
+            _set_cell(tbl.rows[0].cells[ci], h, bold=True, align='center', size=FS)
+        sum_amt = 0
         for ri, r in enumerate(rows, 1):
-            ea = float(r.get('expected_amount') or 0); sa = float(r.get('amount') or 0)
-            sum_exp += ea; sum_amt += sa
-            label = r['client'] or ''
-            if r.get('project_name'): label += '\n' + r['project_name']
-            vals = [f"{r['month']}月", label, r.get('group_name',''), r.get('status',''),
-                    _fmt(ea) if ea else '-', r.get('expected_date','') or '-',
+            sa = float(r.get('amount') or 0)
+            sum_amt += sa
+            vals = [f"{r['month']}月", r['client'] or '', r.get('project_name',''),
+                    r.get('group_name',''), r.get('status',''),
                     _fmt(sa) if sa else '-', r.get('sign_date','') or '-']
-            aligns = ['center','left','center','center','right','center','right','center']
+            aligns = ['center','left','left','center','center','right','center']
             for ci, (v, a) in enumerate(zip(vals, aligns)):
                 _set_cell(tbl.rows[ri].cells[ci], v, align=a)
         # 合計列
         _set_cell(tbl.rows[-1].cells[0], f'{dept} 合計', bold=True, align='right')
-        tbl.rows[-1].cells[0].merge(tbl.rows[-1].cells[3])
-        _set_cell(tbl.rows[-1].cells[4], _fmt(sum_exp), bold=True)
-        _set_cell(tbl.rows[-1].cells[6], _fmt(sum_amt), bold=True)
-
-        doc.add_page_break()
+        tbl.rows[-1].cells[0].merge(tbl.rows[-1].cells[4])
+        _set_cell(tbl.rows[-1].cells[5], _fmt(sum_amt), bold=True)
+        _set_cell(tbl.rows[-1].cells[6], '', align='center')
 
     output = io.BytesIO(); doc.save(output); output.seek(0)
     return send_file(output, as_attachment=True,
