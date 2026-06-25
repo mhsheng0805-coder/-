@@ -2399,23 +2399,6 @@ def export_meeting_word():
     section.left_margin = Cm(1.2); section.right_margin = Cm(1.2)
     section.top_margin = Cm(1.2); section.bottom_margin = Cm(1.5)
 
-    # 頁碼
-    from docx.oxml import OxmlElement
-    footer = section.footer
-    footer.is_linked_to_previous = False
-    fp = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
-    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    fr = fp.add_run('第 ')
-    fr.font.size = Pt(9); fr.font.name = '微軟正黑體'
-    fldChar1 = OxmlElement('w:fldChar'); fldChar1.set(qn('w:fldCharType'), 'begin')
-    fp._element.append(fldChar1)
-    instrText = OxmlElement('w:instrText'); instrText.text = 'PAGE'
-    fp._element.append(instrText)
-    fldChar2 = OxmlElement('w:fldChar'); fldChar2.set(qn('w:fldCharType'), 'end')
-    fp._element.append(fldChar2)
-    fr2 = fp.add_run(' 頁')
-    fr2.font.size = Pt(9); fr2.font.name = '微軟正黑體'
-
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title.add_run(f'紡織產業綜合研究所　業務部門來自民間業務收支表（民國 {year} 年，截至{month}月）')
