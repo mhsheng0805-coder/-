@@ -56,7 +56,10 @@
           {% endfor %}
         </div>
       </div>
-      <div style="margin-left:auto; align-self:center;">
+      <div style="margin-left:auto; align-self:center; display:flex; gap:8px;">
+        <a id="meeting-excel-link" href="#" class="btn" style="background:#217346;color:white;font-size:14px;padding:8px 20px;">
+          ⬇ Excel
+        </a>
         <button onclick="window.print()" class="btn" style="background:#333;color:white;font-size:14px;padding:8px 20px;">
           🖨 列印
         </button>
@@ -98,6 +101,8 @@ function loadMeeting() {
   const depts = _selectedDept === 'all' ? ALL_DEPTS.join(',') : _selectedDept;
   const params = new URLSearchParams({month: _month, depts: depts});
   fetch('/api/meeting_data?' + params).then(r=>r.json()).then(renderMeeting).catch(()=>{});
+  const excelLink = document.getElementById('meeting-excel-link');
+  if (excelLink) excelLink.href = '/api/export_meeting_excel?month=' + _month + '&depts=' + depts;
 }
 
 function renderMeeting(data) {

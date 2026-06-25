@@ -2258,6 +2258,108 @@ def api_meeting_data():
     con.close()
     return jsonify({'month': month, 'depts': result})
 
+@app.route('/api/export_meeting_excel')
+@login_required
+def export_meeting_excel():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
+    year = get_current_year()
+    month = request.args.get('month', type=int) or 6
+    depts_param = request.args.get('depts', '')
+    selected = [d for d in depts_param.split(',') if d] if depts_param else DEPARTMENTS
+    con = get_db()
+
+    wb = openpyxl.Workbook()
+    thin = Side(style='thin'); border = Border(left=thin,right=thin,top=thin,bottom=thin)
+    hfill = PatternFill('solid',start_color='BDD7EE',fgColor='BDD7EE')
+    tfill = PatternFill('solid',start_color='C6EFCE',fgColor='C6EFCE')
+    efill = PatternFill('solid',start_color='FFC7C7',fgColor='FFC7C7')
+    hfont = Font(name='微軟正黑體',size=10,bold=True)
+    bfont = Font(name='微軟正黑體',size=10,bold=True)
+    num_fmt = '#,##0'
+    pct_fmt = '0.0%'
+    first_sheet = True
+
+    UNCLAIM_MAP = {'業務費':'業務費(未核銷)','維護費':'維護費(未核銷)','旅運費':'旅運費(未核銷)','材料費':'材料費(未核銷)'}
+
+    for dept in selected:
+        if dept not in DEPARTMENTS: continue
+        rev_rows = con.execute('SELECT item, amount, expected_amount, goal FROM revenue WHERE year=? AND dept=? AND month=?',
+                               (year, dept, month)).fetchall()
+        rev = {r['item']: dict(r) for r in rev_rows}
+        uc_rows = con.execute('SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?',
+                              (year, dept, month)).fetchall()
+        uc = {r['item']: r['amount'] for r in uc_rows}
+        goal_rows = con.execute('SELECT item, goal FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
+        goals = {r['item']: r['goal'] for r in goal_rows}
+
+        if first_sheet:
+            ws = wb.active; ws.title = dept; first_sheet = False
+        else:
+            ws = wb.create_sheet(title=dept)
+
+        ws['A1'] = f'{year}年 {dept} 業務部門來自民間業務收支表（截至{month}月）'
+        ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
+        ws.merge_cells('A1:H1')
+
+        # 收入表
+        inc_headers = ['收入項目','目標(A)','已簽約','預計簽約','預估(已+預)','差異(預估-A)','已簽約達成率','已簽約+預計達成率']
+        inc_widths = [22,14,14,14,14,14,12,14]
+        for ci,(h,w) in enumerate(zip(inc_headers,inc_widths),1):
+            cell = ws.cell(2,ci,h); cell.font=hfont; cell.fill=hfill; cell.border=border
+            cell.alignment = Alignment(horizontal='center',vertical='center')
+            ws.column_dimensions[get_column_letter(ci)].width=w
+        ri = 3
+        for item in INCOME_ITEMS:
+            r = rev.get(item, {}); g = goals.get(item, 0)
+            amt = r.get('amount',0) or 0; exp = r.get('expected_amount',0) or 0
+            forecast = amt + exp; diff = forecast - g
+            rate1 = amt/g if g else 0; rate2 = forecast/g if g else 0
+            is_total = item == INCOME_TOTAL_ITEM
+            label = '其他民間收入(試驗/技術/訓練/其他)' if item == '其他民間收入' else item
+            vals = [label, g or '', amt or '', exp or '', forecast or '', diff if g else '', rate1, rate2]
+            for ci,v in enumerate(vals,1):
+                cell = ws.cell(ri,ci,v); cell.border=border
+                if is_total: cell.font=bfont; cell.fill=tfill
+                if ci in (2,3,4,5,6) and isinstance(v,(int,float)) and v: cell.number_format=num_fmt
+                if ci in (7,8): cell.number_format=pct_fmt; cell.alignment=Alignment(horizontal='center')
+            ri += 1
+
+        # 支出表
+        ri += 1
+        exp_headers = ['支出項目','目標','已核銷','已申請未核銷','本月止累計','達成率']
+        for ci,(h,w) in enumerate(zip(exp_headers,[22,14,14,14,14,12]),1):
+            cell = ws.cell(ri,ci,h); cell.font=hfont; cell.fill=hfill; cell.border=border
+            cell.alignment = Alignment(horizontal='center',vertical='center')
+        ri += 1
+        exp_claimed_total = 0; exp_unclaim_total = 0
+        for item in EXPENSE_ITEMS:
+            r = rev.get(item, {}); g = goals.get(item, 0)
+            amt = r.get('amount',0) or 0
+            uc_item = UNCLAIM_MAP.get(item, '')
+            uc_val = uc.get(uc_item, 0) if uc_item else 0
+            is_total = item == '其他民間收入支出'
+            if not is_total:
+                exp_claimed_total += amt; exp_unclaim_total += uc_val
+            sub = (exp_claimed_total + exp_unclaim_total) if is_total else (amt + uc_val)
+            d_amt = exp_claimed_total if is_total else amt
+            d_uc = exp_unclaim_total if is_total else uc_val
+            rate = sub/g if g and g > 0 else 0
+            vals = [item, g or '', d_amt or '', d_uc or '—' if not uc_item and not is_total else (d_uc or ''), sub or '', rate]
+            for ci,v in enumerate(vals,1):
+                cell = ws.cell(ri,ci,v); cell.border=border
+                if is_total: cell.font=bfont; cell.fill=efill
+                if ci in (2,3,4,5) and isinstance(v,(int,float)) and v: cell.number_format=num_fmt
+                if ci == 6 and isinstance(v,(int,float)): cell.number_format=pct_fmt; cell.alignment=Alignment(horizontal='center')
+            ri += 1
+
+    con.close()
+    depts_label = '全部門' if len(selected) == len(DEPARTMENTS) else '、'.join(selected)
+    output = io.BytesIO(); wb.save(output); output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年{depts_label}收支表_截至{month}月.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 @app.route('/api/summary_data')
 @login_required
 def api_summary_data():
