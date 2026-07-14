@@ -1,0 +1,14 @@
+.git
+.gitignore
+*.xlsx
+*.docx
+*.bat
+*.pyc
+__pycache__
+*.md
+build_excel.py
+gen_manual.py
+nixpacks.toml
+Procfile
+webapp/.secret_key
+webapp/revenue.db

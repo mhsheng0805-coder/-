@@ -56,18 +56,24 @@ class _PgWrapper:
 
 app = Flask(__name__)
 # secret_key 固定化以確保重啟後 session 仍有效
-_SECRET_FILE = os.path.join(os.path.dirname(__file__), '.secret_key')
-if os.path.exists(_SECRET_FILE):
-    app.secret_key = open(_SECRET_FILE).read().strip()
+_env_key = os.environ.get('SECRET_KEY', '')
+if _env_key:
+    app.secret_key = _env_key
 else:
-    app.secret_key = secrets.token_hex(32)
-    open(_SECRET_FILE, 'w').write(app.secret_key)
+    _SECRET_FILE = os.path.join(os.path.dirname(__file__), '.secret_key')
+    if os.path.exists(_SECRET_FILE):
+        app.secret_key = open(_SECRET_FILE).read().strip()
+    else:
+        app.secret_key = secrets.token_hex(32)
+        open(_SECRET_FILE, 'w').write(app.secret_key)
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
-DB = os.path.join(os.path.dirname(__file__), 'revenue.db')
+# Docker 部署時 DATA_DIR=/data（volume），本機開發時使用 webapp/ 目錄
+_DATA_DIR = os.environ.get('DATA_DIR', os.path.dirname(__file__))
+DB = os.path.join(_DATA_DIR, 'revenue.db')
 
 # 當前民國年（預設）
 CURRENT_ROC_YEAR = datetime.now().year - 1911

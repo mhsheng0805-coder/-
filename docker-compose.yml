@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  webapp:
+    build: .
+    container_name: ttri-revenue
+    restart: unless-stopped
+    ports:
+      - "5001:5001"          # 外部 port:容器 port（可改為 80:5001）
+    volumes:
+      - db_data:/data        # SQLite 資料庫持久化（重啟不遺失）
+    environment:
+      - SECRET_KEY=請更換此金鑰為隨機長字串   # ← 資管請修改
+      - DEPLOY_TOKEN=ttri2025deploy
+      # 若改用 PostgreSQL，改填以下並取消 # 號：
+      # - DATABASE_URL=postgresql://user:password@db:5432/revenue
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  db_data:
+    driver: local
