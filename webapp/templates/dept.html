@@ -481,11 +481,11 @@ function loadData() {
     const cumul = data.cumul || {};
     document.querySelectorAll('.income-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
-      inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
+      inp.value = (d && d.amount !== 0) ? fmt(d.amount) : '';
     });
     document.querySelectorAll('.income-exp').forEach(inp => {
       const d = rev[inp.dataset.item];
-      inp.value = (d && d.expected_amount > 0) ? fmt(d.expected_amount) : '';
+      inp.value = (d && d.expected_amount !== 0) ? fmt(d.expected_amount) : '';
       inp.style.background = '';
       inp.title = '';
     });
@@ -494,7 +494,7 @@ function loadData() {
     });
     document.querySelectorAll('.expense-amt').forEach(inp => {
       const d = rev[inp.dataset.item];
-      inp.value = (d && d.amount > 0) ? fmt(d.amount) : '';
+      inp.value = (d && d.amount !== 0) ? fmt(d.amount) : '';
     });
     document.querySelectorAll('.expense-goal').forEach(inp => {
       inp.value = fmtGoal(goals[inp.dataset.item] || 0);
