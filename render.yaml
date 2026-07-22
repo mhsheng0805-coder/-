@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ttri-revenue
+    runtime: docker
+    plan: free
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true        # Render 自動產生隨機金鑰
+      - key: DEPLOY_TOKEN
+        value: ttri2025deploy
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ttri-revenue-db
+          property: connectionString
+
+databases:
+  - name: ttri-revenue-db
+    plan: free                     # 免費 PostgreSQL（90天後需付費）
+    databaseName: revenue
+    user: ttri
