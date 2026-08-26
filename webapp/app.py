@@ -495,20 +495,33 @@ def _migrate(cur, is_pg):
 def init_db():
     if IS_PG:
         conn = psycopg2.connect(_DATABASE_URL)
+        conn.autocommit = True          # 每個語句獨立 transaction，避免一個失敗拖垮後續
         cur = conn.cursor()
         for stmt in _SCHEMA_PG.split(';'):
             s = stmt.strip()
             if s:
-                cur.execute(s)
-        _migrate(cur, True)
-        cur.execute("INSERT INTO settings (key,value) VALUES ('current_year',%s) ON CONFLICT DO NOTHING",
-                    (str(CURRENT_ROC_YEAR),))
-        cur.execute("SELECT COUNT(*) FROM users")
-        if cur.fetchone()[0] == 0:
-            cur.execute("INSERT INTO users (username,password_hash,display_name,role) VALUES (%s,%s,%s,%s)",
-                        ('admin', hash_pw('admin1234'), '系統管理員', 'admin'))
-            print('已建立預設帳號: admin / admin1234')
-        conn.commit(); conn.close()
+                try:
+                    cur.execute(s)
+                except Exception as e:
+                    print(f'[init_db] 略過: {e}')
+        try:
+            _migrate(cur, True)
+        except Exception as e:
+            print(f'[init_db] migrate: {e}')
+        conn.autocommit = False
+        try:
+            cur.execute("INSERT INTO settings (key,value) VALUES ('current_year',%s) ON CONFLICT DO NOTHING",
+                        (str(CURRENT_ROC_YEAR),))
+            cur.execute("SELECT COUNT(*) FROM users")
+            if cur.fetchone()[0] == 0:
+                cur.execute("INSERT INTO users (username,password_hash,display_name,role) VALUES (%s,%s,%s,%s)",
+                            ('admin', hash_pw('admin1234'), '系統管理員', 'admin'))
+                print('已建立預設帳號: admin / admin1234')
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f'[init_db] 初始資料: {e}')
+        conn.close()
     else:
         con = sqlite3.connect(DB)
         cur = con.cursor()
