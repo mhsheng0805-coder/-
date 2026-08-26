@@ -117,7 +117,7 @@
               <span class="badge badge-green">啟用</span>
             {% endif %}
           </td>
-          <td class="text-center" style="font-size:12px; color:#888;">{{ u.created_at[:10] if u.created_at else '-' }}</td>
+          <td class="text-center" style="font-size:12px; color:#888;">{{ u.created_at | string | truncate(10, True, '') if u.created_at else '-' }}</td>
           <td class="text-center" style="white-space:nowrap;">
             <button class="btn btn-primary btn-sm" onclick="showEditUser({{ u.id }}, '{{ u.username }}', '{{ u.display_name or '' }}', '{{ u.dept or '' }}', '{{ u.role }}')">編輯</button>
             <button class="btn btn-warning btn-sm" onclick="showResetPw({{ u.id }}, '{{ u.username }}')">改密碼</button>
