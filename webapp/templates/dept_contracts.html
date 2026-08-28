@@ -68,7 +68,11 @@
     <!-- 新增/編輯表單 -->
     <div id="contract-form" style="display:none; background:#f8f0ff; border:1px solid #d0b0ef;
          border-radius:8px; padding:16px; margin-top:16px;">
-      <h4 style="margin-bottom:14px; color:#4a1a7b; border-bottom:1px solid #d0b0ef; padding-bottom:8px;">合約資料</h4>
+      <h4 style="margin-bottom:10px; color:#4a1a7b; border-bottom:1px solid #d0b0ef; padding-bottom:8px;">合約資料</h4>
+      <div id="cf-new-hint" style="display:none; background:#fff3cd; border:1px solid #ffc107;
+           border-radius:6px; padding:8px 12px; margin-bottom:12px; font-size:13px; color:#856404;">
+        ⚠️ 若要更新現有合約進度（例如洽談中→已簽約），請直接在列表中點「編輯」該筆合約，不要新增新筆。
+      </div>
       <input type="hidden" id="cf-id">
 
       <!-- 基本資訊 -->
@@ -570,6 +574,7 @@ function getSelectedGroups() {
 
 function showContractForm(contract) {
   document.getElementById('contract-form').style.display = 'block';
+  document.getElementById('cf-new-hint').style.display = contract?.id ? 'none' : 'block';
   document.getElementById('cf-id').value = contract?.id || '';
   document.getElementById('cf-client').value = contract?.client || '';
   document.getElementById('cf-project').value = contract?.project_name || '';

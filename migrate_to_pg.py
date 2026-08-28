@@ -44,7 +44,7 @@ pg = psycopg2.connect(DATABASE_URL)
 pg_cur = pg.cursor()
 
 TABLES = ['settings', 'users', 'revenue', 'contracts', 'unclaimed',
-          'locks', 'audit_log', 'annual_goals', 'carry_updates']
+          'locks', 'audit_log', 'annual_goals', 'carry_updates', 'dept_groups']
 
 for table in TABLES:
     try:
@@ -78,7 +78,7 @@ for table in TABLES:
     print(f"  {table}: 已匯入 {count} 筆")
 
 # 重設 PostgreSQL sequences（避免 ID 衝突）
-for table in ['revenue', 'contracts', 'unclaimed', 'audit_log', 'annual_goals', 'carry_updates']:
+for table in ['revenue', 'contracts', 'unclaimed', 'audit_log', 'annual_goals', 'carry_updates', 'dept_groups']:
     try:
         pg_cur.execute(f"""
             SELECT setval(pg_get_serial_sequence('{table}', 'id'),
