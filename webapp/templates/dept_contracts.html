@@ -52,8 +52,12 @@
   <div class="card-header" style="background:linear-gradient(135deg,#4a1a7b,#7b3fa0);">
     📄 {{ month }}月 合約
     {% if can_write %}
-    <button class="btn btn-sm" style="margin-left:auto; background:rgba(255,255,255,0.2); color:white;"
-            onclick="showContractForm()">＋ 新增合約</button>
+    <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+      <button class="btn btn-sm" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.4);"
+              onclick="saveAll()">💾 全部儲存</button>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,0.2); color:white;"
+              onclick="showContractForm()">＋ 新增合約</button>
+    </div>
     {% else %}
     <span style="margin-left:auto; background:rgba(255,243,205,0.9); color:#856404;
                  border-radius:5px; padding:3px 10px; font-size:12px; font-weight:bold;">👁 檢視模式</span>
@@ -208,6 +212,7 @@
 <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
   <a href="/dept/{{ dept }}?month={{ month }}" class="btn btn-primary">← 返回收支填寫</a>
   {% if session.get('role') != 'viewer' %}
+  <button onclick="saveAll()" class="btn" style="background:#4a1a7b;color:white;">💾 全部儲存</button>
   <a href="/api/export_contracts_excel/{{ dept }}/{{ month }}" class="btn" style="background:#217346;color:white;">⬇ 匯出本月合約 Excel</a>
   <a href="/api/export_contracts_yearly/{{ dept }}" class="btn" style="background:#1f4e79;color:white;">📋 匯出全年合約 Excel</a>
   {% endif %}
@@ -778,6 +783,21 @@ function collectCrossDeptData() {
     data[dept] = entries.length ? entries : [{ year: null, amount: 0 }];
   });
   return data;
+}
+
+// ── 全部儲存 ─────────────────────────────────────────────
+async function saveAll() {
+  let saved = 0;
+  // 1. 儲存開著的合約表單（如果有填客戶名）
+  const client = document.getElementById('cf-client')?.value?.trim();
+  const formVisible = document.getElementById('contract-form')?.style.display !== 'none';
+  if (formVisible && client) {
+    await new Promise(resolve => saveContractSilent(resolve));
+    saved++;
+  }
+  // 2. 儲存所有進度更新
+  await saveAllCarryUpdates(true);
+  showToast('✅ 全部儲存完成');
 }
 
 // ── 儲存 ────────────────────────────────────────────────
