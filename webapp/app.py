@@ -1514,6 +1514,27 @@ def save_contract():
              expected_amount, expected_date, lead_dept,
              d['id']))
     else:
+        ph = '%s' if IS_PG else '?'
+        # 防重複：同客戶+計畫+部門+年度已存在則改為更新
+        existing = con.execute(
+            f'SELECT id FROM contracts WHERE year={ph} AND dept={ph} AND client={ph} AND project_name={ph}',
+            (year, d['dept'], d['client'], project_name)
+        ).fetchone()
+        if existing:
+            con.execute(f'''UPDATE contracts SET month={ph}, amount={ph}, sign_date={ph},
+                status={ph}, group_name={ph}, note={ph}, carry_next={ph},
+                cross_dept={ph}, cross_dept_data={ph},
+                payment_type={ph}, installments={ph}, installment_data={ph},
+                expected_amount={ph}, expected_date={ph}, lead_dept={ph},
+                updated_at=CURRENT_TIMESTAMP WHERE id={ph}''',
+                (d['month'], d['amount'], d.get('sign_date',''), d['status'],
+                 d.get('group_name',''), d.get('note',''), d.get('carry_next',0),
+                 1 if d.get('cross_dept') else 0, cross_dept_data,
+                 d.get('payment_type','當年'), d.get('installments',1), installment_data,
+                 expected_amount, expected_date, lead_dept, existing[0]))
+            con.commit()
+            con.close()
+            return jsonify({'status': 'ok', 'id': existing[0]})
         con.execute('''INSERT INTO contracts
             (year, dept, month, client, project_name, amount, sign_date,
              status, group_name, note, carry_next,
