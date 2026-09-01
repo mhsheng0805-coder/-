@@ -1587,10 +1587,10 @@ def export_dept_excel(dept, month):
         return jsonify({'error': 'forbidden'}), 403
     year = get_current_year()
     con = get_db()
-    # 累計1~month月資料
+    # 直接讀取當月輸入的數字（與系統頁面一致，不加總）
     rev_rows = con.execute(
-        'SELECT item, SUM(amount) as amount, SUM(expected_amount) as expected_amount '
-        'FROM revenue WHERE year=? AND dept=? AND month<=? GROUP BY item',
+        'SELECT item, amount, expected_amount '
+        'FROM revenue WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
     ).fetchall()
     goal_rows = con.execute(
@@ -1598,7 +1598,7 @@ def export_dept_excel(dept, month):
         (year, dept)
     ).fetchall()
     unclaim_rows = con.execute(
-        'SELECT item, SUM(amount) as amount FROM unclaimed WHERE year=? AND dept=? AND month<=? GROUP BY item',
+        'SELECT item, amount FROM unclaimed WHERE year=? AND dept=? AND month=?',
         (year, dept, month)
     ).fetchall()
     con.close()
