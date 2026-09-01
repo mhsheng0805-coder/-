@@ -275,6 +275,7 @@
         <thead><tr>
           <th style="text-align:left; padding:6px 10px; background:#e8f5e9; font-size:12px; border:1px solid #ddd;">項目</th>
           <th style="text-align:right; padding:6px 10px; background:#e8f5e9; font-size:12px; border:1px solid #ddd;">年度目標（元）</th>
+          <th style="text-align:right; padding:6px 10px; background:#fff9c4; font-size:12px; border:1px solid #ddd;">年度預估（元）</th>
         </tr></thead>
         <tbody id="gm-income-rows"></tbody>
       </table>
@@ -286,6 +287,7 @@
         <thead><tr>
           <th style="text-align:left; padding:6px 10px; background:#fff0f0; font-size:12px; border:1px solid #ddd;">項目</th>
           <th style="text-align:right; padding:6px 10px; background:#fff0f0; font-size:12px; border:1px solid #ddd;">年度目標（元）</th>
+          <th style="text-align:right; padding:6px 10px; background:#fff9c4; font-size:12px; border:1px solid #ddd;">年度預估（元）</th>
         </tr></thead>
         <tbody id="gm-expense-rows"></tbody>
       </table>
@@ -475,7 +477,8 @@ function loadData() {
   Promise.all([
     fetch(`/api/data/${DEPT}/${MONTH}?year=${YEAR}`).then(r=>r.json()),
     fetch(`/api/annual_goals/${DEPT}?year=${YEAR}`).then(r=>r.json()),
-  ]).then(([data, goals]) => {
+  ]).then(([data, goalsData]) => {
+    const goals = goalsData.goals || goalsData; // backward compat
     _annualGoals = goals;
     const rev = data.revenue || {};
     const cumul = data.cumul || {};
@@ -512,18 +515,27 @@ function loadData() {
 // ── 年度目標 Modal ─────────────────────────────────────────
 function openGoalsModal() {
   document.getElementById('gm-dept').textContent = DEPT;
-  fetch(`/api/annual_goals/${DEPT}?year=${YEAR}`).then(r=>r.json()).then(goals => {
+  fetch(`/api/annual_goals/${DEPT}?year=${YEAR}`).then(r=>r.json()).then(data => {
+    const goals = data.goals || data; // backward compat
+    const estimates = data.estimates || {};
     const ITEM_LABELS = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'};
-    const mkRow = (item, isTot, onInput) => {
+    const mkRow = (item, isTot, onInput, tbodyId) => {
       const v = goals[item] || 0;
+      const e = estimates[item] || 0;
       const label = ITEM_LABELS[item] || item;
-      const inputAttrs = isTot
+      const inp1Attrs = isTot
         ? `readonly style="background:#f0f8ff;width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`
         : `oninput="${onInput || 'fmtOnInput(this)'}" onblur="fmtOnBlur(this)" style="width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`;
+      const inp2Attrs = isTot
+        ? `readonly style="background:#fffde7;width:100%;text-align:right;border:1px solid #ccc;padding:4px 6px;border-radius:4px;"`
+        : `oninput="fmtOnInput(this);scheduleGoalsSave()" onblur="fmtOnBlur(this)" style="width:100%;text-align:right;border:1px solid #f5c518;background:#fffde7;padding:4px 6px;border-radius:4px;"`;
       return `<tr style="background:${isTot?'#d4edda':'#fff'}">
         <td style="padding:6px 10px; border:1px solid #ddd; font-size:13px;${isTot?' font-weight:bold;':''}">${label}</td>
         <td style="padding:4px 8px; border:1px solid #ddd;">
-          <input type="text" class="gm-input" data-item="${item}" value="${fmtGoal(v)}" ${inputAttrs}>
+          <input type="text" class="gm-input" data-item="${item}" value="${fmtGoal(v)}" ${inp1Attrs}>
+        </td>
+        <td style="padding:4px 8px; border:1px solid #ddd;">
+          <input type="text" class="gm-est-input" data-item="${item}" value="${fmtGoal(e)}" ${inp2Attrs}>
         </td>
       </tr>`;
     };
@@ -645,11 +657,15 @@ function doSaveGoals(silent = false) {
   });
   const yInp = document.getElementById('gm-y-input');
   if (yInp) goals['財務貢獻(Y值)'] = parseFmt(yInp.value);
+  const estimates = {};
+  document.querySelectorAll('.gm-est-input').forEach(inp => {
+    estimates[inp.dataset.item] = parseFmt(inp.value);
+  });
   const statusEl = document.getElementById('gm-save-status');
   fetch('/api/save_annual_goals', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({dept: DEPT, year: YEAR, goals})
+    body: JSON.stringify({dept: DEPT, year: YEAR, goals, estimates})
   }).then(r=>r.json()).then(d => {
     if (statusEl) statusEl.textContent = '✅ 已自動儲存';
     // 同步更新主表年度目標欄位

@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE TABLE IF NOT EXISTS annual_goals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     year INTEGER NOT NULL, dept TEXT NOT NULL, item TEXT NOT NULL,
-    goal REAL DEFAULT 0,
+    goal REAL DEFAULT 0, estimate REAL DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, item)
 );
@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE TABLE IF NOT EXISTS annual_goals (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL, dept TEXT NOT NULL, item TEXT NOT NULL,
-    goal REAL DEFAULT 0,
+    goal REAL DEFAULT 0, estimate REAL DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, item)
 );
@@ -350,6 +350,7 @@ _MIGRATE_ANNUAL_GOALS_SQLITE = [
         goal REAL DEFAULT 0,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(year, dept, item))""",
+    "ALTER TABLE annual_goals ADD COLUMN estimate REAL DEFAULT 0",
 ]
 _MIGRATE_ANNUAL_GOALS_PG = [
     """CREATE TABLE IF NOT EXISTS annual_goals (
@@ -358,6 +359,7 @@ _MIGRATE_ANNUAL_GOALS_PG = [
         goal REAL DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(year, dept, item))""",
+    "ALTER TABLE annual_goals ADD COLUMN estimate REAL DEFAULT 0",
 ]
 
 _MIGRATE_REVENUE = [
@@ -1360,9 +1362,11 @@ def get_annual_goals(dept):
         return jsonify({'error': 'forbidden'}), 403
     year = request.args.get('year', type=int) or get_current_year()
     con = get_db()
-    rows = con.execute('SELECT item, goal FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
+    rows = con.execute('SELECT item, goal, estimate FROM annual_goals WHERE year=? AND dept=?', (year, dept)).fetchall()
     con.close()
-    return jsonify({r['item']: r['goal'] for r in rows})
+    goals = {r['item']: r['goal'] for r in rows}
+    estimates = {r['item']: (r['estimate'] or 0) for r in rows}
+    return jsonify({'goals': goals, 'estimates': estimates})
 
 @app.route('/api/import_goals_excel', methods=['POST'])
 @login_required
@@ -1443,14 +1447,16 @@ def save_annual_goals():
     if not can_write_dept(dept):
         return jsonify({'error': '無寫入權限'}), 403
     year = int(d.get('year') or get_current_year())
+    estimates = d.get('estimates', {})
     con = get_db()
     for item, goal in d.get('goals', {}).items():
         g = float(goal or 0)
-        con.execute('''INSERT INTO annual_goals (year, dept, item, goal)
-            VALUES (?,?,?,?)
+        e = float(estimates.get(item, 0) or 0)
+        con.execute('''INSERT INTO annual_goals (year, dept, item, goal, estimate)
+            VALUES (?,?,?,?,?)
             ON CONFLICT(year, dept, item) DO UPDATE
-            SET goal=excluded.goal, updated_at=CURRENT_TIMESTAMP''',
-            (year, dept, item, g))
+            SET goal=excluded.goal, estimate=excluded.estimate, updated_at=CURRENT_TIMESTAMP''',
+            (year, dept, item, g, e))
     con.commit()
     con.close()
     return jsonify({'status': 'ok'})
@@ -2686,9 +2692,10 @@ def api_full_report():
     ph = '%s' if IS_PG else '?'
 
     goals_rows = con.execute(
-        f'SELECT item, SUM(goal) as total FROM annual_goals WHERE year={ph} GROUP BY item', (year,)
+        f'SELECT item, SUM(goal) as total, SUM(estimate) as est_total FROM annual_goals WHERE year={ph} GROUP BY item', (year,)
     ).fetchall()
     goals = {r['item']: (r['total'] or 0) for r in goals_rows}
+    estimates_map = {r['item']: (r['est_total'] or 0) for r in goals_rows}
 
     rev_rows = con.execute(
         f'SELECT item, month, SUM(amount) as amt, SUM(expected_amount) as exp '
@@ -2730,9 +2737,10 @@ def api_full_report():
         expected = ytd_exp(im, thru)
         monthly = {m: im.get(m, {}).get('amt', 0) for m in range(1,13)}
         monthly_exp = {m: im.get(m, {}).get('exp', 0) for m in range(1,13)}
+        e = estimates_map.get(item, 0)
         income.append({
             'item': item, 'label': INCOME_LABELS.get(item, item),
-            'goal': g, 'signed': signed, 'expected': expected,
+            'goal': g, 'estimate': e, 'signed': signed, 'expected': expected,
             'subtotal': signed + expected, 'diff': (signed + expected) - g,
             'monthly': monthly, 'monthly_exp': monthly_exp,
             'is_total': item == INCOME_TOTAL_ITEM
@@ -2747,8 +2755,9 @@ def api_full_report():
         unclaimed = ytd_ucl(um, thru)
         monthly = {m: im.get(m, {}).get('amt', 0) for m in range(1,13)}
         monthly_ucl = {m: um.get(m, 0) for m in range(1,13)}
+        e = estimates_map.get(item, 0)
         expense.append({
-            'item': item, 'goal': g, 'actual': actual, 'unclaimed': unclaimed,
+            'item': item, 'goal': g, 'estimate': e, 'actual': actual, 'unclaimed': unclaimed,
             'subtotal': actual + unclaimed, 'diff': (actual + unclaimed) - g,
             'monthly': monthly, 'monthly_unclaimed': monthly_ucl,
             'is_total': item == '其他民間收入支出'
