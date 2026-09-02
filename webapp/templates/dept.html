@@ -424,11 +424,11 @@ function calcAll() {
     td.textContent = goal > 0 ? ((amt+exp)/goal*100).toFixed(1)+'%' : '-';
     td.style.color = (goal > 0 && (amt+exp) >= goal) ? '#155724' : '';
   });
-  // 達成率（支出）— 用累計金額 vs 年度目標
+  // 達成率（支出）— 本月止累計（已核銷＋已申請未核銷）vs 年度目標
   document.querySelectorAll('.expense-rate').forEach(td => {
     const item = td.dataset.item;
-    const cumul = _cumulData[item] || (item === EXPENSE_TOTAL_ITEM ? expTotal :
-      parseFmt(document.querySelector(`.exp-sub[data-item="${item}"]`)?.textContent||0));
+    const cumul = item === EXPENSE_TOTAL_ITEM ? expTotal :
+      parseFmt(document.querySelector(`.exp-sub[data-item="${item}"]`)?.textContent||0);
     const goalVal = parseFmt(document.querySelector(`.expense-goal[data-item="${item}"]`)?.value||0);
     td.textContent = goalVal > 0 ? (cumul/goalVal*100).toFixed(1)+'%' : '-';
   });
