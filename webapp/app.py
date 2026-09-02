@@ -2723,11 +2723,12 @@ def api_full_report():
     INCOME_LABELS = {'其他民間收入': '其他民間收入(試驗/技術/訓練/其他)'}
 
     def ytd(item_map, m):
-        return sum((item_map.get(mm, {}).get('amt', 0) for mm in range(1, m+1)), 0)
+        # 每月欄位存的是累計數，直接讀第 m 月即為 YTD
+        return item_map.get(m, {}).get('amt', 0)
     def ytd_exp(item_map, m):
-        return sum((item_map.get(mm, {}).get('exp', 0) for mm in range(1, m+1)), 0)
+        return item_map.get(m, {}).get('exp', 0)
     def ytd_ucl(ucl_map, m):
-        return sum((ucl_map.get(mm, 0) for mm in range(1, m+1)), 0)
+        return ucl_map.get(m, 0)
 
     income = []
     for item in INCOME_ITEMS:
