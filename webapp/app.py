@@ -2222,6 +2222,127 @@ def export_contracts_all_yearly():
                      download_name=f'{year}年全部門合約彙整.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@app.route('/api/export_contracts_monthly')
+@login_required
+def export_contracts_monthly():
+    if not can_export():
+        return jsonify({'error': '檢視者無法下載檔案'}), 403
+    year = get_current_year()
+    month = request.args.get('month', type=int) or 0
+    dept_param = request.args.get('dept', '').strip()
+    if not month:
+        return jsonify({'error': '請指定月份'}), 400
+    depts = [dept_param] if dept_param and dept_param in DEPARTMENTS else DEPARTMENTS
+    con = get_db()
+    # Get all contracts created in this month
+    own_ids = set()
+    # Get carry-forward contract ids: carry_next=1 in previous month
+    prev_month = month - 1
+    carry_cids = set()
+    if prev_month >= 1:
+        cu_prev = con.execute(
+            'SELECT contract_id FROM carry_updates WHERE year=? AND month=? AND carry_next=1',
+            (year, prev_month)).fetchall()
+        carry_cids = {r['contract_id'] for r in cu_prev}
+    # Get carry_updates for this month (to apply latest status)
+    cu_this = con.execute(
+        'SELECT contract_id, status, amount, sign_date, expected_amount, expected_date, note '
+        'FROM carry_updates WHERE year=? AND month=?', (year, month)).fetchall()
+    cu_map = {r['contract_id']: dict(r) for r in cu_this}
+    by_dept = {}
+    for dept in depts:
+        rows = []
+        # Own contracts (created this month)
+        own = [dict(r) for r in con.execute(
+            'SELECT * FROM contracts WHERE year=? AND dept=? AND month=?',
+            (year, dept, month)).fetchall()]
+        own_ids_dept = {r['id'] for r in own}
+        for c in own:
+            cu = cu_map.get(c['id'])
+            if cu:
+                c['status'] = cu['status'] or c['status']
+                if cu['amount']: c['amount'] = cu['amount']
+                if cu['sign_date']: c['sign_date'] = cu['sign_date']
+                if cu['expected_amount']: c['expected_amount'] = cu['expected_amount']
+                if cu['expected_date']: c['expected_date'] = cu['expected_date']
+            c['_carry'] = False
+            rows.append(c)
+        # Carry-forward contracts from previous months
+        for cid in carry_cids:
+            if cid in own_ids_dept:
+                continue
+            c_row = con.execute('SELECT * FROM contracts WHERE id=? AND dept=? AND year=?',
+                                (cid, dept, year)).fetchone()
+            if not c_row:
+                continue
+            c = dict(c_row)
+            cu = cu_map.get(c['id'])
+            if cu:
+                c['status'] = cu['status'] or c['status']
+                if cu['amount']: c['amount'] = cu['amount']
+                if cu['sign_date']: c['sign_date'] = cu['sign_date']
+                if cu['expected_amount']: c['expected_amount'] = cu['expected_amount']
+                if cu['expected_date']: c['expected_date'] = cu['expected_date']
+            c['_carry'] = True
+            rows.append(c)
+        if rows:
+            by_dept[dept] = rows
+    con.close()
+    wb = openpyxl.Workbook()
+    thin = Side(style='thin'); border = Border(left=thin,right=thin,top=thin,bottom=thin)
+    hfill = PatternFill('solid',start_color='BDD7EE',fgColor='BDD7EE')
+    carry_fill = PatternFill('solid',start_color='E2EFDA',fgColor='E2EFDA')
+    hfont = Font(name='微軟正黑體',size=10,bold=True)
+    ctr = Alignment(horizontal='center',vertical='center')
+    num_fmt = '#,##0'
+    tfont = Font(name='微軟正黑體',size=10,bold=True)
+    tfill = PatternFill('solid',start_color='FFFFCC',fgColor='FFFFCC')
+    headers = ['建立月份','延續','洽談廠商/客戶','計畫名稱','組別','狀態','預計簽約金額','預計簽約日期','簽約金額','簽約日期','備註']
+    widths = [8,6,22,28,12,14,16,14,16,14,20]
+    first_sheet = True
+    for dept in DEPARTMENTS:
+        rows = by_dept.get(dept)
+        if not rows: continue
+        if first_sheet:
+            ws = wb.active; ws.title = dept; first_sheet = False
+        else:
+            ws = wb.create_sheet(title=dept)
+        ws['A1'] = f'{year}年 {month}月 {dept} 合約明細（含延續合約）'
+        ws['A1'].font = Font(name='微軟正黑體',size=12,bold=True)
+        ws.merge_cells(f'A1:{get_column_letter(len(headers))}1')
+        for ci,(h,w) in enumerate(zip(headers,widths),1):
+            cell = ws.cell(2,ci,h); cell.font=hfont; cell.fill=hfill; cell.alignment=ctr; cell.border=border
+            ws.column_dimensions[get_column_letter(ci)].width=w
+        for ri,r in enumerate(rows,3):
+            exp_amt = float(r.get('expected_amount') or 0)
+            sign_amt = float(r.get('amount') or 0)
+            is_carry = r.get('_carry', False)
+            vals = [f"{r['month']}月", '✓' if is_carry else '',
+                    r['client'] or '', r['project_name'] or '', r['group_name'] or '', r['status'] or '',
+                    exp_amt if exp_amt else '', r['expected_date'] or '',
+                    sign_amt if sign_amt else '', r['sign_date'] or '', r['note'] or '']
+            for ci,v in enumerate(vals,1):
+                cell = ws.cell(ri,ci,v); cell.border=border
+                if is_carry: cell.fill = carry_fill
+                if ci in (7,9) and isinstance(v,(int,float)) and v:
+                    cell.number_format = num_fmt
+        tr = 3 + len(rows)
+        sum_exp = sum(float(r.get('expected_amount') or 0) for r in rows)
+        sum_amt = sum(float(r.get('amount') or 0) for r in rows)
+        ws.cell(tr,1,'合計').font=tfont; ws.cell(tr,1).fill=tfill; ws.cell(tr,1).border=border
+        for ci in range(2,len(headers)+1):
+            ws.cell(tr,ci).border=border; ws.cell(tr,ci).fill=tfill
+        ws.cell(tr,7).value=sum_exp; ws.cell(tr,7).number_format=num_fmt; ws.cell(tr,7).font=tfont
+        ws.cell(tr,9).value=sum_amt; ws.cell(tr,9).number_format=num_fmt; ws.cell(tr,9).font=tfont
+    if first_sheet:
+        wb.active.title = '無資料'
+        wb.active['A1'] = f'{year}年 {month}月 無合約資料'
+    output = io.BytesIO(); wb.save(output); output.seek(0)
+    dept_label = dept_param if dept_param else '全部門'
+    return send_file(output, as_attachment=True,
+                     download_name=f'{year}年{month}月_{dept_label}_合約明細.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 @app.route('/api/delete_contract/<int:cid>', methods=['DELETE'])
 @login_required
 def delete_contract(cid):
