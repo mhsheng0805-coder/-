@@ -2923,22 +2923,12 @@ def contracts_view():
     year  = get_current_year()
     all_years = get_all_years()
     dept  = request.args.get('dept', '')
-    # Support both single month (legacy) and multiple months
-    sel_months = [int(m) for m in request.args.getlist('months') if m.isdigit()]
-    if not sel_months:
-        m0 = request.args.get('month', 0, type=int)
-        if m0: sel_months = [m0]
-    sel_statuses = [s for s in request.args.getlist('statuses') if s]
+    month = request.args.get('month', 0, type=int)
     view  = request.args.get('view', '')
     con = get_db()
     q, params = 'SELECT * FROM contracts WHERE year=?', [year]
     if dept:  q += ' AND dept=?';  params.append(dept)
-    if sel_months:
-        q += ' AND month IN ({})'.format(','.join('?'*len(sel_months)))
-        params.extend(sel_months)
-    if sel_statuses:
-        q += ' AND status IN ({})'.format(','.join('?'*len(sel_statuses)))
-        params.extend(sel_statuses)
+    if month: q += ' AND month=?'; params.append(month)
     q += ' ORDER BY dept, month, id'
     contracts = [dict(r) for r in con.execute(q, params).fetchall()]
 
@@ -2974,8 +2964,7 @@ def contracts_view():
     return render_template('contracts.html', contracts=contracts,
                            departments=allowed, months=MONTHS,
                            year=year, all_years=all_years,
-                           selected_dept=dept, selected_months=sel_months,
-                           selected_statuses=sel_statuses,
+                           selected_dept=dept, selected_month=month,
                            selected_view=view, grouped=grouped,
                            statuses=CONTRACT_STATUSES)
 
