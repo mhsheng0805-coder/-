@@ -231,27 +231,27 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS revenue (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
-    item TEXT NOT NULL, amount REAL DEFAULT 0, goal REAL DEFAULT 0,
+    item TEXT NOT NULL, amount DOUBLE PRECISION DEFAULT 0, goal DOUBLE PRECISION DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, month, item)
 );
 CREATE TABLE IF NOT EXISTS contracts (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
-    client TEXT, project_name TEXT DEFAULT '', amount REAL DEFAULT 0, sign_date TEXT,
+    client TEXT, project_name TEXT DEFAULT '', amount DOUBLE PRECISION DEFAULT 0, sign_date TEXT,
     status TEXT DEFAULT '洽談中', group_name TEXT DEFAULT '',
     note TEXT, carry_next INTEGER DEFAULT 0,
     cross_dept INTEGER DEFAULT 0, cross_dept_data TEXT DEFAULT '{}',
     payment_type TEXT DEFAULT '當年',
     installments INTEGER DEFAULT 1,
     installment_data TEXT DEFAULT '[]',
-    expected_amount REAL DEFAULT 0, expected_date TEXT DEFAULT '',
+    expected_amount DOUBLE PRECISION DEFAULT 0, expected_date TEXT DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS unclaimed (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL, dept TEXT NOT NULL, month INTEGER NOT NULL,
-    item TEXT NOT NULL, amount REAL DEFAULT 0, note TEXT,
+    item TEXT NOT NULL, amount DOUBLE PRECISION DEFAULT 0, note TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, month, item)
 );
@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE TABLE IF NOT EXISTS annual_goals (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL, dept TEXT NOT NULL, item TEXT NOT NULL,
-    goal REAL DEFAULT 0, estimate REAL DEFAULT 0,
+    goal DOUBLE PRECISION DEFAULT 0, estimate DOUBLE PRECISION DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(year, dept, item)
 );
